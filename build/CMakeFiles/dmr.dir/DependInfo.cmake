@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/ruilin/Documents/Delaun/imp.cpp" "CMakeFiles/imp.dir/imp.cpp.o" "gcc" "CMakeFiles/imp.dir/imp.cpp.o.d"
+  "/home/ruilin/Documents/DMR/dmr.cpp" "CMakeFiles/dmr.dir/dmr.cpp.o" "gcc" "CMakeFiles/dmr.dir/dmr.cpp.o.d"
   )
 
 # Targets to which this target links.

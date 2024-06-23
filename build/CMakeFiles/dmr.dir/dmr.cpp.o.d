@@ -1,4 +1,4 @@
-CMakeFiles/imp.dir/imp.cpp.o: /home/ruilin/Documents/Delaun/imp.cpp \
+CMakeFiles/dmr.dir/dmr.cpp.o: /home/ruilin/Documents/DMR/dmr.cpp \
  /usr/include/stdc-predef.h /usr/include/c++/11/iostream \
  /usr/include/x86_64-linux-gnu/c++/11/bits/c++config.h \
  /usr/include/x86_64-linux-gnu/c++/11/bits/os_defines.h \

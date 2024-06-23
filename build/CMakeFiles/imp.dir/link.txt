@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -rdynamic CMakeFiles/imp.dir/imp.cpp.o -o imp  -lgmpxx -lmpfr -lgmp 

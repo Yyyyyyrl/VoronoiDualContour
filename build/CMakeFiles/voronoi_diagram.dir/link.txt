@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -rdynamic CMakeFiles/voronoi_diagram.dir/voronoi_diagram.cpp.o -o voronoi_diagram  -lgmpxx -lmpfr -lgmp 

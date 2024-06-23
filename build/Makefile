@@ -57,10 +57,10 @@ RM = /usr/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/ruilin/Documents/Delaun
+CMAKE_SOURCE_DIR = /home/ruilin/Documents/DMR
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/ruilin/Documents/Delaun/build
+CMAKE_BINARY_DIR = /home/ruilin/Documents/DMR/build
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -87,9 +87,9 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/ruilin/Documents/Delaun/build/CMakeFiles /home/ruilin/Documents/Delaun/build//CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/ruilin/Documents/DMR/build/CMakeFiles /home/ruilin/Documents/DMR/build//CMakeFiles/progress.marks
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/ruilin/Documents/Delaun/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/ruilin/Documents/DMR/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -117,78 +117,41 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named voronoi_diagram
+# Target rules for targets named dmr
 
 # Build rule for target.
-voronoi_diagram: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 voronoi_diagram
-.PHONY : voronoi_diagram
+dmr: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 dmr
+.PHONY : dmr
 
 # fast build rule for target.
-voronoi_diagram/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/voronoi_diagram.dir/build.make CMakeFiles/voronoi_diagram.dir/build
-.PHONY : voronoi_diagram/fast
+dmr/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dmr.dir/build.make CMakeFiles/dmr.dir/build
+.PHONY : dmr/fast
 
-#=============================================================================
-# Target rules for targets named imp
-
-# Build rule for target.
-imp: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 imp
-.PHONY : imp
-
-# fast build rule for target.
-imp/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/imp.dir/build.make CMakeFiles/imp.dir/build
-.PHONY : imp/fast
-
-imp.o: imp.cpp.o
-.PHONY : imp.o
+dmr.o: dmr.cpp.o
+.PHONY : dmr.o
 
 # target to build an object file
-imp.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/imp.dir/build.make CMakeFiles/imp.dir/imp.cpp.o
-.PHONY : imp.cpp.o
+dmr.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dmr.dir/build.make CMakeFiles/dmr.dir/dmr.cpp.o
+.PHONY : dmr.cpp.o
 
-imp.i: imp.cpp.i
-.PHONY : imp.i
-
-# target to preprocess a source file
-imp.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/imp.dir/build.make CMakeFiles/imp.dir/imp.cpp.i
-.PHONY : imp.cpp.i
-
-imp.s: imp.cpp.s
-.PHONY : imp.s
-
-# target to generate assembly for a file
-imp.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/imp.dir/build.make CMakeFiles/imp.dir/imp.cpp.s
-.PHONY : imp.cpp.s
-
-voronoi_diagram.o: voronoi_diagram.cpp.o
-.PHONY : voronoi_diagram.o
-
-# target to build an object file
-voronoi_diagram.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/voronoi_diagram.dir/build.make CMakeFiles/voronoi_diagram.dir/voronoi_diagram.cpp.o
-.PHONY : voronoi_diagram.cpp.o
-
-voronoi_diagram.i: voronoi_diagram.cpp.i
-.PHONY : voronoi_diagram.i
+dmr.i: dmr.cpp.i
+.PHONY : dmr.i
 
 # target to preprocess a source file
-voronoi_diagram.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/voronoi_diagram.dir/build.make CMakeFiles/voronoi_diagram.dir/voronoi_diagram.cpp.i
-.PHONY : voronoi_diagram.cpp.i
+dmr.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dmr.dir/build.make CMakeFiles/dmr.dir/dmr.cpp.i
+.PHONY : dmr.cpp.i
 
-voronoi_diagram.s: voronoi_diagram.cpp.s
-.PHONY : voronoi_diagram.s
+dmr.s: dmr.cpp.s
+.PHONY : dmr.s
 
 # target to generate assembly for a file
-voronoi_diagram.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/voronoi_diagram.dir/build.make CMakeFiles/voronoi_diagram.dir/voronoi_diagram.cpp.s
-.PHONY : voronoi_diagram.cpp.s
+dmr.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dmr.dir/build.make CMakeFiles/dmr.dir/dmr.cpp.s
+.PHONY : dmr.cpp.s
 
 # Help Target
 help:
@@ -198,14 +161,10 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... imp"
-	@echo "... voronoi_diagram"
-	@echo "... imp.o"
-	@echo "... imp.i"
-	@echo "... imp.s"
-	@echo "... voronoi_diagram.o"
-	@echo "... voronoi_diagram.i"
-	@echo "... voronoi_diagram.s"
+	@echo "... dmr"
+	@echo "... dmr.o"
+	@echo "... dmr.i"
+	@echo "... dmr.s"
 .PHONY : help
 
 

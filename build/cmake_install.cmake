@@ -1,4 +1,4 @@
-# Install script for directory: /home/ruilin/Documents/Delaun
+# Install script for directory: /home/ruilin/Documents/DMR
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -50,5 +50,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/ruilin/Documents/Delaun/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/ruilin/Documents/DMR/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
