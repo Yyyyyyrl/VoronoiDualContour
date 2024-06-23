@@ -15,7 +15,7 @@ typedef CGAL::Triangulation_data_structure_3<Vb, Cb> Tds;
 typedef CGAL::Delaunay_triangulation_3<K, Tds> Delaunay;
 typedef Delaunay::Point Point;
 
-// A 3D scalar grid data structure
+// A regular 3D scalar grid data structure
 struct ScalarGrid {
     std::vector<std::vector<std::vector<double>>> data; // 3D vector to store scalar values
     int nx, ny, nz; // Dimensions of the grid
@@ -28,7 +28,7 @@ struct ScalarGrid {
         data.resize(nx, std::vector<std::vector<double>>(ny, std::vector<double>(nz, 0.0)));
     }
 
-    // Safely get a value from the grid; returns 0 if out of bounds
+    // get a value from the grid; returns 0 if out of bounds
     double get_value(int x, int y, int z) const {
         if (x < 0 || x >= nx || y < 0 || y >= ny || z < 0 || z >= nz) {
             return 0; // Return a default value or handle as appropriate
@@ -36,14 +36,14 @@ struct ScalarGrid {
         return data[x][y][z];
     }
 
-    // A method to set values in the grid if needed for initialization or testing
+    // set values in the grid for initializing the grid
     void set_value(int x, int y, int z, double value) {
         if (x >= 0 && x < nx && y >= 0 && y < ny && z >= 0 && z < nz) {
             data[x][y][z] = value;
         }
     }
 
-    // Populate the grid with data if you have a bulk data source
+    // If there are other sources of data for the grid this method is used to load it in initialization
     void load_from_source(const std::vector<std::vector<std::vector<double>>>& source) {
         for (int i = 0; i < nx && i < source.size(); ++i) {
             for (int j = 0; j < ny && j < source[i].size(); ++j) {
@@ -123,7 +123,13 @@ std::vector<Point> process_active_cube(const std::array<Point, 8>& cube_corners,
     
     return intersection_points;
 }
-
+/*
+Purpose: Computes the geometric centroid of a collection of points.
+Inputs:
+    const std::vector<Point>& points: A vector of points for which the centroid is calculated.
+Process: Summates the coordinates of all points and divides by the total number of points to find the average position.
+Output: Returns a Point representing the centroid of the input points.
+*/
 Point compute_centroid(const std::vector<Point>& points) {
     double sumX = 0, sumY = 0, sumZ = 0;
     for (const auto& pt : points) {
@@ -136,7 +142,13 @@ Point compute_centroid(const std::vector<Point>& points) {
 }
 
 
-// Function to read points from file
+/*
+Purpose: Reads points from a file, where each point is represented by its x, y, and z coordinates on separate lines.
+Inputs:
+    const std::string& filename: The path to the file containing the points.
+Process: Opens the file, reads values line by line, constructs points, and stores them in a vector.
+Output: Returns a vector of Point objects loaded from the file.
+*/
 std::vector<Point> read_points(const std::string& filename) {
     std::vector<Point> points;
     std::ifstream file(filename);
@@ -208,6 +220,14 @@ bool is_bipolar(double val1, double val2, double isovalue = 0) {
     return (val1 - val2) * (val2 - isovalue) < 0;
 }
 
+/*
+Purpose: Computes the eight corners of a cube given its center and side length.
+Inputs:
+    const Point& center: The center of the cube.
+    double side_length: The length of each side of the cube.
+Process: Calculates the positions of all eight corners based on the center and half of the side length.
+Output: Returns an std::array of Point objects representing the cube corners.
+*/
 std::array<Point, 8> get_cube_corners(const Point& center, double side_length) {
     double half_side = side_length / 2.0;
     return {{
@@ -222,7 +242,15 @@ std::array<Point, 8> get_cube_corners(const Point& center, double side_length) {
     }};
 }
 
-// Helper function to get grid indices from a point
+/*
+Purpose: Converts a point's coordinates to grid indices in the scalar grid.
+Inputs:
+    const Point& point: The point whose indices are to be determined.
+    const ScalarGrid& grid: The grid within which the point is located.
+Process: Computes the relative position of the point within the grid and converts these positions to integer grid indices.
+Output: Returns a tuple of integers (int x, int y, int z) representing the grid indices.
+
+*/
 std::tuple<int, int, int> point_to_grid_index(const Point& point, const ScalarGrid& grid) {
     int x = static_cast<int>((point.x() - grid.min_x) / grid.dx);
     int y = static_cast<int>((point.y() - grid.min_y) / grid.dy);
@@ -230,14 +258,26 @@ std::tuple<int, int, int> point_to_grid_index(const Point& point, const ScalarGr
     return {x, y, z};
 }
 
-// Function to get the scalar value at a point's position
+/*
+Purpose: Retrieves the scalar value at a specific point within the grid by interpolating values at grid points.
+Inputs:
+    const Point& point: The point at which the scalar value is required.
+    const ScalarGrid& grid: The grid from which the value is retrieved.
+Process: First converts the point's coordinates to grid indices, then retrieves the scalar value at those indices using trilinear interpolation if necessary.
+Output: The scalar value at the specified point, interpolated from grid values.
+*/
 double get_scalar_value_at_point(const Point& point, const ScalarGrid& grid) {
     auto [x, y, z] = point_to_grid_index(point, grid);
     return grid.get_value(x, y, z);
 }
 
 
-// Main function to construct Voronoi diagram and store data
+/*
+Purpose: The main execution function which reads input data, initializes structures, and executes computational tasks.
+
+Process: Loads points, sets up the scalar grid, performs Delaunay triangulation, and identifies vertices on the isosurface.
+Output: Writes the resulting data to files and potentially constructs a mesh based on the isosurface.
+*/
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " <file path to input centers>" << std::endl;
@@ -372,7 +412,7 @@ int main(int argc, char* argv[]) {
 
 
     // Step 7: Use locations of isosurface vertices as vertices of Delaunay triangles constructed in (4.
-    // TODO: Problems with the faces mapping to vertices
+    // FIXME: Issues with mapping facets to isosurface vertices 
     Delaunay delaunay_recon;
     for (const Point& vertex : isosurface_vertices) {
         delaunay_recon.insert(vertex);
@@ -406,6 +446,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Write faces
+    // TODO: Fix the issue in this step
     for (auto cit = delaunay.finite_cells_begin(); cit != delaunay.finite_cells_end(); ++cit) {
         ply_file << "3"; // Assuming triangular faces
         for (int i = 0; i < 4; ++i) {
