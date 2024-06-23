@@ -1,0 +1,4 @@
+/home/ruilin/Documents/Delaun/build/CMakeFiles/voronoi_diagram.dir
+/home/ruilin/Documents/Delaun/build/CMakeFiles/imp.dir
+/home/ruilin/Documents/Delaun/build/CMakeFiles/edit_cache.dir
+/home/ruilin/Documents/Delaun/build/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,3 @@
+Train Neural Network to predict high resolution detail on low resolution 
+- Predict vertex on a scalar data set
+- 

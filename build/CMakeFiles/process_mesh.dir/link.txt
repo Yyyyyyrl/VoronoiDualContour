@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -rdynamic CMakeFiles/process_mesh.dir/algo.cpp.o -o process_mesh  -lgmpxx -lmpfr -lgmp 
