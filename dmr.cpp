@@ -351,7 +351,6 @@ int main(int argc, char* argv[]) {
 
     // Step 5 : Identify Bipolar Edges
     std::vector<Delaunay::Facet> delaunay_triangle_bipolar_edge;
-    // Inside your main or relevant function
     for (auto it = delaunay.finite_edges_begin(); it != delaunay.finite_edges_end(); ++it) {
         auto cell = it->first;
         int i = it->second, j = it->third;
@@ -407,7 +406,7 @@ int main(int argc, char* argv[]) {
     output.close();
 
 
-    // Step 7: Use locations of isosurface vertices as vertices of Delaunay triangles constructed in (4.
+    // Step 7: Use locations of isosurface vertices as vertices of Delaunay triangles constructed in (4. / 5
     // TODO: Issues with mapping facets to isosurface vertices 
 
     // Output the resulting mesh in PLY format
