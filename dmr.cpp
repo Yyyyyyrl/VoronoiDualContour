@@ -313,9 +313,9 @@ int main(int argc, char* argv[]) {
     std::vector<double> scalar_values;
     std::vector<Delaunay::Cell_handle> cells;
     
-    std::ofstream vertices_file("/home/ruilin/Documents/DMR/temps/voronoi_vertices.txt");
-    std::ofstream cells_file("/home/ruilin/Documents/DMR/temps/voronoi_cells.txt");
-    std::ofstream scalars_file("/home/ruilin/Documents/DMR/temps/scalar_values.txt");
+    std::ofstream vertices_file("../temps/voronoi_vertices.txt");
+    std::ofstream cells_file("../temps/voronoi_cells.txt");
+    std::ofstream scalars_file("../temps/scalar_values.txt");
 
     // Compute Voronoi vertices, cells and scalar values
     for (auto cit = delaunay.finite_cells_begin(); cit != delaunay.finite_cells_end(); ++cit) {
@@ -400,7 +400,7 @@ int main(int argc, char* argv[]) {
 
 
     // For checking: Save or process isosurface vertices as required
-    std::ofstream output("/home/ruilin/Documents/DMR/temps/isosurface_vertices.txt");
+    std::ofstream output("../temps/isosurface_vertices.txt");
     for (const auto& vertex : isosurface_vertices) {
         output << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
     }
@@ -411,14 +411,14 @@ int main(int argc, char* argv[]) {
     // TODO: Issues with mapping facets to isosurface vertices 
 
     // Output the resulting mesh in PLY format
-    std::ofstream ply_file("/home/ruilin/Documents/DMR/mesh/mesh.ply");
+    std::ofstream ply_file("../mesh/mesh.ply");
     if (!ply_file.is_open()) {
         std::cerr << "Failed to open file for writing." << std::endl;
         return EXIT_FAILURE;
     }
 
 
-    std::ofstream mesh_file("/home/ruilin/Documents/DMR/mesh/mesh.off");
+    std::ofstream mesh_file("../mesh/mesh.off");
     mesh_file << "OFF\n";
     mesh_file << delaunay.number_of_vertices() << " " << delaunay.number_of_finite_cells() << " 0\n";
     // Write PLY header

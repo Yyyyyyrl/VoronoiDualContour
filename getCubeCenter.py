@@ -110,9 +110,9 @@ def process_volume_data(nhdr_path, raw_path, isovalue):
     active_cubes = find_active_cubes(grid, isovalue)
     centers = [(x + 0.5, y + 0.5, z + 0.5) for x, y, z in active_cubes]
     # scalar_values = [trilinear_interpolation((x, y, z), grid) for x, y, z in centers]
-    with open("/home/ruilin/Documents/DMR/temps/centers.txt", "w") as file:
+    with open("temps/centers.txt", "w") as file:
         for center in centers:
             file.write(f"{center[0]} {center[1]} {center[2]}\n")
 
 # Example usage
-process_volume_data('/home/ruilin/Documents/NDC/datasets/volvis/fuel.nhdr', '/home/ruilin/Documents/NDC/datasets/volvis/fuel.raw', isovalue=70.5)
+process_volume_data('data/fuel.nhdr', 'data/fuel.raw', isovalue=70.5)
