@@ -349,10 +349,6 @@ int main(int argc, char* argv[]) {
 
 
 
-    // Mapping from isosurface vertices to their corresponding bipolar edges (for simplicity, assume this is already filled)
-    std::map<Delaunay::Edge, Point> bipolar_to_isosurface;
-
-
     // Step 5 : Identify Bipolar Edges
     std::vector<Delaunay::Facet> delaunay_triangle_bipolar_edge;
     // Inside your main or relevant function
@@ -412,19 +408,19 @@ int main(int argc, char* argv[]) {
 
 
     // Step 7: Use locations of isosurface vertices as vertices of Delaunay triangles constructed in (4.
-    // FIXME: Issues with mapping facets to isosurface vertices 
-    Delaunay delaunay_recon;
-    for (const Point& vertex : isosurface_vertices) {
-        delaunay_recon.insert(vertex);
-    }
+    // TODO: Issues with mapping facets to isosurface vertices 
 
     // Output the resulting mesh in PLY format
-    std::ofstream ply_file("/home/ruilin/Documents/DMR/mesh/resulting_mesh.ply");
+    std::ofstream ply_file("/home/ruilin/Documents/DMR/mesh/mesh.ply");
     if (!ply_file.is_open()) {
         std::cerr << "Failed to open file for writing." << std::endl;
         return EXIT_FAILURE;
     }
 
+
+    std::ofstream mesh_file("/home/ruilin/Documents/DMR/mesh/mesh.off");
+    mesh_file << "OFF\n";
+    mesh_file << delaunay.number_of_vertices() << " " << delaunay.number_of_finite_cells() << " 0\n";
     // Write PLY header
     ply_file << "ply\n";
     ply_file << "format ascii 1.0\n";
@@ -442,22 +438,27 @@ int main(int argc, char* argv[]) {
     for (auto vit = delaunay.finite_vertices_begin(); vit != delaunay.finite_vertices_end(); ++vit) {
         Point p = vit->point();
         ply_file << p.x() << " " << p.y() << " " << p.z() << "\n";
+        mesh_file << p.x() << " " << p.y() << " " << p.z() << "\n";
         vertex_indices[vit] = vertex_index++;
     }
 
     // Write faces
-    // TODO: Fix the issue in this step
+    // FIXME: Fix the issue in this step
     for (auto cit = delaunay.finite_cells_begin(); cit != delaunay.finite_cells_end(); ++cit) {
         ply_file << "3"; // Assuming triangular faces
+        mesh_file << "3";
         for (int i = 0; i < 4; ++i) {
             if (!delaunay.is_infinite(cit->vertex(i))) {
+                mesh_file << " " << vertex_indices[cit->vertex(i)];
                 ply_file << " " << vertex_indices[cit->vertex(i)];
             }
         }
         ply_file << "\n";
+        mesh_file << "\n";
     }
 
     ply_file.close();
+    mesh_file.close();
     // Wrap up
     vertices_file.close();
     cells_file.close();
