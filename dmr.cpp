@@ -12,6 +12,7 @@
 #include <CGAL/Delaunay_triangulation_3.h>
 #include <CGAL/Triangulation_vertex_base_with_info_3.h>
 #include <CGAL/Delaunay_triangulation_cell_base_with_circumcenter_3.h>
+#include "dmr.h"
 
 // Define the kernel
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
@@ -47,7 +48,9 @@ struct Grid
 {
     std::vector<float> data;
     int nx, ny, nz;
+    double dx, dy, dz;   // Spacings for each dimension
 };
+
 
 struct BoundingBox
 {
@@ -90,48 +93,6 @@ struct DelaunayTriangle
 };
 
 
-std::vector<DelaunayTriangle> get_delaunay_triangle_dual_to_bipolar_voronoi_edge(Delaunay& dt, const Segment3& bipolar_edge) {
-    std::vector<DelaunayTriangle> triangles;
-    // Step 1: Identify the Delaunay edge dual to the Voronoi edge
-    Edge delaunay_edge;
-    for (auto edge = dt.edges_begin(); edge != dt.edges_end(); ++edge) {
-        Point p1 = edge->first->vertex(edge->second)->point();
-        Point p2 = edge->first->vertex(edge->third)->point();
-        Segment3 delaunay_seg(p1, p2);
-        
-        if (delaunay_seg == bipolar_edge || delaunay_seg.opposite() == bipolar_edge) {
-            delaunay_edge = *edge;
-            break;
-        }
-    }
-    
-    // Step 2: Find the Delaunay triangles that share this edge
-    Cell_handle cell1 = delaunay_edge.first;
-    int i = delaunay_edge.second;
-    int j = delaunay_edge.third;
-    
-    Cell_handle cell2 = dt.mirror_facet(std::make_pair(cell1, i)).first;
-    
-    // Delaunay triangles' vertices
-    Point v1 = cell1->vertex((i + 1) % 4)->point();
-    Point v2 = cell1->vertex((i + 2) % 4)->point();
-    Point v3 = cell1->vertex((i + 3) % 4)->point();
-    
-    Point v4 = cell2->vertex((i + 1) % 4)->point();
-    Point v5 = cell2->vertex((i + 2) % 4)->point();
-    Point v6 = cell2->vertex((i + 3) % 4)->point();
-    
-    //Create Delaunay triangles
-    DelaunayTriangle triangle1 = DelaunayTriangle(v1,v2,v3);
-    DelaunayTriangle triangle2 = DelaunayTriangle(v4,v5,v6);
-
-    triangles.push_back(triangle1);
-    triangles.push_back(triangle2);
-
-    return triangles;
-
-}
-
 
 template <typename T>
 std::vector<float> convert_to_float_vector(T* data_ptr, size_t total_size) {
@@ -171,6 +132,10 @@ Grid load_nrrd_data(const std::string& file_path) {
     int nx = nrrd->axis[0].size;
     int ny = nrrd->axis[1].size;
     int nz = nrrd->axis[2].size;
+    double dx = nrrd->axis[0].spacing;
+    double dy = nrrd->axis[1].spacing;
+    double dz = nrrd->axis[2].spacing;
+
 
     nrrdNuke(nrrd); // Properly dispose of the Nrrd structure
 
@@ -181,7 +146,7 @@ Grid load_nrrd_data(const std::string& file_path) {
     out_file.close();
 
 
-    return {data, nx, ny, nz};
+    return {data, nx, ny, nz, dx, dy, dz};
 }
 
 bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue)
@@ -314,47 +279,37 @@ struct ScalarGrid
 /*
 Purpose: Initializes the scalar grid
 */
-void initialize_scalar_grid(ScalarGrid &grid, const std::vector<Point> &activeCubeCenters)
+void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid )
 {
-    // Calculate bounding box
-    double minX = std::numeric_limits<double>::max();
-    double maxX = std::numeric_limits<double>::lowest();
-    double minY = minX;
-    double maxY = maxX;
-    double minZ = minX;
-    double maxZ = maxX;
+    // Use the dimensions from the loaded nrrdGrid
+    grid.nx = nrrdGrid.nx;
+    grid.ny = nrrdGrid.ny;
+    grid.nz = nrrdGrid.nz;
 
-    for (const auto &p : activeCubeCenters)
-    {
-        minX = std::min(minX, p.x());
-        maxX = std::max(maxX, p.x());
-        minY = std::min(minY, p.y());
-        maxY = std::max(maxY, p.y());
-        minZ = std::min(minZ, p.z());
-        maxZ = std::max(maxZ, p.z());
-    }
 
     // Define grid dimensions
-    grid.min_x = minX;
-    grid.min_y = minY;
-    grid.min_z = minZ;
+    grid.min_x = 0;
+    grid.min_y = 0;
+    grid.min_z = 0;
 
     // Define grid spacing (dx, dy, dz)
-    grid.dx = (maxX - minX) / grid.nx;
-    grid.dy = (maxY - minY) / grid.ny;
-    grid.dz = (maxZ - minZ) / grid.nz;
+    grid.dx = nrrdGrid.dx;
+    grid.dy = nrrdGrid.dy;
+    grid.dz = nrrdGrid.dz;
+    // Resizing and initializing the scalar grid data array
+    grid.data.resize(grid.nx, std::vector<std::vector<double>>(grid.ny, std::vector<double>(grid.nz, 0.0)));
 
-    // Initialize grid data
+    // Iterate through each voxel in the grid to initialize values from the nrrdGrid data
     for (int i = 0; i < grid.nx; i++)
     {
         for (int j = 0; j < grid.ny; j++)
         {
             for (int k = 0; k < grid.nz; k++)
             {
-                double x = minX + i * grid.dx + grid.dx / 2; // Center of the cell
-                double y = minY + j * grid.dy + grid.dy / 2; // Center of the cell
-                double z = minZ + k * grid.dz + grid.dz / 2; // Center of the cell
-                grid.data[i][j][k] = x + y + z;              // Or any other function to initialize values
+                int index = i + j * grid.nx + k * grid.nx * grid.ny;
+                if (index < nrrdGrid.data.size()) {
+                    grid.data[i][j][k] = nrrdGrid.data[index];  // Assigning the value from nrrdGrid
+                }
             }
         }
     }
@@ -501,7 +456,7 @@ Output: Boolean indicating whether the edge is bipolar.
 */
 bool is_bipolar(double val1, double val2, double isovalue = 0)
 {
-    return (val1 - val2) * (val2 - isovalue) < 0;
+    return (val1 - val2) * (val2 - isovalue) <= 0;
 }
 
 /*
@@ -558,24 +513,6 @@ double get_scalar_value_at_point(const Point &point, const ScalarGrid &grid)
     return grid.get_value(x, y, z);
 }
 
-/*
-Purpose: Reads points from a file, where each point is represented by its x, y, and z coordinates on separate lines.
-Inputs:
-    const std::string& filename: The path to the file containing the points.
-Process: Opens the file, reads values line by line, constructs points, and stores them in a vector.
-Output: Returns a vector of Point objects loaded from the file.
-*/
-std::vector<Point> read_points(const std::string &filename)
-{
-    std::vector<Point> points;
-    std::ifstream file(filename);
-    double x, y, z;
-    while (file >> x >> y >> z)
-    {
-        points.push_back(Point(x, y, z));
-    }
-    return points;
-}
 
 void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles)
 {
@@ -672,6 +609,13 @@ bool isDegenerate(const Object &obj)
     return false;
 }
 
+
+// Custom comparator for CGAL::Object
+struct ObjectComparator {
+    bool operator()(const Object& obj1, const Object& obj2) const {
+        return objectToString(obj1) < objectToString(obj2);
+    }
+};
 /*
 
 Body Main function
@@ -698,13 +642,16 @@ int main(int argc, char *argv[])
 
     Grid data_grid = load_nrrd_data(file_path);
     std::vector<Point> activeCubeCenters = find_active_cubes(data_grid, isovalue);
-    initialize_scalar_grid(grid, activeCubeCenters);
+    // Put data from the nrrd file into the grid
+    initialize_scalar_grid(grid, data_grid);
 
     if (indicator)
     {
         std::cout << "Loaded data and Calculating Bounding box" << std::endl;
     }
     K::Iso_cuboid_3 bbox = CGAL::bounding_box(activeCubeCenters.begin(), activeCubeCenters.end());
+    //TODO: Use the data grid
+
 
     if (debug)
     {
@@ -771,27 +718,12 @@ int main(int argc, char *argv[])
                       << cit->vertex(3)->point() << std::endl;
         }
     }
-
-    /*
-    // Get Voronoi Edges
-    size_t edgeIndex = 0;
-    for (Delaunay::Finite_edges_iterator eit = dt.finite_edges_begin(); eit != dt.finite_edges_end(); ++eit) {
-        Delaunay::Cell_handle cell = eit->first;
-        int i = eit->second, j = eit->third;
-
-        Point c1 = dt.dual(cell);
-        Delaunay::Cell_handle neighbor = cell->neighbor(cell->index(cell->vertex(i)));
-        Point c2 = dt.dual(neighbor);
-
-        voronoi_edges.push_back(VoronoiEdge(c1, c2, edgeIndex++, cell, i, j));
-        std::cout << "Added Voronoi edge " << edgeIndex++ << " between vertices (" << c1 << ") and (" << c2 << ")" << std::endl;
-    } */
-
     /*
     Iterate through each facets in the DT and then calculate Voronoi Edges
     */
     std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
     std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
+    std::map<Object, Facet, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
     for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit)
     {
         Facet facet = *fit;
@@ -813,6 +745,7 @@ int main(int argc, char *argv[])
         if (seen_edges.find(edgeRep) == seen_edges.end())
         {
             voronoi_edges.push_back(vEdge);
+            delaunay_facet_to_voronoi_edge_map[vEdge] = facet;
             seen_edges.insert(edgeRep);
             std::cout << "Added Voronoi Edge: " << edgeRep << std::endl;
 
@@ -875,6 +808,25 @@ int main(int argc, char *argv[])
             p1 = seg.source();
             p2 = seg.target();
 
+            // Check if it's bipolar
+            // If the edge is a segment the two ends must be both in voronoi_vertices so their scalar values are pre-calculated
+            if (is_bipolar(vertexValueMap[p1], vertexValueMap[p2], isovalue)) {
+                    std::cout << "Bipolar edge found: " << p1 << " to " << p2 << std::endl;
+                    //TODO: Find the Delaunay Triangle dual to the edge
+                    std::vector<K::Point_3> delaunay_triangle;
+                    Facet facet = delaunay_facet_to_voronoi_edge_map[edge];
+
+                    for (int i = 0; i < 4; ++i) {
+                        if (i != facet.second) {
+                            delaunay_triangle.push_back(facet.first->vertex(i)->point());
+                        }
+                    }   
+
+                    std::cout << "Delaunay triangle vertices for Voronoi edge (" << objectToString(edge) << "):\n";
+                    for (const auto& vertex : delaunay_triangle) {
+                        std::cout << vertex << "\n";
+                    }
+            }
         }
         else if (CGAL::assign(ray, edge))
         {
@@ -886,7 +838,33 @@ int main(int argc, char *argv[])
             }
             else if (CGAL::assign(iseg, intersectObj))
             {
-                std::cout << "Intersection seg: " << iseg << " with ray: " << ray << std::endl;
+                std::cout << "Intersection seg: " << iseg.source() << " to " << iseg.target() << " with ray: " << ray << std::endl;
+
+                // assign a corresponding scalar value to the intersection point and check if the segment between the source and intersection point is bi-polar
+                Point intersection_point = iseg.target();
+
+                double iPt_value = trilinear_interpolate(intersection_point, grid);
+
+                std::cout << "Checking segment (" << iseg.source() << "[value:" << vertexValueMap[iseg.source()] << "]->" << iseg.target() << "[value:" << iPt_value << "): " << std::endl;
+
+                // Check if it's bipolar
+                if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue)) {
+                    std::cout << "Bipolar edge found: " << p1 << " to " << p2 << std::endl;
+                    //TODO: Find the Delaunay Triangle dual to the edge
+                    std::vector<K::Point_3> delaunay_triangle;
+                    Facet facet = delaunay_facet_to_voronoi_edge_map[edge];
+
+                    for (int i = 0; i < 4; ++i) {
+                        if (i != facet.second) {
+                            delaunay_triangle.push_back(facet.first->vertex(i)->point());
+                        }
+                    }   
+
+                    std::cout << "Delaunay triangle vertices for Voronoi edge (" << objectToString(edge) << "):\n";
+                    for (const auto& vertex : delaunay_triangle) {
+                        std::cout << vertex << "\n";
+                    }
+                }
             }
 
         }
