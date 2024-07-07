@@ -48,42 +48,9 @@ struct Grid
 {
     std::vector<float> data;
     int nx, ny, nz;
-    double dx, dy, dz;   // Spacings for each dimension
+    float dx, dy, dz;   // Spacings for each dimension
 };
 
-
-struct BoundingBox
-{
-    double minX, maxX;
-    double minY, maxY;
-    double minZ, maxZ;
-
-    BoundingBox(double x_min, double x_max, double y_min, double y_max, double z_min, double z_max)
-        : minX(x_min), maxX(x_max), minY(y_min), maxY(y_max), minZ(z_min), maxZ(z_max) {}
-
-};
-
-// Function to compute bounding box from active cube centers
-BoundingBox compute_bounding_box(const std::vector<Point> &points)
-{
-    double minX = std::numeric_limits<double>::max();
-    double maxX = std::numeric_limits<double>::lowest();
-    double minY = minX;
-    double maxY = maxX;
-    double minZ = minX;
-    double maxZ = maxX;
-
-    for (const auto &point : points)
-    {
-        minX = std::min(minX, point.x())-1;
-        maxX = std::max(maxX, point.x())+1;
-        minY = std::min(minY, point.y())-1;
-        maxY = std::max(maxY, point.y())+1;
-        minZ = std::min(minZ, point.z())-1;
-        maxZ = std::max(maxZ, point.z())+1;
-    }
-    return {minX, maxX, minY, maxY, minZ, maxZ};
-}
 
 
 struct DelaunayTriangle
@@ -132,9 +99,9 @@ Grid load_nrrd_data(const std::string& file_path) {
     int nx = nrrd->axis[0].size;
     int ny = nrrd->axis[1].size;
     int nz = nrrd->axis[2].size;
-    double dx = nrrd->axis[0].spacing;
-    double dy = nrrd->axis[1].spacing;
-    double dz = nrrd->axis[2].spacing;
+    float dx = nrrd->axis[0].spacing;
+    float dy = nrrd->axis[1].spacing;
+    float dz = nrrd->axis[2].spacing;
 
 
     nrrdNuke(nrrd); // Properly dispose of the Nrrd structure
@@ -226,23 +193,36 @@ std::vector<Point> find_active_cubes(const Grid &grid, float isovalue)
     return centers;
 }
 
+
+std::vector<Point> load_grid_points(const Grid &grid) {
+    std::vector<Point> points;
+    for (int i = 0; i < grid.nx; ++i) {
+        for (int j = 0; j < grid.ny; ++j) {
+            for (int k = 0; k < grid.nz; ++k) {
+                points.push_back(Point(i,j,k));
+            }
+        }
+    }
+    return points;
+}
+
 // A regular 3D scalar grid data structure
 struct ScalarGrid
 {
-    std::vector<std::vector<std::vector<double>>> data; // 3D vector to store scalar values
+    std::vector<std::vector<std::vector<float>>> data; // 3D vector to store scalar values
     int nx, ny, nz;                                     // Dimensions of the grid
-    double dx, dy, dz;                                  // Voxel dimensions
-    double min_x, min_y, min_z;                         // Minimum coordinates of the grid
+    float dx, dy, dz;                                  // Voxel dimensions
+    float min_x, min_y, min_z;                         // Minimum coordinates of the grid
 
-    ScalarGrid(int nx, int ny, int nz, double dx, double dy, double dz, double min_x, double min_y, double min_z)
+    ScalarGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z)
         : nx(nx), ny(ny), nz(nz), dx(dx), dy(dy), dz(dz), min_x(min_x), min_y(min_y), min_z(min_z)
     {
         // Initialize the 3D grid with default values (0.0)
-        data.resize(nx, std::vector<std::vector<double>>(ny, std::vector<double>(nz, 0.0)));
+        data.resize(nx, std::vector<std::vector<float>>(ny, std::vector<float>(nz, 0.0)));
     }
 
     // get a value from the grid; returns 0 if out of bounds
-    double get_value(int x, int y, int z) const
+    float get_value(int x, int y, int z) const
     {
         if (x < 0 || x >= nx || y < 0 || y >= ny || z < 0 || z >= nz)
         {
@@ -252,7 +232,7 @@ struct ScalarGrid
     }
 
     // set values in the grid for initializing the grid
-    void set_value(int x, int y, int z, double value)
+    void set_value(int x, int y, int z, float value)
     {
         if (x >= 0 && x < nx && y >= 0 && y < ny && z >= 0 && z < nz)
         {
@@ -261,7 +241,7 @@ struct ScalarGrid
     }
 
     // If there are other sources of data for the grid this method is used to load it in initialization
-    void load_from_source(const std::vector<std::vector<std::vector<double>>> &source)
+    void load_from_source(const std::vector<std::vector<std::vector<float>>> &source)
     {
         for (int i = 0; i < nx && i < source.size(); ++i)
         {
@@ -297,7 +277,7 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid )
     grid.dy = nrrdGrid.dy;
     grid.dz = nrrdGrid.dz;
     // Resizing and initializing the scalar grid data array
-    grid.data.resize(grid.nx, std::vector<std::vector<double>>(grid.ny, std::vector<double>(grid.nz, 0.0)));
+    grid.data.resize(grid.nx, std::vector<std::vector<float>>(grid.ny, std::vector<float>(grid.nz, 0.0)));
 
     // Iterate through each voxel in the grid to initialize values from the nrrdGrid data
     for (int i = 0; i < grid.nx; i++)
@@ -331,16 +311,16 @@ const int EDGE_CONNECTIONS[12][2] = {
 Purpose: Interpolates a point on the line connecting p1 and p2 based on scalar values and an isovalue.
 Inputs:
     Point p1, p2: Points defining the line segment.
-    double val1, val2: Scalar values at p1 and p2, respectively.
-    double isovalue: The scalar value at which to interpolate.
+    float val1, val2: Scalar values at p1 and p2, respectively.
+    float isovalue: The scalar value at which to interpolate.
 Process: Computes the interpolation factor and returns the interpolated point.
 Output: The interpolated point as a Point.
 */
-Point interpolate(const Point &p1, const Point &p2, double val1, double val2, double isovalue)
+Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue)
 {
     if (std::abs(val1 - val2) < 1e-6) // Avoid division by zero or near-zero differences
         return p1;
-    double t = (isovalue - val1) / (val2 - val1);
+    float t = (isovalue - val1) / (val2 - val1);
     return Point(p1.x() + t * (p2.x() - p1.x()),
                  p1.y() + t * (p2.y() - p1.y()),
                  p1.z() + t * (p2.z() - p1.z()));
@@ -350,12 +330,12 @@ Point interpolate(const Point &p1, const Point &p2, double val1, double val2, do
 Purpose: Processes a cube in a 3D scalar field to find vertices of the isosurface intersecting the cube.
 Inputs:
     std::array<Point, 8> cube_corners: The corners of the cube.
-    std::array<double, 8> scalar_values: Scalar values at each cube corner.
-    double isovalue: The scalar value defining the isosurface.
+    std::array<float, 8> scalar_values: Scalar values at each cube corner.
+    float isovalue: The scalar value defining the isosurface.
 Process: Checks each edge of the cube; if it intersects the isosurface, it computes the intersection point.
 Output: A vector of points where the isosurface intersects the cube.
 */
-std::vector<Point> process_active_cube(const std::array<Point, 8> &cube_corners, const std::array<double, 8> &scalar_values, double isovalue)
+std::vector<Point> process_active_cube(const std::array<Point, 8> &cube_corners, const std::array<float, 8> &scalar_values, float isovalue)
 {
     std::vector<Point> intersection_points;
 
@@ -363,8 +343,8 @@ std::vector<Point> process_active_cube(const std::array<Point, 8> &cube_corners,
     {
         int idx1 = EDGE_CONNECTIONS[i][0];
         int idx2 = EDGE_CONNECTIONS[i][1];
-        double val1 = scalar_values[idx1];
-        double val2 = scalar_values[idx2];
+        float val1 = scalar_values[idx1];
+        float val2 = scalar_values[idx2];
 
         if ((val1 - isovalue) * (val2 - isovalue) < 0)
         {
@@ -384,7 +364,7 @@ Output: Returns a Point representing the centroid of the input points.
 */
 Point compute_centroid(const std::vector<Point> &points)
 {
-    double sumX = 0, sumY = 0, sumZ = 0;
+    float sumX = 0, sumY = 0, sumZ = 0;
     for (const auto &pt : points)
     {
         sumX += pt.x();
@@ -403,17 +383,30 @@ Inputs:
     ScalarGrid grid: The scalar grid from which values are interpolated.
 Process: Calculates the relative position of the point within its containing voxel and interpolates accordingly.
 Output: The interpolated scalar value at point p.*/
-double trilinear_interpolate(const Point &p, const ScalarGrid &grid)
+float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
 {
-    double gx = (p.x() - grid.min_x) / grid.dx;
-    double gy = (p.y() - grid.min_y) / grid.dy;
-    double gz = (p.z() - grid.min_z) / grid.dz;
+    float gx = (p.x() - grid.min_x) / grid.dx;
+    float gy = (p.y() - grid.min_y) / grid.dy;
+    float gz = (p.z() - grid.min_z) / grid.dz;
+
+    std::cout << "grid dimension: " << grid.nx << " " << grid.ny << " " << grid.nz << std::endl;
+
+    std::cout << "(gx, gy, gz): " << gx << " " << gy << " " << gz << std::endl;
 
     int x0 = (int)std::floor(gx);
+    if ( x0 == grid.nx - 1) {
+        --x0;
+    }
     int x1 = x0 + 1;
     int y0 = (int)std::floor(gy);
+    if ( y0 == grid.ny - 1) {
+        --y0;
+    }
     int y1 = y0 + 1;
     int z0 = (int)std::floor(gz);
+    if ( z0 == grid.nz - 1) {
+        --z0;
+    }
     int z1 = z0 + 1;
 
     if (x0 < 0 || x1 >= grid.nx || y0 < 0 || y1 >= grid.ny || z0 < 0 || z1 >= grid.nz)
@@ -421,55 +414,61 @@ double trilinear_interpolate(const Point &p, const ScalarGrid &grid)
         return 0; // Handle out of bounds access
     }
 
-    double xd = gx - x0;
-    double yd = gy - y0;
-    double zd = gz - z0;
+    float xd = gx - x0;
+    float yd = gy - y0;
+    float zd = gz - z0;
 
-    double c000 = grid.get_value(x0, y0, z0);
-    double c001 = grid.get_value(x0, y0, z1);
-    double c010 = grid.get_value(x0, y1, z0);
-    double c011 = grid.get_value(x0, y1, z1);
-    double c100 = grid.get_value(x1, y0, z0);
-    double c101 = grid.get_value(x1, y0, z1);
-    double c110 = grid.get_value(x1, y1, z0);
-    double c111 = grid.get_value(x1, y1, z1);
+    float c000 = grid.get_value(x0, y0, z0);
+    float c001 = grid.get_value(x0, y0, z1);
+    float c010 = grid.get_value(x0, y1, z0);
+    float c011 = grid.get_value(x0, y1, z1);
+    float c100 = grid.get_value(x1, y0, z0);
+    float c101 = grid.get_value(x1, y0, z1);
+    float c110 = grid.get_value(x1, y1, z0);
+    float c111 = grid.get_value(x1, y1, z1);
 
-    double c00 = c000 * (1 - zd) + c001 * zd;
-    double c01 = c010 * (1 - zd) + c011 * zd;
-    double c10 = c100 * (1 - zd) + c101 * zd;
-    double c11 = c110 * (1 - zd) + c111 * zd;
+    std::cout << "Point is: (" << p <<")\n Eight corners of the cube: " << c000 << " " << c001 << " " << c010 << " " << c011 << " " << c100 << " " << c101 << " " << c110 << " " << c111 << std::endl;
+    std::cout << "Two corners of the cube: (" << x0 << " " << y0 << " " << z0 << ") and (" << x1 << " " << y1 << " " << z1 << ")" << std::endl;
 
-    double c0 = c00 * (1 - yd) + c01 * yd;
-    double c1 = c10 * (1 - yd) + c11 * yd;
+    float c00 = c000 * (1 - zd) + c001 * zd;
+    float c01 = c010 * (1 - zd) + c011 * zd;
+    float c10 = c100 * (1 - zd) + c101 * zd;
+    float c11 = c110 * (1 - zd) + c111 * zd;
 
-    return c0 * (1 - xd) + c1 * xd;
+    float c0 = c00 * (1 - yd) + c01 * yd;
+    float c1 = c10 * (1 - yd) + c11 * yd;
+
+    float c = c0 * (1 - xd) + c1 * xd;
+    
+    std::cout << "Result: scalar value at (" << p << ") is " << c << std::endl;
+    return c;
 }
 
 // Helper function to check if an edge is bipolar
 /*
 Purpose: Checks if an edge between two scalar values crosses the isovalue, indicating a change in sign.
 Inputs:
-    double val1, val2: Scalar values at the endpoints of an edge.
-    double isovalue: Isovalue to check against.
+    float val1, val2: Scalar values at the endpoints of an edge.
+    float isovalue: Isovalue to check against.
 Process: Returns true if the values on either side of the edge differ in sign relative to the isovalue.
 Output: Boolean indicating whether the edge is bipolar.
 */
-bool is_bipolar(double val1, double val2, double isovalue = 0)
+bool is_bipolar(float val1, float val2, float isovalue = 0)
 {
-    return (val1 - val2) * (val2 - isovalue) <= 0;
+    return (val1 - isovalue) * (val2 - isovalue) < 0;
 }
 
 /*
 Purpose: Computes the eight corners of a cube given its center and side length.
 Inputs:
     const Point& center: The center of the cube.
-    double side_length: The length of each side of the cube.
+    float side_length: The length of each side of the cube.
 Process: Calculates the positions of all eight corners based on the center and half of the side length.
 Output: Returns an std::array of Point objects representing the cube corners.
 */
-std::array<Point, 8> get_cube_corners(const Point &center, double side_length)
+std::array<Point, 8> get_cube_corners(const Point &center, float side_length)
 {
-    double half_side = side_length / 2.0;
+    float half_side = side_length / 2.0;
     return {{
         Point(center.x() - half_side, center.y() - half_side, center.z() - half_side), // 0
         Point(center.x() + half_side, center.y() - half_side, center.z() - half_side), // 1
@@ -507,7 +506,7 @@ Inputs:
 Process: First converts the point's coordinates to grid indices, then retrieves the scalar value at those indices using trilinear interpolation if necessary.
 Output: The scalar value at the specified point, interpolated from grid values.
 */
-double get_scalar_value_at_point(const Point &point, const ScalarGrid &grid)
+float get_scalar_value_at_point(const Point &point, const ScalarGrid &grid)
 {
     auto [x, y, z] = point_to_grid_index(point, grid);
     return grid.get_value(x, y, z);
@@ -642,6 +641,7 @@ int main(int argc, char *argv[])
 
     Grid data_grid = load_nrrd_data(file_path);
     std::vector<Point> activeCubeCenters = find_active_cubes(data_grid, isovalue);
+    std::vector<Point> gridPoints = load_grid_points(data_grid);
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);
 
@@ -649,7 +649,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "Loaded data and Calculating Bounding box" << std::endl;
     }
-    K::Iso_cuboid_3 bbox = CGAL::bounding_box(activeCubeCenters.begin(), activeCubeCenters.end());
+    K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
     //TODO: Use the data grid
 
 
@@ -773,12 +773,12 @@ int main(int argc, char *argv[])
     {
         std::cout << "Computing scalar values at Voronoi vertices..." << std::endl;
     }
-    std::map<Point, double> vertexValueMap;
-    std::vector<double> voronoi_vertex_values;
+    std::map<Point, float> vertexValueMap;
+    std::vector<float> voronoi_vertex_values;
 
     for (const auto &vertex : voronoi_vertices)
     {
-        double value = trilinear_interpolate(vertex, grid);
+        float value = trilinear_interpolate(vertex, grid);
         voronoi_vertex_values.push_back(value);
         vertexValueMap[vertex] = value;
         if (debug)
@@ -843,7 +843,7 @@ int main(int argc, char *argv[])
                 // assign a corresponding scalar value to the intersection point and check if the segment between the source and intersection point is bi-polar
                 Point intersection_point = iseg.target();
 
-                double iPt_value = trilinear_interpolate(intersection_point, grid);
+                float iPt_value = trilinear_interpolate(intersection_point, grid);
 
                 std::cout << "Checking segment (" << iseg.source() << "[value:" << vertexValueMap[iseg.source()] << "]->" << iseg.target() << "[value:" << iPt_value << "): " << std::endl;
 
@@ -893,8 +893,8 @@ int main(int argc, char *argv[])
     /* std::cout << "Identifying and storing dual triangles for bipolar Voronoi edges..." << std::endl;
 
     for (const auto& edge : voronoi_edges) {
-        double value1 = vertexValueMap[edge.vertex1];
-        double value2 = vertexValueMap[edge.vertex2];
+        float value1 = vertexValueMap[edge.vertex1];
+        float value2 = vertexValueMap[edge.vertex2];
 
 
         // Check if the edge is bipolar
@@ -929,7 +929,7 @@ int main(int argc, char *argv[])
         {
             std::cout << "Triangle vertices: " << triangle.vertex1 << ", " << triangle.vertex2 << ", " << triangle.vertex3 << std::endl;
         }
-    }
+    } 
 
     /*
         Method of accessing the Dual triangle given a Voronoi Edge
@@ -975,8 +975,8 @@ int main(int argc, char *argv[])
 
         for (const auto& center : activeCubeCenters) {
             std::vector<Point> intersectionPoints;
-            double cubeSize = 1.0;
-            std::array<double, 8> scalarValues;
+            float cubeSize = 1.0;
+            std::array<float, 8> scalarValues;
 
             // Compute the global coordinates of the cube vertices and their scalar values
             for (int i = 0; i < 8; i++) {
@@ -992,8 +992,8 @@ int main(int argc, char *argv[])
             for (const auto& edge : cubeEdges) {
                 int idx1 = edge[0];
                 int idx2 = edge[1];
-                double val1 = scalarValues[idx1];
-                double val2 = scalarValues[idx2];
+                float val1 = scalarValues[idx1];
+                float val2 = scalarValues[idx2];
 
                 // Check if the edge crosses the isovalue
                 if ((val1 - isovalue) * (val2 - isovalue) < 0) {
