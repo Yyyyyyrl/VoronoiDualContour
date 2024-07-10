@@ -278,9 +278,18 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
     grid.dx = nrrdGrid.dx;
     grid.dy = nrrdGrid.dy;
     grid.dz = nrrdGrid.dz;
-    // Resizing and initializing the scalar grid data array
-    grid.data.resize(grid.nx, std::vector<std::vector<float>>(grid.ny, std::vector<float>(grid.nz, 0.0)));
 
+
+    // Resizing and initializing the scalar grid data array
+    grid.data.resize(grid.nx);
+    for (int i = 0; i < grid.nx; ++i)
+    {
+        grid.data[i].resize(grid.ny);
+        for (int j = 0; j < grid.ny; ++j)
+        {
+            grid.data[i][j].resize(grid.nz, 0.0);
+        }
+    }
     // Iterate through each voxel in the grid to initialize values from the nrrdGrid data
     for (int i = 0; i < grid.nx; i++)
     {
@@ -671,6 +680,7 @@ int main(int argc, char *argv[])
     std::vector<Point> gridPoints = load_grid_points(data_grid);
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);
+
 
     if (indicator)
     {
