@@ -39,7 +39,7 @@ typedef K::Point_3 Point3;
 
 /*Helper Functions*/
 // Boolean value that controlls whether the debug print commands are executed
-bool debug = true;
+bool debug = false;
 // Boolena value controlls whether the progress print commands are executed
 bool indicator = true;
 
@@ -48,10 +48,8 @@ struct Grid
 {
     std::vector<float> data;
     int nx, ny, nz;
-    float dx, dy, dz;   // Spacings for each dimension
+    float dx, dy, dz; // Spacings for each dimension
 };
-
-
 
 struct DelaunayTriangle
 {
@@ -59,20 +57,22 @@ struct DelaunayTriangle
     DelaunayTriangle(Point v1, Point v2, Point v3) : vertex1(v1), vertex2(v2), vertex3(v3) {}
 };
 
-
-
 template <typename T>
-std::vector<float> convert_to_float_vector(T* data_ptr, size_t total_size) {
+std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
+{
     std::vector<float> data(total_size);
-    for (size_t i = 0; i < total_size; ++i) {
+    for (size_t i = 0; i < total_size; ++i)
+    {
         data[i] = static_cast<float>(data_ptr[i]);
     }
     return data;
 }
 
-Grid load_nrrd_data(const std::string& file_path) {
-    Nrrd* nrrd = nrrdNew();
-    if (nrrdLoad(nrrd, file_path.c_str(), NULL)) {
+Grid load_nrrd_data(const std::string &file_path)
+{
+    Nrrd *nrrd = nrrdNew();
+    if (nrrdLoad(nrrd, file_path.c_str(), NULL))
+    {
         char *err = biffGetDone(NRRD);
         std::cerr << "Error reading NRRD file: " << err << std::endl;
         free(err);
@@ -84,13 +84,18 @@ Grid load_nrrd_data(const std::string& file_path) {
 
     std::vector<float> data;
 
-    if (nrrd->type == nrrdTypeFloat) {
-        float* data_ptr = static_cast<float*>(nrrd->data);
+    if (nrrd->type == nrrdTypeFloat)
+    {
+        float *data_ptr = static_cast<float *>(nrrd->data);
         data = std::vector<float>(data_ptr, data_ptr + total_size);
-    } else if (nrrd->type == nrrdTypeUChar) {
-        unsigned char* data_ptr = static_cast<unsigned char*>(nrrd->data);
+    }
+    else if (nrrd->type == nrrdTypeUChar)
+    {
+        unsigned char *data_ptr = static_cast<unsigned char *>(nrrd->data);
         data = convert_to_float_vector(data_ptr, total_size);
-    } else {
+    }
+    else
+    {
         std::cerr << "Unsupported NRRD data type." << std::endl;
         nrrdNuke(nrrd);
         exit(1);
@@ -103,15 +108,10 @@ Grid load_nrrd_data(const std::string& file_path) {
     float dy = nrrd->axis[1].spacing;
     float dz = nrrd->axis[2].spacing;
 
+    std::cout << "Dimension:" << nx << " " << ny << " " << nz << std::endl;
+    std::cout << "Spacing: " << dx << " " << dy << " " << dz << std::endl;
 
     nrrdNuke(nrrd); // Properly dispose of the Nrrd structure
-
-    std::ofstream out_file("output_data.txt");
-    for (const auto& value : data) {
-        out_file << value << std::endl;
-    }
-    out_file.close();
-
 
     return {data, nx, ny, nz, dx, dy, dz};
 }
@@ -193,13 +193,16 @@ std::vector<Point> find_active_cubes(const Grid &grid, float isovalue)
     return centers;
 }
 
-
-std::vector<Point> load_grid_points(const Grid &grid) {
+std::vector<Point> load_grid_points(const Grid &grid)
+{
     std::vector<Point> points;
-    for (int i = 0; i < grid.nx; ++i) {
-        for (int j = 0; j < grid.ny; ++j) {
-            for (int k = 0; k < grid.nz; ++k) {
-                points.push_back(Point(i,j,k));
+    for (int i = 0; i < grid.nx; ++i)
+    {
+        for (int j = 0; j < grid.ny; ++j)
+        {
+            for (int k = 0; k < grid.nz; ++k)
+            {
+                points.push_back(Point(i, j, k));
             }
         }
     }
@@ -210,7 +213,7 @@ std::vector<Point> load_grid_points(const Grid &grid) {
 struct ScalarGrid
 {
     std::vector<std::vector<std::vector<float>>> data; // 3D vector to store scalar values
-    int nx, ny, nz;                                     // Dimensions of the grid
+    int nx, ny, nz;                                    // Dimensions of the grid
     float dx, dy, dz;                                  // Voxel dimensions
     float min_x, min_y, min_z;                         // Minimum coordinates of the grid
 
@@ -259,13 +262,12 @@ struct ScalarGrid
 /*
 Purpose: Initializes the scalar grid
 */
-void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid )
+void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
 {
     // Use the dimensions from the loaded nrrdGrid
     grid.nx = nrrdGrid.nx;
     grid.ny = nrrdGrid.ny;
     grid.nz = nrrdGrid.nz;
-
 
     // Define grid dimensions
     grid.min_x = 0;
@@ -287,8 +289,9 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid )
             for (int k = 0; k < grid.nz; k++)
             {
                 int index = i + j * grid.nx + k * grid.nx * grid.ny;
-                if (index < nrrdGrid.data.size()) {
-                    grid.data[i][j][k] = nrrdGrid.data[index];  // Assigning the value from nrrdGrid
+                if (index < nrrdGrid.data.size())
+                {
+                    grid.data[i][j][k] = nrrdGrid.data[index]; // Assigning the value from nrrdGrid
                 }
             }
         }
@@ -385,26 +388,32 @@ Process: Calculates the relative position of the point within its containing vox
 Output: The interpolated scalar value at point p.*/
 float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
 {
+    bool debug = false;
     float gx = (p.x() - grid.min_x) / grid.dx;
     float gy = (p.y() - grid.min_y) / grid.dy;
     float gz = (p.z() - grid.min_z) / grid.dz;
 
-    std::cout << "grid dimension: " << grid.nx << " " << grid.ny << " " << grid.nz << std::endl;
-
-    std::cout << "(gx, gy, gz): " << gx << " " << gy << " " << gz << std::endl;
+    if (debug)
+    {
+        std::cout << "grid dimension: " << grid.nx << " " << grid.ny << " " << grid.nz << std::endl;
+        std::cout << "(gx, gy, gz): " << gx << " " << gy << " " << gz << std::endl;
+    }
 
     int x0 = (int)std::floor(gx);
-    if ( x0 == grid.nx - 1) {
+    if (x0 == grid.nx - 1)
+    {
         --x0;
     }
     int x1 = x0 + 1;
     int y0 = (int)std::floor(gy);
-    if ( y0 == grid.ny - 1) {
+    if (y0 == grid.ny - 1)
+    {
         --y0;
     }
     int y1 = y0 + 1;
     int z0 = (int)std::floor(gz);
-    if ( z0 == grid.nz - 1) {
+    if (z0 == grid.nz - 1)
+    {
         --z0;
     }
     int z1 = z0 + 1;
@@ -427,8 +436,11 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     float c110 = grid.get_value(x1, y1, z0);
     float c111 = grid.get_value(x1, y1, z1);
 
-    std::cout << "Point is: (" << p <<")\n Eight corners of the cube: " << c000 << " " << c001 << " " << c010 << " " << c011 << " " << c100 << " " << c101 << " " << c110 << " " << c111 << std::endl;
-    std::cout << "Two corners of the cube: (" << x0 << " " << y0 << " " << z0 << ") and (" << x1 << " " << y1 << " " << z1 << ")" << std::endl;
+    if (debug)
+    {
+        std::cout << "Point is: (" << p << ")\n Eight corners of the cube: " << c000 << " " << c001 << " " << c010 << " " << c011 << " " << c100 << " " << c101 << " " << c110 << " " << c111 << std::endl;
+        std::cout << "Two corners of the cube: (" << x0 << " " << y0 << " " << z0 << ") and (" << x1 << " " << y1 << " " << z1 << ")" << std::endl;
+    }
 
     float c00 = c000 * (1 - zd) + c001 * zd;
     float c01 = c010 * (1 - zd) + c011 * zd;
@@ -439,8 +451,11 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     float c1 = c10 * (1 - yd) + c11 * yd;
 
     float c = c0 * (1 - xd) + c1 * xd;
-    
-    std::cout << "Result: scalar value at (" << p << ") is " << c << std::endl;
+
+    if (debug)
+    {
+        std::cout << "Result: scalar value at (" << p << ") is " << c << std::endl;
+    }
     return c;
 }
 
@@ -512,8 +527,7 @@ float get_scalar_value_at_point(const Point &point, const ScalarGrid &grid)
     return grid.get_value(x, y, z);
 }
 
-
-void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles)
+void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
     std::ofstream out(filename);
     if (!out)
@@ -535,13 +549,13 @@ void writeOFF(const std::string &filename, const std::vector<Point> &vertices, c
     // Write the faces
     for (const auto &triangle : triangles)
     {
-        out << "3 " << triangle.vertex1 << " " << triangle.vertex2 << " " << triangle.vertex3 << "\n";
+        out << "3 " << pointIndexMap[triangle.vertex1] << " " << pointIndexMap[triangle.vertex2] << " " << pointIndexMap[triangle.vertex3] << "\n";
     }
 
     out.close();
 }
 
-void writePLY(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles)
+void writePLY(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
     std::ofstream out(filename);
     if (!out)
@@ -570,7 +584,7 @@ void writePLY(const std::string &filename, const std::vector<Point> &vertices, c
     // Write faces
     for (const auto &triangle : triangles)
     {
-        out << "3 " << triangle.vertex1 << " " << triangle.vertex2 << " " << triangle.vertex3 << "\n";
+        out << "3 " << pointIndexMap[triangle.vertex1] << " " << pointIndexMap[triangle.vertex2] << " " << pointIndexMap[triangle.vertex3] << "\n";
     }
 
     out.close();
@@ -608,13 +622,27 @@ bool isDegenerate(const Object &obj)
     return false;
 }
 
-
 // Custom comparator for CGAL::Object
-struct ObjectComparator {
-    bool operator()(const Object& obj1, const Object& obj2) const {
+struct ObjectComparator
+{
+    bool operator()(const Object &obj1, const Object &obj2) const
+    {
         return objectToString(obj1) < objectToString(obj2);
     }
 };
+
+
+void print_facet(Facet f) {
+    int iFacet = f.second;
+    int d1, d2, d3;
+    d1 = (iFacet + 1) % 4;
+    d2 = (iFacet + 2) % 4;
+    d3 = (iFacet + 3) % 4;
+    Cell_handle c = f.first;
+    std::cout << "Facet: " << c->vertex(d1)->point() << ", " << c->vertex(d2)->point() << ", " << c->vertex(d3)->point() << std::endl;
+    std::cout << "ifacet: " << iFacet << std::endl;
+
+}
 /*
 
 Body Main function
@@ -638,7 +666,6 @@ int main(int argc, char *argv[])
     std::string output_format = argv[3];
     std::string output_filename = argv[4];
 
-
     Grid data_grid = load_nrrd_data(file_path);
     std::vector<Point> activeCubeCenters = find_active_cubes(data_grid, isovalue);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
@@ -649,9 +676,8 @@ int main(int argc, char *argv[])
     {
         std::cout << "Loaded data and Calculating Bounding box" << std::endl;
     }
-    K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
-    //TODO: Use the data grid
 
+    K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
 
     if (debug)
     {
@@ -678,6 +704,14 @@ int main(int argc, char *argv[])
         }
         v->info() = index++;
     }
+
+    std::map<Point, int> point_index_map;
+    int i = 0;
+    for ( const auto& pt : activeCubeCenters) {
+        point_index_map[pt] = i;
+        i++;
+    }
+
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -723,7 +757,7 @@ int main(int argc, char *argv[])
     */
     std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
     std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
-    std::map<Object, Facet, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
+    std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
     for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit)
     {
         Facet facet = *fit;
@@ -737,17 +771,26 @@ int main(int argc, char *argv[])
         {
             if (debug)
             {
-                std::cout << "skipping degenerate voronoi edge." << std::endl;
+                std::cout << "skipping degenerate voronoi edge:" << objectToString(vEdge) << std::endl;
                 continue;
             }
         }
         std::string edgeRep = objectToString(vEdge);
+
+        print_facet(facet);
+        CGAL::assign(ray, vEdge);
+
+        //std::cout << "Facet: " << facet.first->vertex(0)->point() << ", " <<  facet.first->vertex(1)->point() << ", " << facet.first->vertex(2)->point() << std::endl;
+        std::cout << "vEdge: " << ray << std::endl;
+
+        delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
+        
+        
         if (seen_edges.find(edgeRep) == seen_edges.end())
         {
             voronoi_edges.push_back(vEdge);
-            delaunay_facet_to_voronoi_edge_map[vEdge] = facet;
             seen_edges.insert(edgeRep);
-            std::cout << "Added Voronoi Edge: " << edgeRep << std::endl;
+            if (debug) {std::cout << "Added Voronoi Edge: " << edgeRep << std::endl;}
 
             // returns a line segment or ray, and it's the voronoi edge
             // For ray, make a bounding box and take intersection to determine if it's bipolar
@@ -791,7 +834,6 @@ int main(int argc, char *argv[])
     For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
     */
     std::vector<DelaunayTriangle> dualTriangles; // To store the dual triangles of bipolar Voronoi edges
-    std::map<size_t, size_t> edgeToTriangleRelation;
 
     for (const auto &edge : voronoi_edges)
     {
@@ -810,21 +852,23 @@ int main(int argc, char *argv[])
 
             // Check if it's bipolar
             // If the edge is a segment the two ends must be both in voronoi_vertices so their scalar values are pre-calculated
-            if (is_bipolar(vertexValueMap[p1], vertexValueMap[p2], isovalue)) {
-                    std::cout << "Bipolar edge found: " << p1 << " to " << p2 << std::endl;
-                    //TODO: Find the Delaunay Triangle dual to the edge
-                    std::vector<K::Point_3> delaunay_triangle;
-                    Facet facet = delaunay_facet_to_voronoi_edge_map[edge];
+            if (is_bipolar(vertexValueMap[p1], vertexValueMap[p2], isovalue))
+            {
+                if (debug) {std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;}
+                    // TODO: Find the Delaunay Triangle dual to the edge
 
-                    for (int i = 0; i < 4; ++i) {
-                        if (i != facet.second) {
-                            delaunay_triangle.push_back(facet.first->vertex(i)->point());
-                        }
-                    }   
+                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                    {
+                        int iFacet = facet.second;
+                        Cell_handle c = facet.first;
+                        int d1, d2, d3;
+                        d1 = (iFacet + 1) % 4;
+                        d2 = (iFacet + 2) % 4;
+                        d3 = (iFacet + 3) % 4;
 
-                    std::cout << "Delaunay triangle vertices for Voronoi edge (" << objectToString(edge) << "):\n";
-                    for (const auto& vertex : delaunay_triangle) {
-                        std::cout << vertex << "\n";
+
+                        dualTriangles.push_back(DelaunayTriangle(c->vertex(d1)->point(), c->vertex(d2)->point(), c->vertex(d3)->point()));
+                        if (debug) {print_facet(facet);}
                     }
             }
         }
@@ -834,42 +878,44 @@ int main(int argc, char *argv[])
             intersectObj = CGAL::intersection(bbox, ray);
             if (CGAL::assign(ip, intersectObj))
             {
-                std::cout << "Intersection point: " << ip << " with ray: " << ray << std::endl;
+                if (debug) {std::cout << "Intersection point: " << ip << " with ray: " << ray << std::endl;}
             }
             else if (CGAL::assign(iseg, intersectObj))
             {
-                std::cout << "Intersection seg: " << iseg.source() << " to " << iseg.target() << " with ray: " << ray << std::endl;
+                if (debug) {std::cout << "Intersection seg: " << iseg.source() << " to " << iseg.target() << " with ray: " << ray << std::endl;}
 
                 // assign a corresponding scalar value to the intersection point and check if the segment between the source and intersection point is bi-polar
                 Point intersection_point = iseg.target();
 
                 float iPt_value = trilinear_interpolate(intersection_point, grid);
 
-                std::cout << "Checking segment (" << iseg.source() << "[value:" << vertexValueMap[iseg.source()] << "]->" << iseg.target() << "[value:" << iPt_value << "): " << std::endl;
+                if (debug) {std::cout << "Checking segment (" << iseg.source() << "[value:" << vertexValueMap[iseg.source()] << "]->" << iseg.target() << "[value:" << iPt_value << "): " << std::endl;}
 
                 // Check if it's bipolar
-                if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue)) {
-                    std::cout << "Bipolar edge found: " << p1 << " to " << p2 << std::endl;
-                    //TODO: Find the Delaunay Triangle dual to the edge
-                    std::vector<K::Point_3> delaunay_triangle;
-                    Facet facet = delaunay_facet_to_voronoi_edge_map[edge];
+                if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue))
+                {
+                    if (debug) {std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;}
+                    // TODO: Find the Delaunay Triangle dual to the edge
 
-                    for (int i = 0; i < 4; ++i) {
-                        if (i != facet.second) {
-                            delaunay_triangle.push_back(facet.first->vertex(i)->point());
-                        }
-                    }   
+                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                    {
+                        int iFacet = facet.second;
+                        Cell_handle c = facet.first;
+                        int d1, d2, d3;
+                        d1 = (iFacet + 1) % 4;
+                        d2 = (iFacet + 2) % 4;
+                        d3 = (iFacet + 3) % 4;
 
-                    std::cout << "Delaunay triangle vertices for Voronoi edge (" << objectToString(edge) << "):\n";
-                    for (const auto& vertex : delaunay_triangle) {
-                        std::cout << vertex << "\n";
+
+                        dualTriangles.push_back(DelaunayTriangle(c->vertex(d1)->point(), c->vertex(d2)->point(), c->vertex(d3)->point()));
+                        if (debug) {print_facet(facet);}
                     }
                 }
             }
-
         }
         else if (CGAL::assign(line, edge))
         {
+            //TODO : Not complete yet, but theoratically there couldn't be any line in a voronoi diagram
             // If the edge is a line
             Ray3 ray1(line.point(), line.direction());
             Ray3 ray2(line.point(), -line.direction());
@@ -877,59 +923,45 @@ int main(int argc, char *argv[])
             intersectObj = CGAL::intersection(bbox, line);
             if (CGAL::assign(iseg, intersectObj))
             {
+
                 std::cout << "Intersection seg: " << iseg << std::endl;
-            }
-            if (CGAL::do_intersect(bbox, ray1) && CGAL::do_intersect(bbox, ray2))
-            {
-                isFinite = true;
-                if (debug)
-                {
-                    std::cout << "Interset with line found : " << line << std::endl;
+                Point intersection1 = iseg.source();
+                Point intersection2 = iseg.target();
+
+                float iPt1_val = trilinear_interpolate(intersection1, grid);
+                float iPt2_val = trilinear_interpolate(intersection2, grid);
+
+                if (is_bipolar(iPt1_val, iPt2_val, isovalue)) {
+                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge]) {
+                        int iFacet = facet.second;
+                        Cell_handle c = facet.first;
+                        int d1, d2, d3;
+                        d1 = (iFacet + 1) % 4;
+                        d2 = (iFacet + 2) % 4;
+                        d3 = (iFacet + 3) % 4;
+
+
+                        dualTriangles.push_back(DelaunayTriangle(c->vertex(d1)->point(), c->vertex(d2)->point(), c->vertex(d3)->point()));
+                        if (debug) {print_facet(facet);}
+                    }
                 }
             }
         }
     }
 
-    /* std::cout << "Identifying and storing dual triangles for bipolar Voronoi edges..." << std::endl;
 
-    for (const auto& edge : voronoi_edges) {
-        float value1 = vertexValueMap[edge.vertex1];
-        float value2 = vertexValueMap[edge.vertex2];
-
-
-        // Check if the edge is bipolar
-        if ((value1 > isovalue && value2 < isovalue) || (value1 < isovalue && value2 > isovalue)) {
-            // Edge is bipolar, get the dual Delaunay triangle
-            Cell_handle cell = edge.cell;
-            int i = edge.i, j = edge.j;
-
-            size_t vertex1 = cell->vertex((i + 1) % 4)->info(); // Ensure these wrap around correctly
-            size_t vertex2 = cell->vertex((i + 2) % 4)->info();
-            size_t vertex3 = cell->vertex((i + 3) % 4)->info();
-
-            dualTriangles.push_back(DelaunayTriangle(vertex1, vertex2, vertex3));
-
-            // Map the edge index to the correspoinding Delaunay triangle index
-            edgeToTriangleRelation[edge.index] = dualTriangles.size() - 1;
-            std::cout << "Bipolar edge found, triangle stored: " << vertex1 << ", " << vertex2 << ", " << vertex3 << std::endl;
-        }
-
-
-    }
-
-    */
     if (indicator)
     {
         std::cout << "Dual triangles of bipolar Voronoi edges:" << std::endl;
     }
-    if (debug)
+    if (!debug)
     {
 
         for (const auto &triangle : dualTriangles)
         {
             std::cout << "Triangle vertices: " << triangle.vertex1 << ", " << triangle.vertex2 << ", " << triangle.vertex3 << std::endl;
         }
-    } 
+    }
 
     /*
         Method of accessing the Dual triangle given a Voronoi Edge
@@ -973,62 +1005,65 @@ int main(int argc, char *argv[])
         std::cout << "Processing each active cube to find isosurface vertices..." << std::endl;
     }
 
-        for (const auto& center : activeCubeCenters) {
-            std::vector<Point> intersectionPoints;
-            float cubeSize = 1.0;
-            std::array<float, 8> scalarValues;
+    for (const auto &center : activeCubeCenters)
+    {
+        std::vector<Point> intersectionPoints;
+        float cubeSize = 1.0;
+        std::array<float, 8> scalarValues;
 
-            // Compute the global coordinates of the cube vertices and their scalar values
-            for (int i = 0; i < 8; i++) {
-                Point vertex(
-                    center.x() + cubeVertices[i][0] - 0.5 * cubeSize,
-                    center.y() + cubeVertices[i][1] - 0.5 * cubeSize,
-                    center.z() + cubeVertices[i][2] - 0.5 * cubeSize
-                );
-                scalarValues[i] = get_scalar_value_at_point(vertex, grid); // Assuming such a function exists
-            }
+        // Compute the global coordinates of the cube vertices and their scalar values
+        for (int i = 0; i < 8; i++)
+        {
+            Point vertex(
+                center.x() + cubeVertices[i][0] - 0.5 * cubeSize,
+                center.y() + cubeVertices[i][1] - 0.5 * cubeSize,
+                center.z() + cubeVertices[i][2] - 0.5 * cubeSize);
+            scalarValues[i] = get_scalar_value_at_point(vertex, grid); // Assuming such a function exists
+        }
 
-            // Check each edge for intersection with the isovalue
-            for (const auto& edge : cubeEdges) {
-                int idx1 = edge[0];
-                int idx2 = edge[1];
-                float val1 = scalarValues[idx1];
-                float val2 = scalarValues[idx2];
+        // Check each edge for intersection with the isovalue
+        for (const auto &edge : cubeEdges)
+        {
+            int idx1 = edge[0];
+            int idx2 = edge[1];
+            float val1 = scalarValues[idx1];
+            float val2 = scalarValues[idx2];
 
-                // Check if the edge crosses the isovalue
-                if ((val1 - isovalue) * (val2 - isovalue) < 0) {
-                    Point p1(
-                        center.x() + cubeVertices[idx1][0] - 0.5 * cubeSize,
-                        center.y() + cubeVertices[idx1][1] - 0.5 * cubeSize,
-                        center.z() + cubeVertices[idx1][2] - 0.5 * cubeSize
-                    );
-                    Point p2(
-                        center.x() + cubeVertices[idx2][0] - 0.5 * cubeSize,
-                        center.y() + cubeVertices[idx2][1] - 0.5 * cubeSize,
-                        center.z() + cubeVertices[idx2][2] - 0.5 * cubeSize
-                    );
-                    Point intersect = interpolate(p1, p2, val1, val2, isovalue);
-                    intersectionPoints.push_back(intersect);
-                    std::cout << "Intersection at: (" << intersect << ")" << std::endl;
-                }
-            }
-
-            // Compute the centroid of the intersection points
-            if (!intersectionPoints.empty()) {
-                Point centroid = compute_centroid(intersectionPoints);
-                isosurfaceVertices.push_back(centroid);
-                std::cout << "Iso surface Vertex at : (" << centroid << ")" << std::endl;
+            // Check if the edge crosses the isovalue
+            if ((val1 - isovalue) * (val2 - isovalue) < 0)
+            {
+                Point p1(
+                    center.x() + cubeVertices[idx1][0] - 0.5 * cubeSize,
+                    center.y() + cubeVertices[idx1][1] - 0.5 * cubeSize,
+                    center.z() + cubeVertices[idx1][2] - 0.5 * cubeSize);
+                Point p2(
+                    center.x() + cubeVertices[idx2][0] - 0.5 * cubeSize,
+                    center.y() + cubeVertices[idx2][1] - 0.5 * cubeSize,
+                    center.z() + cubeVertices[idx2][2] - 0.5 * cubeSize);
+                Point intersect = interpolate(p1, p2, val1, val2, isovalue);
+                intersectionPoints.push_back(intersect);
+                
+                if (debug) {std::cout << "Intersection at: (" << intersect << ")" << std::endl;}
             }
         }
-    
+
+        // Compute the centroid of the intersection points
+        if (!intersectionPoints.empty())
+        {
+            Point centroid = compute_centroid(intersectionPoints);
+            isosurfaceVertices.push_back(centroid);
+            if (debug) {std::cout << "Iso surface Vertex at : (" << centroid << ")" << std::endl;}
+        }
+    }
+
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
     if (output_format == "off")
     {
-        writeOFF(output_filename, isosurfaceVertices, dualTriangles);
+        writeOFF(output_filename, isosurfaceVertices, dualTriangles, point_index_map);
     }
     else if (output_format == "ply")
     {
-        writePLY(output_filename, isosurfaceVertices, dualTriangles);
+        writePLY(output_filename, isosurfaceVertices, dualTriangles, point_index_map);
     }
     else
     {
