@@ -1,0 +1,14 @@
+NRRD0002
+# Complete NRRD file format specification at:
+# http://teem.sourceforge.net/nrrd/format.html
+type: float
+dimension: 3
+sizes: 5 5 5
+spacings: 1 1 1
+endian: little
+encoding: raw
+data file: ./cube-5x.raw
+ijkDatasetType:=cube
+center:=2 2 2
+firstAxisDirection:=1 0 0
+secondAxisDirection:=0 1 0
