@@ -1073,3 +1073,8 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
+
+
+
+
+//TODO: Clean up the code, and solve the orientation issue
