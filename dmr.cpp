@@ -8,6 +8,7 @@
 #include <teem/nrrd.h>
 #include <CGAL/bounding_box.h>
 #include <CGAL/intersections.h>
+#include <CGAL/Vector_3.h>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Delaunay_triangulation_3.h>
 #include <CGAL/Triangulation_vertex_base_with_info_3.h>
@@ -279,7 +280,6 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
     grid.dy = nrrdGrid.dy;
     grid.dz = nrrdGrid.dz;
 
-
     // Resizing and initializing the scalar grid data array
     grid.data.resize(grid.nx);
     for (int i = 0; i < grid.nx; ++i)
@@ -536,6 +536,30 @@ float get_scalar_value_at_point(const Point &point, const ScalarGrid &grid)
     return grid.get_value(x, y, z);
 }
 
+#include <CGAL/Vector_3.h>
+
+// Calculate the normal vector of a triangle given its vertices
+K::Vector_3 calculate_normal(const Point &p0, const Point &p1, const Point &p2)
+{
+    K::Vector_3 u = p1 - p0;
+    K::Vector_3 v = p2 - p0;
+    return CGAL::cross_product(u, v);
+}
+
+// Check if the normal is pointing outward by comparing it to a reference point
+bool is_normal_pointing_outward(const Point &p0, const Point &p1, const Point &p2, const Point &reference)
+{
+    K::Vector_3 normal = calculate_normal(p0, p1, p2);
+    K::Vector_3 to_reference(reference.x() - p0.x(), reference.y() - p0.y(), reference.z() - p0.z());
+    return normal * to_reference > 0;
+}
+
+// Calculate the centroid of a triangle
+Point calculate_centroid(const Point &p0, const Point &p1, const Point &p2)
+{
+    return Point((p0.x() + p1.x() + p2.x()) / 3.0, (p0.y() + p1.y() + p2.y()) / 3.0, (p0.z() + p1.z() + p2.z()) / 3.0);
+}
+
 void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
     std::ofstream out(filename);
@@ -640,8 +664,8 @@ struct ObjectComparator
     }
 };
 
-
-void print_facet(Facet f) {
+void print_facet(Facet f)
+{
     int iFacet = f.second;
     int d1, d2, d3;
     d1 = (iFacet + 1) % 4;
@@ -650,8 +674,8 @@ void print_facet(Facet f) {
     Cell_handle c = f.first;
     std::cout << "Facet: " << c->vertex(d1)->point() << ", " << c->vertex(d2)->point() << ", " << c->vertex(d3)->point() << std::endl;
     std::cout << "ifacet: " << iFacet << std::endl;
-
 }
+
 /*
 
 Body Main function
@@ -680,7 +704,6 @@ int main(int argc, char *argv[])
     std::vector<Point> gridPoints = load_grid_points(data_grid);
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);
-
 
     if (indicator)
     {
@@ -717,11 +740,11 @@ int main(int argc, char *argv[])
 
     std::map<Point, int> point_index_map;
     int i = 0;
-    for ( const auto& pt : activeCubeCenters) {
+    for (const auto &pt : activeCubeCenters)
+    {
         point_index_map[pt] = i;
         i++;
     }
-
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -790,17 +813,19 @@ int main(int argc, char *argv[])
         print_facet(facet);
         CGAL::assign(ray, vEdge);
 
-        //std::cout << "Facet: " << facet.first->vertex(0)->point() << ", " <<  facet.first->vertex(1)->point() << ", " << facet.first->vertex(2)->point() << std::endl;
+        // std::cout << "Facet: " << facet.first->vertex(0)->point() << ", " <<  facet.first->vertex(1)->point() << ", " << facet.first->vertex(2)->point() << std::endl;
         std::cout << "vEdge: " << ray << std::endl;
 
         delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
-        
-        
+
         if (seen_edges.find(edgeRep) == seen_edges.end())
         {
             voronoi_edges.push_back(vEdge);
             seen_edges.insert(edgeRep);
-            if (debug) {std::cout << "Added Voronoi Edge: " << edgeRep << std::endl;}
+            if (debug)
+            {
+                std::cout << "Added Voronoi Edge: " << edgeRep << std::endl;
+            }
 
             // returns a line segment or ray, and it's the voronoi edge
             // For ray, make a bounding box and take intersection to determine if it's bipolar
@@ -864,22 +889,43 @@ int main(int argc, char *argv[])
             // If the edge is a segment the two ends must be both in voronoi_vertices so their scalar values are pre-calculated
             if (is_bipolar(vertexValueMap[p1], vertexValueMap[p2], isovalue))
             {
-                if (debug) {std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;}
-                    // TODO: Find the Delaunay Triangle dual to the edge
+                if (debug)
+                {
+                    std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;
+                }
+                // TODO: Find the Delaunay Triangle dual to the edge
 
-                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                intersectObj = CGAL::intersection(bbox, Ray3(seg.source(), p2-p1));
+                CGAL::assign(iseg, intersectObj);
+                Point intersection_point = iseg.target();
+
+                for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                {
+                    int iFacet = facet.second;
+                    Cell_handle c = facet.first;
+                    int d1, d2, d3;
+                    d1 = (iFacet + 1) % 4;
+                    d2 = (iFacet + 2) % 4;
+                    d3 = (iFacet + 3) % 4;
+
+                    Point p1 = c->vertex(d1)->point();
+                    Point p2 = c->vertex(d2)->point();
+                    Point p3 = c->vertex(d3)->point();
+
+                    if (CGAL::orientation(p1, p2, p3, intersection_point) == CGAL::POSITIVE)
                     {
-                        int iFacet = facet.second;
-                        Cell_handle c = facet.first;
-                        int d1, d2, d3;
-                        d1 = (iFacet + 1) % 4;
-                        d2 = (iFacet + 2) % 4;
-                        d3 = (iFacet + 3) % 4;
-
-
-                        dualTriangles.push_back(DelaunayTriangle(c->vertex(d1)->point(), c->vertex(d2)->point(), c->vertex(d3)->point()));
-                        if (debug) {print_facet(facet);}
+                        dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
                     }
+                    else
+                    {
+                        dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
+                    }
+
+                    if (debug)
+                    {
+                        print_facet(facet);
+                    }
+                }
             }
         }
         else if (CGAL::assign(ray, edge))
@@ -888,23 +934,35 @@ int main(int argc, char *argv[])
             intersectObj = CGAL::intersection(bbox, ray);
             if (CGAL::assign(ip, intersectObj))
             {
-                if (debug) {std::cout << "Intersection point: " << ip << " with ray: " << ray << std::endl;}
+                if (debug)
+                {
+                    std::cout << "Intersection point: " << ip << " with ray: " << ray << std::endl;
+                }
             }
             else if (CGAL::assign(iseg, intersectObj))
             {
-                if (debug) {std::cout << "Intersection seg: " << iseg.source() << " to " << iseg.target() << " with ray: " << ray << std::endl;}
+                if (debug)
+                {
+                    std::cout << "Intersection seg: " << iseg.source() << " to " << iseg.target() << " with ray: " << ray << std::endl;
+                }
 
                 // assign a corresponding scalar value to the intersection point and check if the segment between the source and intersection point is bi-polar
                 Point intersection_point = iseg.target();
 
                 float iPt_value = trilinear_interpolate(intersection_point, grid);
 
-                if (debug) {std::cout << "Checking segment (" << iseg.source() << "[value:" << vertexValueMap[iseg.source()] << "]->" << iseg.target() << "[value:" << iPt_value << "): " << std::endl;}
+                if (debug)
+                {
+                    std::cout << "Checking segment (" << iseg.source() << "[value:" << vertexValueMap[iseg.source()] << "]->" << iseg.target() << "[value:" << iPt_value << "): " << std::endl;
+                }
 
                 // Check if it's bipolar
                 if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue))
                 {
-                    if (debug) {std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;}
+                    if (debug)
+                    {
+                        std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;
+                    }
                     // TODO: Find the Delaunay Triangle dual to the edge
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
@@ -916,17 +974,31 @@ int main(int argc, char *argv[])
                         d2 = (iFacet + 2) % 4;
                         d3 = (iFacet + 3) % 4;
 
+                        Point p1 = c->vertex(d1)->point();
+                        Point p2 = c->vertex(d2)->point();
+                        Point p3 = c->vertex(d3)->point();
 
-                        dualTriangles.push_back(DelaunayTriangle(c->vertex(d1)->point(), c->vertex(d2)->point(), c->vertex(d3)->point()));
-                        if (debug) {print_facet(facet);}
+                        if (CGAL::orientation(p1, p2, p3, intersection_point) == CGAL::POSITIVE)
+                        {
+                            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
+                        }
+                        else
+                        {
+                            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
+                        }
+
+                        if (debug)
+                        {
+                            print_facet(facet);
+                        }
                     }
                 }
             }
         }
         else if (CGAL::assign(line, edge))
         {
-            //TODO : Not complete yet, but theoratically there couldn't be any line in a voronoi diagram
-            // If the edge is a line
+            // TODO : Not complete yet, but theoratically there couldn't be any line in a voronoi diagram
+            //  If the edge is a line
             Ray3 ray1(line.point(), line.direction());
             Ray3 ray2(line.point(), -line.direction());
 
@@ -941,8 +1013,16 @@ int main(int argc, char *argv[])
                 float iPt1_val = trilinear_interpolate(intersection1, grid);
                 float iPt2_val = trilinear_interpolate(intersection2, grid);
 
-                if (is_bipolar(iPt1_val, iPt2_val, isovalue)) {
-                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge]) {
+                if (is_bipolar(iPt1_val, iPt2_val, isovalue))
+                {
+                    if (debug)
+                    {
+                        std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;
+                    }
+                    // TODO: Find the Delaunay Triangle dual to the edge
+
+                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                    {
                         int iFacet = facet.second;
                         Cell_handle c = facet.first;
                         int d1, d2, d3;
@@ -950,15 +1030,29 @@ int main(int argc, char *argv[])
                         d2 = (iFacet + 2) % 4;
                         d3 = (iFacet + 3) % 4;
 
+                        Point p1 = c->vertex(d1)->point();
+                        Point p2 = c->vertex(d2)->point();
+                        Point p3 = c->vertex(d3)->point();
+                        Point opposite = c->vertex(iFacet)->point();
 
-                        dualTriangles.push_back(DelaunayTriangle(c->vertex(d1)->point(), c->vertex(d2)->point(), c->vertex(d3)->point()));
-                        if (debug) {print_facet(facet);}
+                        if (CGAL::orientation(p1, p2, p3, opposite) == CGAL::POSITIVE)
+                        {
+                            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
+                        }
+                        else
+                        {
+                            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
+                        }
+
+                        if (debug)
+                        {
+                            print_facet(facet);
+                        }
                     }
                 }
             }
         }
     }
-
 
     if (indicator)
     {
@@ -1052,8 +1146,11 @@ int main(int argc, char *argv[])
                     center.z() + cubeVertices[idx2][2] - 0.5 * cubeSize);
                 Point intersect = interpolate(p1, p2, val1, val2, isovalue);
                 intersectionPoints.push_back(intersect);
-                
-                if (debug) {std::cout << "Intersection at: (" << intersect << ")" << std::endl;}
+
+                if (debug)
+                {
+                    std::cout << "Intersection at: (" << intersect << ")" << std::endl;
+                }
             }
         }
 
@@ -1062,7 +1159,10 @@ int main(int argc, char *argv[])
         {
             Point centroid = compute_centroid(intersectionPoints);
             isosurfaceVertices.push_back(centroid);
-            if (debug) {std::cout << "Iso surface Vertex at : (" << centroid << ")" << std::endl;}
+            if (debug)
+            {
+                std::cout << "Iso surface Vertex at : (" << centroid << ")" << std::endl;
+            }
         }
     }
 
@@ -1084,7 +1184,4 @@ int main(int argc, char *argv[])
     return EXIT_SUCCESS;
 }
 
-
-
-
-//TODO: Clean up the code, and solve the orientation issue
+// TODO: Clean up the code, and solve the orientation issue
