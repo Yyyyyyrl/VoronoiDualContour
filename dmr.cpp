@@ -213,6 +213,18 @@ std::vector<Point> load_grid_points(const Grid &grid)
     return points;
 }
 
+void print_cell(Delaunay::Cell c)
+{
+  using namespace std;
+
+  cerr << "Cell: [";
+  for (int i = 0; i < 4; i++) {
+    cerr << "(" << c.vertex(i)->point() << ")";
+    if (i < 3) { cerr << ","; }
+  }
+  cerr << "]" << endl;
+}
+
 // A regular 3D scalar grid data structure
 struct ScalarGrid
 {
@@ -471,42 +483,57 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     return c;
 }
 
-void writeVoronoiToOFF(const std::vector<Point> &voronoi_vertices, const std::vector<Object> &voronoi_edges, const std::string &filename)
-{
-    std::ofstream file(filename);
-
-    if (!file)
-    {
-        std::cerr << "Error: Could not open file for writing." << std::endl;
+void write_dt_to_off(const Delaunay& dt, const std::string& filename) {
+    std::ofstream out(filename);
+    if (!out) {
+        std::cerr << "Error: cannot open file " << filename << std::endl;
         return;
     }
 
-    // Writing the header
-    file << "OFF\n";
-    file << voronoi_vertices.size() << " " << voronoi_edges.size() << " 0\n"; // The third value is the number of faces, which is zero for Voronoi edges.
+    // Write OFF header
+    out << "OFF\n";
 
-    // Writing the vertices
-    for (const auto &vertex : voronoi_vertices)
-    {
-        file << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
+    // Collect vertices and faces
+    std::vector<Point> vertices;
+    std::vector<std::array<int, 3>> faces;
+    std::map<Point, int> vertex_indices;
+
+    // Extract vertices
+    int index = 0;
+    for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
+        vertex_indices[vit->point()] = index++;
+        vertices.push_back(vit->point());
     }
 
-    // Writing the edges as 2-vertex "faces" (this is a bit of a hack, but OFF doesn't directly support edge lists)
-    for (const auto &edge : voronoi_edges)
-    {
-        Segment3 seg;
-        if (CGAL::assign(seg, edge)) // Checking if the edge is a segment and extracting endpoints
-        {
-            int index1 = std::distance(voronoi_vertices.begin(), std::find(voronoi_vertices.begin(), voronoi_vertices.end(), seg.source()));
-            int index2 = std::distance(voronoi_vertices.begin(), std::find(voronoi_vertices.begin(), voronoi_vertices.end(), seg.target()));
-            file << "2 " << index1 << " " << index2 << "\n"; // Write edge as a face with 2 vertices
+    // Extract faces
+    for (auto fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit) {
+        auto cell = fit->first;
+        int i = fit->second;
+        std::array<int, 3> face;
+        int j = 0;
+        for (int k = 0; k < 4; ++k) {
+            if (k != i) {
+                face[j++] = vertex_indices[cell->vertex(k)->point()];
+            }
         }
+        faces.push_back(face);
     }
 
-    file.close();
-    std::cout << "Voronoi diagram written to " << filename << std::endl;
-}
+    // Write vertices and faces count
+    out << vertices.size() << " " << faces.size() << " 0\n";
 
+    // Write vertices
+    for (const auto& vertex : vertices) {
+        out << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
+    }
+
+    // Write faces
+    for (const auto& face : faces) {
+        out << "3 " << face[0] << " " << face[1] << " " << face[2] << "\n";
+    }
+
+    out.close();
+}
 // Helper function to check if an edge is bipolar
 /*
 Purpose: Checks if an edge between two scalar values crosses the isovalue, indicating a change in sign.
@@ -816,18 +843,9 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Delaunay triangulation..." << std::endl;
     }
-    Delaunay dt;
+    Delaunay dt(activeCubeCenters.begin(), activeCubeCenters.end());
     int index = 0;
     printActiveCubeCenters(activeCubeCenters);
-    for (const Point &p : activeCubeCenters)
-    {
-        Delaunay::Vertex_handle v = dt.insert(p);
-        if (debug)
-        {
-            std::cout << "Inserted vertex " << index << " at (" << p << ")" << std::endl;
-        }
-        v->info() = index++;
-    }
 
     std::map<Point, int> point_index_map;
     int i = 0;
@@ -836,6 +854,18 @@ int main(int argc, char *argv[])
         point_index_map[pt] = i;
         i++;
     }
+
+
+        // *** DEBUG ***
+    // Print Delaunay tetrahedra.
+    for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
+         cell_it != dt.all_cells_end(); cell_it++) {
+
+      print_cell(*cell_it);
+    }
+
+
+    write_dt_to_off(dt, "/home/ruilin/Documents/DMR/temps/dt.off");
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -850,8 +880,6 @@ int main(int argc, char *argv[])
     }
     for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
     {
-        if (dt.is_infinite(cit))
-            continue; // Skip infinite cells
 
         Point voronoi_vertex = dt.dual(cit);
 
@@ -876,15 +904,23 @@ int main(int argc, char *argv[])
                       << cit->vertex(3)->point() << std::endl;
         }
     }
-    /*
-    Iterate through each facets in the DT and then calculate Voronoi Edges
-    */
-    std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
-    std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
-    std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
-    for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit)
+/*
+Iterate through each facets in the DT and then calculate Voronoi Edges
+*/
+std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
+std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
+std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
+
+for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
+{
+    Cell_handle cell = cit;
+
+    // Each cell (tetrahedron) has 4 facets, iterate over each one
+    for (int i = 0; i < 4; ++i)
     {
-        Facet facet = *fit;
+        // Create the facet by specifying the cell and the index of the facet
+        Facet facet = std::make_pair(cell, i);
+        
         Segment3 seg;
         Ray3 ray;
         Line3 line;
@@ -899,6 +935,7 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
+
         std::string edgeRep = objectToString(vEdge);
 
         if (debug)
@@ -937,8 +974,7 @@ int main(int argc, char *argv[])
             }
         }
     }
-
-    writeVoronoiToOFF(voronoi_vertices, voronoi_edges, "VoronoiDiagram.off");
+}
 
     /*
     Compute Scalar Values at Voronoi Vertices
@@ -1069,22 +1105,6 @@ int main(int argc, char *argv[])
                             std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
                         }
                     }
-
-                    // TODO: get_orientation(iFacet, v1, v2, vertexValueMap)
-                    o = CGAL::orientation(p1, p2, p3, positive);
-
-                    if (o == CGAL::POSITIVE)
-                    {
-                        std::cout << "Result by Arithmatic: Positive \n"
-                                  << std::endl;
-                        // dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                    }
-                    else if ((o == CGAL::NEGATIVE) || (o == CGAL::COPLANAR))
-                    {
-                        std::cout << "Result by Arithmatic: Negative \n"
-                                  << std::endl;
-                        // dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                    }
                 }
             }
         }
@@ -1135,6 +1155,10 @@ int main(int argc, char *argv[])
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
                     {
+
+                        Facet mirror_f = dt.mirror_facet(facet);
+                        Object e = dt.dual(facet);
+
                         int iFacet = facet.second;
                         Cell_handle c = facet.first;
                         int d1, d2, d3;
@@ -1199,27 +1223,6 @@ int main(int argc, char *argv[])
                             }
                         }
 
-                        o = CGAL::orientation(p1, p2, p3, positive);
-                        if (debug)
-                        {
-                            if (o == CGAL::COPLANAR)
-                            {
-                                std::cout << p1 << ", " << p2 << ", " << p3 << ", " << positive << std::endl;
-                            }
-                        }
-
-                        if ((o == CGAL::POSITIVE))
-                        {
-                            std::cout << "Result by Arithmatic: Positive \n"
-                                      << std::endl;
-                            // dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                        }
-                        else
-                        {
-                            std::cout << "Result by Arithmatic: Negative \n"
-                                      << std::endl;
-                            // dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                        }
                     }
                 }
             }
@@ -1323,28 +1326,6 @@ int main(int argc, char *argv[])
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
                                 std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
                             }
-                        }
-
-                        o = CGAL::orientation(p1, p2, p3, positive);
-                        if (debug)
-                        {
-                            if (o == CGAL::COPLANAR)
-                            {
-                                std::cout << p1 << ", " << p2 << ", " << p3 << ", " << positive << std::endl;
-                            }
-                        }
-
-                        if ((o == CGAL::POSITIVE))
-                        {
-                            std::cout << "Result by Arithmatic: Positive \n"
-                                      << std::endl;
-                            // dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                        }
-                        else
-                        {
-                            std::cout << "Result by Arithmatic: Negative \n"
-                                      << std::endl;
-                            // dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
                         }
                     }
                 }
