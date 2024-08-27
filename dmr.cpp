@@ -683,7 +683,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 5)
     {
-        std::cerr << "Usage: " << argv[0] << " <(nhdr/nrrd) raw data file path> <isovalue> <output format ( ply/off )> <output filename>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <(nhdr/nrrd) raw data file path> <isovalue> <output format ( ply/off )> <output filename> <output voronoi diagram filename (csv)>" << std::endl;
         return EXIT_FAILURE;
     }
 
