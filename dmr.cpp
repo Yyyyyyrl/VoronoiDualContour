@@ -1,62 +1,11 @@
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <array>
-#include <cmath>
-#include <limits>
-#include <algorithm>
-#include <teem/nrrd.h>
-#include <CGAL/bounding_box.h>
-#include <CGAL/intersections.h>
-#include <CGAL/Vector_3.h>
-#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/Delaunay_triangulation_3.h>
-#include <CGAL/Triangulation_vertex_base_with_info_3.h>
-#include <CGAL/Delaunay_triangulation_cell_base_with_circumcenter_3.h>
+#include "dmr.h"
 
-// Define the kernel
-typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
-
-// Define the vertex base with information
-typedef CGAL::Triangulation_vertex_base_with_info_3<unsigned, K> Vb;
-typedef CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K> Cb;
-typedef CGAL::Triangulation_data_structure_3<Vb, Cb> Tds;
-
-// Define Delaunay Triangulation
-typedef CGAL::Delaunay_triangulation_3<K, Tds> Delaunay;
-typedef Delaunay::Point Point;
-typedef Delaunay::Cell_handle Cell_handle;
-typedef Delaunay::Vertex_handle Vertex_handle;
-typedef Delaunay::Cell_circulator Cell_circulator;
-typedef CGAL::Object Object;
-typedef Delaunay::Edge Edge;
-typedef Delaunay::Facet Facet;
-typedef Delaunay::Triangle Triangle;
-typedef K::Segment_3 Segment3;
-typedef K::Ray_3 Ray3;
-typedef K::Line_3 Line3;
-typedef K::Point_3 Point3;
-typedef K::Vector_3 Vector3;
 
 /*Helper Functions*/
 // Boolean value that controlls whether the debug print commands are executed
-bool debug = false;
+bool debug = true;
 // Boolena value controlls whether the progress print commands are executed
 bool indicator = true;
-
-// Simplest grid used for finding active cubes and their centers
-struct Grid
-{
-    std::vector<float> data;
-    int nx, ny, nz;
-    float dx, dy, dz; // Spacings for each dimension
-};
-
-struct DelaunayTriangle
-{
-    Point vertex1, vertex2, vertex3;
-    DelaunayTriangle(Point v1, Point v2, Point v3) : vertex1(v1), vertex2(v2), vertex3(v3) {}
-};
 
 template <typename T>
 std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
@@ -215,65 +164,56 @@ std::vector<Point> load_grid_points(const Grid &grid)
 
 void print_cell(Delaunay::Cell c)
 {
-  using namespace std;
+    using namespace std;
 
-  cerr << "Cell: [";
-  for (int i = 0; i < 4; i++) {
-    cerr << "(" << c.vertex(i)->point() << ")";
-    if (i < 3) { cerr << ","; }
-  }
-  cerr << "]" << endl;
+    cerr << "Cell: [";
+    for (int i = 0; i < 4; i++)
+    {
+        cerr << "(" << c.vertex(i)->point() << ")";
+        if (i < 3)
+        {
+            cerr << ",";
+        }
+    }
+    cerr << "]" << endl;
 }
 
-// A regular 3D scalar grid data structure
-struct ScalarGrid
+ScalarGrid::ScalarGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z)
+    : nx(nx), ny(ny), nz(nz), dx(dx), dy(dy), dz(dz), min_x(min_x), min_y(min_y), min_z(min_z)
 {
-    std::vector<std::vector<std::vector<float>>> data; // 3D vector to store scalar values
-    int nx, ny, nz;                                    // Dimensions of the grid
-    float dx, dy, dz;                                  // Voxel dimensions
-    float min_x, min_y, min_z;                         // Minimum coordinates of the grid
+    data.resize(nx, std::vector<std::vector<float>>(ny, std::vector<float>(nz, 0.0)));
+}
 
-    ScalarGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z)
-        : nx(nx), ny(ny), nz(nz), dx(dx), dy(dy), dz(dz), min_x(min_x), min_y(min_y), min_z(min_z)
+float ScalarGrid::get_value(int x, int y, int z) const
+{
+    if (x < 0 || x >= nx || y < 0 || y >= ny || z < 0 || z >= nz)
     {
-        // Initialize the 3D grid with default values (0.0)
-        data.resize(nx, std::vector<std::vector<float>>(ny, std::vector<float>(nz, 0.0)));
+        return 0;
     }
+    return data[x][y][z];
+}
 
-    // get a value from the grid; returns 0 if out of bounds
-    float get_value(int x, int y, int z) const
+void ScalarGrid::set_value(int x, int y, int z, float value)
+{
+    if (x >= 0 && x < nx && y >= 0 && y < ny && z >= 0 && z < nz)
     {
-        if (x < 0 || x >= nx || y < 0 || y >= ny || z < 0 || z >= nz)
-        {
-            return 0; // Return a default value
-        }
-        return data[x][y][z];
+        data[x][y][z] = value;
     }
+}
 
-    // set values in the grid for initializing the grid
-    void set_value(int x, int y, int z, float value)
+void ScalarGrid::load_from_source(const std::vector<std::vector<std::vector<float>>> &source)
+{
+    for (int i = 0; i < nx && i < source.size(); ++i)
     {
-        if (x >= 0 && x < nx && y >= 0 && y < ny && z >= 0 && z < nz)
+        for (int j = 0; j < ny && j < source[i].size(); ++j)
         {
-            data[x][y][z] = value;
-        }
-    }
-
-    // If there are other sources of data for the grid this method is used to load it in initialization
-    void load_from_source(const std::vector<std::vector<std::vector<float>>> &source)
-    {
-        for (int i = 0; i < nx && i < source.size(); ++i)
-        {
-            for (int j = 0; j < ny && j < source[i].size(); ++j)
+            for (int k = 0; k < nz && k < source[i][j].size(); ++k)
             {
-                for (int k = 0; k < nz && k < source[i][j].size(); ++k)
-                {
-                    data[i][j][k] = source[i][j][k];
-                }
+                data[i][j][k] = source[i][j][k];
             }
         }
     }
-};
+}
 
 /*
 Purpose: Initializes the scalar grid
@@ -322,17 +262,6 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
     }
 }
 
-const int EDGE_CONNECTIONS[12][2] = {
-    {0, 1}, {1, 2}, {2, 3}, {3, 0}, // bottom face edges
-    {4, 5},
-    {5, 6},
-    {6, 7},
-    {7, 4}, // top face edges
-    {0, 4},
-    {1, 5},
-    {2, 6},
-    {3, 7} // vertical edges connecting top and bottom faces
-};
 
 /*
 Purpose: Interpolates a point on the line connecting p1 and p2 based on scalar values and an isovalue.
@@ -353,35 +282,7 @@ Point interpolate(const Point &p1, const Point &p2, float val1, float val2, floa
                  p1.z() + t * (p2.z() - p1.z()));
 }
 
-/*
-Purpose: Processes a cube in a 3D scalar field to find vertices of the isosurface intersecting the cube.
-Inputs:
-    std::array<Point, 8> cube_corners: The corners of the cube.
-    std::array<float, 8> scalar_values: Scalar values at each cube corner.
-    float isovalue: The scalar value defining the isosurface.
-Process: Checks each edge of the cube; if it intersects the isosurface, it computes the intersection point.
-Output: A vector of points where the isosurface intersects the cube.
-*/
-std::vector<Point> process_active_cube(const std::array<Point, 8> &cube_corners, const std::array<float, 8> &scalar_values, float isovalue)
-{
-    std::vector<Point> intersection_points;
 
-    for (int i = 0; i < 12; ++i)
-    {
-        int idx1 = EDGE_CONNECTIONS[i][0];
-        int idx2 = EDGE_CONNECTIONS[i][1];
-        float val1 = scalar_values[idx1];
-        float val2 = scalar_values[idx2];
-
-        if ((val1 - isovalue) * (val2 - isovalue) < 0)
-        {
-            Point intersect = interpolate(cube_corners[idx1], cube_corners[idx2], val1, val2, isovalue);
-            intersection_points.push_back(intersect);
-        }
-    }
-
-    return intersection_points;
-}
 /*
 Purpose: Computes the geometric centroid of a collection of points.
 Inputs:
@@ -483,57 +384,6 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     return c;
 }
 
-void write_dt_to_off(const Delaunay& dt, const std::string& filename) {
-    std::ofstream out(filename);
-    if (!out) {
-        std::cerr << "Error: cannot open file " << filename << std::endl;
-        return;
-    }
-
-    // Write OFF header
-    out << "OFF\n";
-
-    // Collect vertices and faces
-    std::vector<Point> vertices;
-    std::vector<std::array<int, 3>> faces;
-    std::map<Point, int> vertex_indices;
-
-    // Extract vertices
-    int index = 0;
-    for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
-        vertex_indices[vit->point()] = index++;
-        vertices.push_back(vit->point());
-    }
-
-    // Extract faces
-    for (auto fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit) {
-        auto cell = fit->first;
-        int i = fit->second;
-        std::array<int, 3> face;
-        int j = 0;
-        for (int k = 0; k < 4; ++k) {
-            if (k != i) {
-                face[j++] = vertex_indices[cell->vertex(k)->point()];
-            }
-        }
-        faces.push_back(face);
-    }
-
-    // Write vertices and faces count
-    out << vertices.size() << " " << faces.size() << " 0\n";
-
-    // Write vertices
-    for (const auto& vertex : vertices) {
-        out << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
-    }
-
-    // Write faces
-    for (const auto& face : faces) {
-        out << "3 " << face[0] << " " << face[1] << " " << face[2] << "\n";
-    }
-
-    out.close();
-}
 // Helper function to check if an edge is bipolar
 /*
 Purpose: Checks if an edge between two scalar values crosses the isovalue, indicating a change in sign.
@@ -543,7 +393,7 @@ Inputs:
 Process: Returns true if the values on either side of the edge differ in sign relative to the isovalue.
 Output: Boolean indicating whether the edge is bipolar.
 */
-bool is_bipolar(float val1, float val2, float isovalue = 0)
+bool is_bipolar(float val1, float val2, float isovalue)
 {
     return (val1 - isovalue) * (val2 - isovalue) < 0;
 }
@@ -606,29 +456,6 @@ float get_scalar_value_at_point(const Point &point, const ScalarGrid &grid)
     return grid.get_value(x, y, z);
 }
 
-#include <CGAL/Vector_3.h>
-
-// Calculate the normal vector of a triangle given its vertices
-K::Vector_3 calculate_normal(const Point &p0, const Point &p1, const Point &p2)
-{
-    K::Vector_3 u = p1 - p0;
-    K::Vector_3 v = p2 - p0;
-    return CGAL::cross_product(u, v);
-}
-
-// Check if the normal is pointing outward by comparing it to a reference point
-bool is_normal_pointing_outward(const Point &p0, const Point &p1, const Point &p2, const Point &reference)
-{
-    K::Vector_3 normal = calculate_normal(p0, p1, p2);
-    K::Vector_3 to_reference(reference.x() - p0.x(), reference.y() - p0.y(), reference.z() - p0.z());
-    return normal * to_reference > 0;
-}
-
-// Calculate the centroid of a triangle
-Point calculate_centroid(const Point &p0, const Point &p1, const Point &p2)
-{
-    return Point((p0.x() + p1.x() + p2.x()) / 3.0, (p0.y() + p1.y() + p2.y()) / 3.0, (p0.z() + p1.z() + p2.z()) / 3.0);
-}
 
 void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
@@ -701,7 +528,28 @@ std::string objectToString(const Object &obj)
     Line3 line;
     if (CGAL::assign(seg, obj))
     {
-        stream << "Segment: " << seg;
+        Point3 p1, p2;
+        p1 = seg.source();
+        p2 = seg.target();
+        stream << "Segment: ";
+
+        if (p1.x() < p2.x()) {
+            stream << p1 << " " << p2;
+        } else if (p1.x() == p2.x()) {
+            if (p1.x() < p2.y()) {
+                stream << p1 << " " << p2;
+            } else if (p1.y() == p2.y()) {
+                if (p1.z() <=p2.z()) {
+                    stream << p1 << " " << p2;
+                } else {
+                    stream << p2 << " " << p1;
+                }
+            } else {
+                stream << p2 << " " << p1;
+            }
+        } else {
+            stream << p2 << " " << p1;
+        }
     }
     else if (CGAL::assign(ray, obj))
     {
@@ -786,13 +634,45 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
     }
 }
 
-void printActiveCubeCenters(std::vector<Point> activeCubeCenters)
-{
-    for (const Point &p : activeCubeCenters)
-    {
-        std::cout << p << std::endl;
+void export_voronoi_to_csv(const std::vector<Point>& voronoi_vertices, const std::vector<Object>& voronoi_edges, const std::string& filename) {
+    std::ofstream file(filename);
+    
+    // Export vertices
+    file << "vertices\n";
+    for (const auto& vertex : voronoi_vertices) {
+        file << vertex.x() << "," << vertex.y() << "," << vertex.z() << "\n";
     }
+
+    // Export edges
+    file << "edges\n";
+    for (const auto& edge : voronoi_edges) {
+        Segment3 segment;
+        Line3 line;
+        Ray3 ray;
+
+        if (CGAL::assign(segment, edge)) {
+            Point p1 = segment.source();
+            Point p2 = segment.target();
+            file << "Segment3," << p1.x() << "," << p1.y() << "," << p1.z() << "," 
+                 << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
+        } 
+        else if (CGAL::assign(line, edge)) {
+            Point p1 = line.point(0);
+            Point p2 = line.point(1);
+            file << "Line3," << p1.x() << "," << p1.y() << "," << p1.z() << "," 
+                 << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
+        } 
+        else if (CGAL::assign(ray, edge)) {
+            Point p1 = ray.source();
+            Vector3 direction = ray.direction().vector();
+            file << "Ray3," << p1.x() << "," << p1.y() << "," << p1.z() << "," 
+                 << direction.x() << "," << direction.y() << "," << direction.z() << "\n";
+        }
+    }
+
+    file.close();
 }
+
 /*
 
 Body Main function
@@ -845,7 +725,6 @@ int main(int argc, char *argv[])
     }
     Delaunay dt(activeCubeCenters.begin(), activeCubeCenters.end());
     int index = 0;
-    printActiveCubeCenters(activeCubeCenters);
 
     std::map<Point, int> point_index_map;
     int i = 0;
@@ -855,17 +734,15 @@ int main(int argc, char *argv[])
         i++;
     }
 
-
-        // *** DEBUG ***
+    // *** DEBUG ***
     // Print Delaunay tetrahedra.
     for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
-         cell_it != dt.all_cells_end(); cell_it++) {
+         cell_it != dt.all_cells_end(); cell_it++)
+    {
 
-      print_cell(*cell_it);
+        print_cell(*cell_it);
     }
 
-
-    write_dt_to_off(dt, "/home/ruilin/Documents/DMR/temps/dt.off");
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -904,23 +781,17 @@ int main(int argc, char *argv[])
                       << cit->vertex(3)->point() << std::endl;
         }
     }
-/*
-Iterate through each facets in the DT and then calculate Voronoi Edges
-*/
-std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
-std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
-std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
 
-for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
-{
-    Cell_handle cell = cit;
 
-    // Each cell (tetrahedron) has 4 facets, iterate over each one
-    for (int i = 0; i < 4; ++i)
+        /*
+    Iterate through each facets in the DT and then calculate Voronoi Edges
+    */
+    std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
+    std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
+    std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
+    for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit)
     {
-        // Create the facet by specifying the cell and the index of the facet
-        Facet facet = std::make_pair(cell, i);
-        
+        Facet facet = *fit;
         Segment3 seg;
         Ray3 ray;
         Line3 line;
@@ -935,7 +806,6 @@ for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.fi
                 continue;
             }
         }
-
         std::string edgeRep = objectToString(vEdge);
 
         if (debug)
@@ -974,7 +844,9 @@ for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.fi
             }
         }
     }
-}
+
+    export_voronoi_to_csv(voronoi_vertices, voronoi_edges, "../temps/VoronoiDiagram.csv");
+
 
     /*
     Compute Scalar Values at Voronoi Vertices
@@ -1058,24 +930,13 @@ for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.fi
                     Point p3 = c->vertex(d3)->point();
 
                     std::cout << "Voronoi Segment" << std::endl;
+                    if (dt.is_infinite(c))
+                    {
+                        std::cout << "Infinite cell" << std::endl;
+                    }
                     std::cout << c->vertex(0)->point() << " , " << c->vertex(1)->point() << " , " << c->vertex(2)->point() << " , " << c->vertex(3)->point() << std::endl;
                     std::cout << "Value of iFacet: " << iFacet << " Point indices: p1 (" << d1 << ") p2:(" << d2 << ") p3:(" << d3 << ")" << std::endl;
 
-                    /*                     vec1 = p2 - p1;
-                                        vec2 = p3 - p1;
-                                        norm = CGAL::cross_product(vec1, vec2);
-                                        float fOri = norm * (positive - p1);
-
-                                        if (fOri >= 0)
-                                        { // Above plane
-                                            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                            std::cout << "Triangle vertices: " << p1 << ", " << p3 << ", " << p2 << std::endl;
-                                        }
-                                        else
-                                        {
-                                            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                            std::cout << "Triangle vertices: " << p1 << ", " << p2 << ", " << p3 << std::endl;
-                                        } */
 
                     int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], vertexValueMap[v2]);
 
@@ -1156,9 +1017,6 @@ for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.fi
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
                     {
 
-                        Facet mirror_f = dt.mirror_facet(facet);
-                        Object e = dt.dual(facet);
-
                         int iFacet = facet.second;
                         Cell_handle c = facet.first;
                         int d1, d2, d3;
@@ -1177,22 +1035,6 @@ for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.fi
                         }
                         std::cout << c->vertex(0)->point() << " , " << c->vertex(1)->point() << " , " << c->vertex(2)->point() << " , " << c->vertex(3)->point() << std::endl;
                         std::cout << "Value of iFacet: " << iFacet << " Point indices: p1 (" << d1 << ") p2:(" << d2 << ") p3:(" << d3 << ")" << std::endl;
-
-                        /*                         vec1 = p2 - p1;
-                                                vec2 = p3 - p1;
-                                                norm = CGAL::cross_product(vec1, vec2);
-                                                float fOri = norm * (positive - p1);
-
-                                                if (fOri >= 0)
-                                                { // Above plane
-                                                    dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                                    std::cout << "Triangle vertices: " << p1 << ", " << p3 << ", " << p2 << std::endl;
-                                                }
-                                                else
-                                                {
-                                                    dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                                    std::cout << "Triangle vertices: " << p1 << ", " << p2 << ", " << p3 << std::endl;
-                                                } */
 
                         int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], iPt_value);
 
@@ -1222,7 +1064,6 @@ for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.fi
                                 std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
                             }
                         }
-
                     }
                 }
             }
@@ -1281,24 +1122,12 @@ for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.fi
                         Point p3 = c->vertex(d3)->point();
 
                         std::cout << "Voronoi Line" << std::endl;
+                        if (dt.is_infinite(c))
+                        {
+                            std::cout << "Infinite cell" << std::endl;
+                        }
                         std::cout << c->vertex(0)->point() << " , " << c->vertex(1)->point() << " , " << c->vertex(2)->point() << " , " << c->vertex(3)->point() << std::endl;
                         std::cout << "Value of iFacet: " << iFacet << " Point indices: p1 (" << d1 << ") p2:(" << d2 << ") p3:(" << d3 << ")" << std::endl;
-
-                        /*                         vec1 = p2 - p1;
-                                                vec2 = p3 - p1;
-                                                norm = CGAL::cross_product(vec1, vec2);
-                                                float fOri = norm * (positive - p1);
-
-                                                if (fOri >= 0)
-                                                { // Above plane
-                                                    dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                                    std::cout << "Triangle vertices: " << p1 << ", " << p3 << ", " << p2 << std::endl;
-                                                }
-                                                else
-                                                {
-                                                    dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                                    std::cout << "Triangle vertices: " << p1 << ", " << p2 << ", " << p3 << std::endl;
-                                                } */
 
                         int iOrient = get_orientation(iFacet, intersection1, intersection2, iPt1_val, iPt2_val);
                         if (dt.is_infinite(c))
