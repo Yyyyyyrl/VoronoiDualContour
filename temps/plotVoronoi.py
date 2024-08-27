@@ -63,6 +63,6 @@ def plot_voronoi_3d(voronoi_vertices, voronoi_edges):
     plt.show()
 
 # Example usage
-filename = 'VoronoiDiagram.csv'
+filename = input("csv file path:")
 voronoi_vertices, voronoi_edges = load_voronoi_from_csv(filename)
 plot_voronoi_3d(voronoi_vertices, voronoi_edges)

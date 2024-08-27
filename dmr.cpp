@@ -681,7 +681,7 @@ Body Main function
 
 int main(int argc, char *argv[])
 {
-    if (argc < 4)
+    if (argc < 5)
     {
         std::cerr << "Usage: " << argv[0] << " <(nhdr/nrrd) raw data file path> <isovalue> <output format ( ply/off )> <output filename>" << std::endl;
         return EXIT_FAILURE;
@@ -695,6 +695,7 @@ int main(int argc, char *argv[])
     float isovalue = std::stof(argv[2]);
     std::string output_format = argv[3];
     std::string output_filename = argv[4];
+    std::string output_voronoi_csv = argv[5];
 
     Grid data_grid = load_nrrd_data(file_path);
     std::vector<Point> activeCubeCenters = find_active_cubes(data_grid, isovalue);
@@ -845,7 +846,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    export_voronoi_to_csv(voronoi_vertices, voronoi_edges, "../temps/VoronoiDiagram.csv");
+    export_voronoi_to_csv(voronoi_vertices, voronoi_edges, output_voronoi_csv);
 
 
     /*
