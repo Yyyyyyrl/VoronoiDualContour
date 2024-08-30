@@ -49,6 +49,64 @@ float ScalarGrid::get_scalar_value_at_point(const Point &point) {
     return get_value(x,y,z);
 }
 
+template <typename T>
+std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
+{
+    std::vector<float> data(total_size);
+    for (size_t i = 0; i < total_size; ++i)
+    {
+        data[i] = static_cast<float>(data_ptr[i]);
+    }
+    return data;
+}
+
+
+Grid load_nrrd_data(const std::string &file_path)
+{
+    Nrrd *nrrd = nrrdNew();
+    if (nrrdLoad(nrrd, file_path.c_str(), NULL))
+    {
+        char *err = biffGetDone(NRRD);
+        std::cerr << "Error reading NRRD file: " << err << std::endl;
+        free(err);
+        nrrdNuke(nrrd);
+        exit(1);
+    }
+
+    size_t total_size = nrrdElementNumber(nrrd);
+
+    std::vector<float> data;
+
+    if (nrrd->type == nrrdTypeFloat)
+    {
+        float *data_ptr = static_cast<float *>(nrrd->data);
+        data = std::vector<float>(data_ptr, data_ptr + total_size);
+    }
+    else if (nrrd->type == nrrdTypeUChar)
+    {
+        unsigned char *data_ptr = static_cast<unsigned char *>(nrrd->data);
+        data = convert_to_float_vector(data_ptr, total_size);
+    }
+    else
+    {
+        std::cerr << "Unsupported NRRD data type." << std::endl;
+        nrrdNuke(nrrd);
+        exit(1);
+    }
+
+    int nx = nrrd->axis[0].size;
+    int ny = nrrd->axis[1].size;
+    int nz = nrrd->axis[2].size;
+    float dx = nrrd->axis[0].spacing;
+    float dy = nrrd->axis[1].spacing;
+    float dz = nrrd->axis[2].spacing;
+
+
+    nrrdNuke(nrrd); // Properly dispose of the Nrrd structure
+
+    return {data, nx, ny, nz, dx, dy, dz};
+}
+
 
 /*
 Preprocessing
@@ -159,9 +217,9 @@ bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue)
     return false;
 }
 
-std::vector<Point> find_active_cubes(const Grid &grid, float isovalue)
+std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue)
 {
-    std::vector<Point> centers;
+    std::vector<Cube> activeCubes;
     for (int i = 0; i < grid.nx - 1; ++i)
     {
         for (int j = 0; j < grid.ny - 1; ++j)
@@ -170,13 +228,132 @@ std::vector<Point> find_active_cubes(const Grid &grid, float isovalue)
             {
                 if (is_cube_active(grid, i, j, k, isovalue))
                 {
-                    centers.push_back(Point(i + 0.5, j + 0.5, k + 0.5));
+                    activeCubes.push_back(Cube(Point(i, j, k), Point(i+0.5,j+0.5,k+0.5),1));
                 }
             }
         }
     }
+    return activeCubes;
+}
+
+std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes)
+{
+    std::vector<Point> centers;
+    for (auto &cube : cubes)
+    {
+        centers.push_back(cube.center);
+    }
     return centers;
 }
+
+bool is_adjacent(const Cube &cubeA, const Cube &cubeB)
+{
+    return (std::abs(cubeA.repVertex.x() - cubeB.repVertex.x()) <= 1 &&
+            std::abs(cubeA.repVertex.y() - cubeB.repVertex.y()) <= 1 &&
+            std::abs(cubeA.repVertex.z() - cubeB.repVertex.z()) <= 1);
+}
+
+std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes)
+{
+    std::vector<Cube> separatedCubes;
+
+    std::vector<Cube> sortedCubes = activeCubes;
+    std::sort(sortedCubes.begin(), sortedCubes.end(), [](const Cube &a, const Cube &b)
+              {
+        if (a.repVertex.x() != b.repVertex.x()) return a.repVertex.x() < b.repVertex.x();
+        if (a.repVertex.y() != b.repVertex.y()) return a.repVertex.y() < b.repVertex.y();
+        return a.repVertex.z() < b.repVertex.z(); });
+
+    // Greedy select non-adjacent cubes
+    for (const Cube &c : sortedCubes)
+    {
+        bool isAdj = false;
+        for (const Cube &s : separatedCubes)
+        {
+            if (is_adjacent(c, s))
+            {
+                isAdj = true;
+                break;
+            }
+        }
+
+        if (!isAdj)
+        {
+            separatedCubes.push_back(c);
+        }
+    }
+
+    return separatedCubes;
+}
+
+std::vector<Cube> separate_active_cubes_graph(std::vector<Cube> &activeCubes) {
+
+    std::vector<Cube> separatedCubes;
+
+    int n = activeCubes.size();
+    std::vector<std::vector<int>> adjList(n);
+
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            if (is_adjacent(activeCubes[i], activeCubes[j])) {
+                adjList[i].push_back(j);
+                adjList[j].push_back(i);
+            }
+        }
+    }
+
+
+    std::vector<int> color(n,-1);
+    std::vector<bool> available(n, true);
+
+    color[0] = 0;
+
+    for (int k = 1; k < n; ++k) {
+        // Mark the colors of all adjacent vertices as unavailable
+        for (int item : adjList[k]) {
+            if (color[item] != -1) {
+                available[color[item]] = false;
+            }
+        }
+        
+        // Find the first available color
+        int cr;
+        for (cr = 0; cr < n; ++cr) {
+            if (available[cr]) {
+                break;
+            }
+        }
+        
+        // Assign the found color
+        color[k] = cr;
+        
+        // Reset the values back to true for the next iteration
+        for (int adj : adjList[k]) {
+            if (color[adj] != -1) {
+                available[color[adj]] = true;
+            }
+        }
+    }
+
+
+    std::unordered_map<int, std::vector<Cube>> colorClasses;
+    for (int i = 0; i < n; ++i) {
+        colorClasses[color[i]].push_back(activeCubes[i]);
+    }
+
+
+    for (const auto& entry : colorClasses) {
+        if (entry.second.size() > separatedCubes.size()) {
+            separatedCubes = entry.second;
+        }
+    }
+
+
+    return separatedCubes;
+
+}
+
 
 std::vector<Point> load_grid_points(const Grid &grid)
 {

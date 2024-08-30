@@ -1,64 +1,6 @@
 #include "io.h"
 
 
-template <typename T>
-std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
-{
-    std::vector<float> data(total_size);
-    for (size_t i = 0; i < total_size; ++i)
-    {
-        data[i] = static_cast<float>(data_ptr[i]);
-    }
-    return data;
-}
-
-
-Grid load_nrrd_data(const std::string &file_path)
-{
-    Nrrd *nrrd = nrrdNew();
-    if (nrrdLoad(nrrd, file_path.c_str(), NULL))
-    {
-        char *err = biffGetDone(NRRD);
-        std::cerr << "Error reading NRRD file: " << err << std::endl;
-        free(err);
-        nrrdNuke(nrrd);
-        exit(1);
-    }
-
-    size_t total_size = nrrdElementNumber(nrrd);
-
-    std::vector<float> data;
-
-    if (nrrd->type == nrrdTypeFloat)
-    {
-        float *data_ptr = static_cast<float *>(nrrd->data);
-        data = std::vector<float>(data_ptr, data_ptr + total_size);
-    }
-    else if (nrrd->type == nrrdTypeUChar)
-    {
-        unsigned char *data_ptr = static_cast<unsigned char *>(nrrd->data);
-        data = convert_to_float_vector(data_ptr, total_size);
-    }
-    else
-    {
-        std::cerr << "Unsupported NRRD data type." << std::endl;
-        nrrdNuke(nrrd);
-        exit(1);
-    }
-
-    int nx = nrrd->axis[0].size;
-    int ny = nrrd->axis[1].size;
-    int nz = nrrd->axis[2].size;
-    float dx = nrrd->axis[0].spacing;
-    float dy = nrrd->axis[1].spacing;
-    float dz = nrrd->axis[2].spacing;
-
-
-    nrrdNuke(nrrd); // Properly dispose of the Nrrd structure
-
-    return {data, nx, ny, nz, dx, dy, dz};
-}
-
 
 void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
@@ -121,4 +63,50 @@ void writePLY(const std::string &filename, const std::vector<Point> &vertices, c
     }
 
     out.close();
+}
+
+
+void export_voronoi_to_csv(const std::vector<Point> &voronoi_vertices, const std::vector<Object> &voronoi_edges, const std::string &filename)
+{
+    std::ofstream file(filename);
+
+    // Export vertices
+    file << "vertices\n";
+    for (const auto &vertex : voronoi_vertices)
+    {
+        file << vertex.x() << "," << vertex.y() << "," << vertex.z() << "\n";
+    }
+
+    // Export edges
+    file << "edges\n";
+    for (const auto &edge : voronoi_edges)
+    {
+        Segment3 segment;
+        Line3 line;
+        Ray3 ray;
+
+        if (CGAL::assign(segment, edge))
+        {
+            Point p1 = segment.source();
+            Point p2 = segment.target();
+            file << "Segment3," << p1.x() << "," << p1.y() << "," << p1.z() << ","
+                 << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
+        }
+        else if (CGAL::assign(line, edge))
+        {
+            Point p1 = line.point(0);
+            Point p2 = line.point(1);
+            file << "Line3," << p1.x() << "," << p1.y() << "," << p1.z() << ","
+                 << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
+        }
+        else if (CGAL::assign(ray, edge))
+        {
+            Point p1 = ray.source();
+            Vector3 direction = ray.direction().vector();
+            file << "Ray3," << p1.x() << "," << p1.y() << "," << p1.z() << ","
+                 << direction.x() << "," << direction.y() << "," << direction.z() << "\n";
+        }
+    }
+
+    file.close();
 }
