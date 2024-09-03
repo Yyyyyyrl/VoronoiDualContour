@@ -1,13 +1,7 @@
 #include "utilities.h"
 #include "debug.h"
 #include "io.h"
-
-/*Helper Functions*/
-// Boolean value that controlls whether the debug print commands are executed
-bool debug = false;
-// Boolena value controlls whether the progress print commands are executed
-bool indicator = true;
-
+#include <cstdlib>
 /*
 
 Body Main function
@@ -18,7 +12,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 4)
     {
-        std::cerr << "Usage: " << argv[0] << " <isovalue> <(nhdr/nrrd) raw data file path> <output format ( ply/off )> <output filepath> <options>\n --sep_isov : Pick a subset of non-adjacent active cubes to run \n --out_csv : Write the voronoi diagram to a csv file for visualization, follow by the path you want (--out_csv <path/to/the/output/file.csv>)" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <isovalue> <(nhdr/nrrd) raw data file path> <output format ( ply/off )> <output filepath> <options>\n --sep_isov : Pick a subset of non-adjacent active cubes to run \n --out_csv : Write the voronoi diagram to a csv file for visualization, follow by the path you want (--out_csv <path/to/the/output/file.csv>) \n --supersample : Supersample the input nrrd data by a factor before running the algorithm, follow by the factor(--supersample <int factor>)" << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -27,12 +21,14 @@ int main(int argc, char *argv[])
 
     // Read data points and find centers of active cubes
     std::string file_path = argv[2];
-    float isovalue = std::stof(argv[1]);
+    float isovalue = std::atof(argv[1]);
     std::string output_format = argv[3];
     std::string output_filename = argv[4];
     std::string out_csv_name;
     bool out_csv = false;
     bool sep_isov = false;
+    bool supersample = false;
+    int supersample_r;
 
     for (int i = 5; i < argc; ++i)
     {
@@ -47,6 +43,11 @@ int main(int argc, char *argv[])
         {
             sep_isov = true;
         }
+        else if (arg == "--supersample")
+        {
+            supersample = true;
+            supersample_r = std::atoi(argv[++i]);
+        }
         else
         {
             std::cerr << "Unknown argument: " << arg << std::endl;
@@ -55,8 +56,16 @@ int main(int argc, char *argv[])
     }
 
     Grid data_grid = load_nrrd_data(file_path);
+    if (supersample) {
+        std::cout << "Original: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+        data_grid = supersample_grid(data_grid, supersample_r);
+        std::cout << "After supersampling: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+    }
     std::vector<Cube> activeCubes = find_active_cubes(data_grid, isovalue);
-    if(sep_isov) {activeCubes = separate_active_cubes_greedy(activeCubes);}
+    if (sep_isov)
+    {
+        activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
+    }
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
     // Put data from the nrrd file into the grid
@@ -96,12 +105,12 @@ int main(int argc, char *argv[])
 
     // *** DEBUG ***
     // Print Delaunay tetrahedra.
-    for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
+/*     for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
          cell_it != dt.all_cells_end(); cell_it++)
     {
 
         print_cell(*cell_it);
-    }
+    } */
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -202,7 +211,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (out_csv) {export_voronoi_to_csv(voronoi_vertices, voronoi_edges, out_csv_name);}
+    if (out_csv)
+    {
+        export_voronoi_to_csv(voronoi_vertices, voronoi_edges, out_csv_name);
+    }
 
     /*
     Compute Scalar Values at Voronoi Vertices
@@ -285,26 +297,6 @@ int main(int argc, char *argv[])
                     Point p2 = c->vertex(d2)->point();
                     Point p3 = c->vertex(d3)->point();
 
-                    std::cout << "Voronoi Segment" << std::endl;
-                    std::cout << c->vertex(0)->point() << " , " << c->vertex(1)->point() << " , " << c->vertex(2)->point() << " , " << c->vertex(3)->point() << std::endl;
-                    std::cout << "Value of iFacet: " << iFacet << " Point indices: p1 (" << d1 << ") p2:(" << d2 << ") p3:(" << d3 << ")" << std::endl;
-
-                    /*                     vec1 = p2 - p1;
-                                        vec2 = p3 - p1;
-                                        norm = CGAL::cross_product(vec1, vec2);
-                                        float fOri = norm * (positive - p1);
-
-                                        if (fOri >= 0)
-                                        { // Above plane
-                                            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                            std::cout << "Triangle vertices: " << p1 << ", " << p3 << ", " << p2 << std::endl;
-                                        }
-                                        else
-                                        {
-                                            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                            std::cout << "Triangle vertices: " << p1 << ", " << p2 << ", " << p3 << std::endl;
-                                        } */
-
                     int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], vertexValueMap[v2]);
 
                     if (dt.is_infinite(c))
@@ -312,12 +304,12 @@ int main(int argc, char *argv[])
                         if (iOrient < 0)
                         {
                             dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            std::cout << "Triangle vertices: (123)" << p1 << ", " << p2 << ", " << p3 << std::endl;
+
                         }
                         else
                         {
                             dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
+
                         }
                     }
                     else
@@ -325,12 +317,12 @@ int main(int argc, char *argv[])
                         if (iOrient >= 0)
                         {
                             dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            std::cout << "Triangle vertices: (123)" << p1 << ", " << p2 << ", " << p3 << std::endl;
+
                         }
                         else
                         {
                             dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
+
                         }
                     }
                 }
@@ -340,13 +332,7 @@ int main(int argc, char *argv[])
         {
             // If the edge is a ray
             intersectObj = CGAL::intersection(bbox, ray);
-            /*             if (CGAL::assign(ip, intersectObj))
-                        {
-                            if (debug)
-                            {
-                                std::cout << "Intersection point: " << ip << " with ray: " << ray << std::endl;
-                            }
-                        } */
+
             if (CGAL::assign(iseg, intersectObj))
             {
                 if (debug)
@@ -398,30 +384,6 @@ int main(int argc, char *argv[])
                         Point p2 = c->vertex(d2)->point();
                         Point p3 = c->vertex(d3)->point();
 
-                        std::cout << "Voronoi Ray" << std::endl;
-                        if (dt.is_infinite(c))
-                        {
-                            std::cout << "Infinite cell" << std::endl;
-                        }
-                        std::cout << c->vertex(0)->point() << " , " << c->vertex(1)->point() << " , " << c->vertex(2)->point() << " , " << c->vertex(3)->point() << std::endl;
-                        std::cout << "Value of iFacet: " << iFacet << " Point indices: p1 (" << d1 << ") p2:(" << d2 << ") p3:(" << d3 << ")" << std::endl;
-
-                        /*                         vec1 = p2 - p1;
-                                                vec2 = p3 - p1;
-                                                norm = CGAL::cross_product(vec1, vec2);
-                                                float fOri = norm * (positive - p1);
-
-                                                if (fOri >= 0)
-                                                { // Above plane
-                                                    dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                                    std::cout << "Triangle vertices: " << p1 << ", " << p3 << ", " << p2 << std::endl;
-                                                }
-                                                else
-                                                {
-                                                    dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                                    std::cout << "Triangle vertices: " << p1 << ", " << p2 << ", " << p3 << std::endl;
-                                                } */
-
                         int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], iPt_value);
 
                         if (dt.is_infinite(c))
@@ -429,12 +391,12 @@ int main(int argc, char *argv[])
                             if (iOrient < 0)
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                std::cout << "Triangle vertices: (123)" << p1 << ", " << p2 << ", " << p3 << std::endl;
+
                             }
                             else
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
+
                             }
                         }
                         else
@@ -442,12 +404,12 @@ int main(int argc, char *argv[])
                             if (iOrient >= 0)
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                std::cout << "Triangle vertices: (123)" << p1 << ", " << p2 << ", " << p3 << std::endl;
+
                             }
                             else
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
+
                             }
                         }
                     }
@@ -507,25 +469,6 @@ int main(int argc, char *argv[])
                         Point p2 = c->vertex(d2)->point();
                         Point p3 = c->vertex(d3)->point();
 
-                        std::cout << "Voronoi Line" << std::endl;
-                        std::cout << c->vertex(0)->point() << " , " << c->vertex(1)->point() << " , " << c->vertex(2)->point() << " , " << c->vertex(3)->point() << std::endl;
-                        std::cout << "Value of iFacet: " << iFacet << " Point indices: p1 (" << d1 << ") p2:(" << d2 << ") p3:(" << d3 << ")" << std::endl;
-
-                        /*                         vec1 = p2 - p1;
-                                                vec2 = p3 - p1;
-                                                norm = CGAL::cross_product(vec1, vec2);
-                                                float fOri = norm * (positive - p1);
-
-                                                if (fOri >= 0)
-                                                { // Above plane
-                                                    dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                                    std::cout << "Triangle vertices: " << p1 << ", " << p3 << ", " << p2 << std::endl;
-                                                }
-                                                else
-                                                {
-                                                    dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                                    std::cout << "Triangle vertices: " << p1 << ", " << p2 << ", " << p3 << std::endl;
-                                                } */
 
                         int iOrient = get_orientation(iFacet, intersection1, intersection2, iPt1_val, iPt2_val);
                         if (dt.is_infinite(c))
@@ -533,12 +476,12 @@ int main(int argc, char *argv[])
                             if (iOrient < 0)
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                std::cout << "Triangle vertices: (123)" << p1 << ", " << p2 << ", " << p3 << std::endl;
+
                             }
                             else
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
+
                             }
                         }
                         else
@@ -546,12 +489,12 @@ int main(int argc, char *argv[])
                             if (iOrient >= 0)
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                                std::cout << "Triangle vertices: (123)" << p1 << ", " << p2 << ", " << p3 << std::endl;
+
                             }
                             else
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                                std::cout << "Triangle vertices: (132)" << p1 << ", " << p3 << ", " << p2 << std::endl;
+
                             }
                         }
                     }
@@ -559,20 +502,7 @@ int main(int argc, char *argv[])
             }
         }
     }
-    /*
-        if (debug)
-        {
-            std::cout << "Dual triangles of bipolar Voronoi edges:" << std::endl;
-        }
-        if (debug)
-        {
 
-            for (const auto &triangle : dualTriangles)
-            {
-                std::cout << "Triangle vertices: " << triangle.vertex1 << ", " << triangle.vertex2 << ", " << triangle.vertex3 << std::endl;
-            }
-        }
-     */
     const int cubeVertices[8][3] = {
         {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, // bottom face
         {0, 0, 1},
@@ -638,13 +568,6 @@ int main(int argc, char *argv[])
                     center.z() + cubeVertices[idx2][2] - 0.5 * cubeSize);
                 Point intersect = interpolate(p1, p2, val1, val2, isovalue);
                 intersectionPoints.push_back(intersect);
-                /*
-                                if (debug)
-                                {
-                                    std::cout << "p1: (" << p1 << ")  val1: " << val1 << " idx1 : " << idx1 << std::endl;
-                                    std::cout << "p2: (" << p2 << ")  val2: " << val2 << " idx2 : " << idx2 << std::endl;
-                                    std::cout << "Intersection at: (" << intersect << ")" << std::endl;
-                                } */
             }
         }
 

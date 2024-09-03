@@ -107,6 +107,32 @@ Grid load_nrrd_data(const std::string &file_path)
     return {data, nx, ny, nz, dx, dy, dz};
 }
 
+Grid supersample_grid( const Grid &grid, int n) {
+    int nx2 = grid.nx * n;
+    int ny2 = grid.ny * n;
+    int nz2 = grid.nz * n;
+
+    float dx2 = grid.dx ;
+    float dy2 = grid.dy ;
+    float dz2 = grid.dz ;
+
+    std::vector<float> data2(nx2 * ny2 * nz2);
+
+    for (int z = 0; z < nz2; ++z) {
+        for (int y = 0; y < ny2; ++y) {
+            for (int x = 0; x < nx2; ++x) {
+                float px = grid.dx * (x / float(n));
+                float py = grid.dy * (y / float(n));
+                float pz = grid.dz * (z / float(n));
+
+                float interpolate_val = trilinear_interpolate(Point(px, py, pz), grid);
+                data2[z*nx2*ny2 + y*nx2 + x] = interpolate_val;
+            }
+        }
+    }
+
+    return {data2, nx2, ny2, nz2, dx2, dy2, dz2};
+}
 
 /*
 Preprocessing
@@ -246,6 +272,29 @@ std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes)
     return centers;
 }
 
+// Function to calculate the unique index of a cube
+int get_cube_index(const Point &repVertex, int nx, int ny) {
+    return repVertex.z() * nx * ny + repVertex.y() * nx + repVertex.x();
+}
+
+
+// Function to find the neighboring indices of a cube
+std::vector<int> find_neighbor_indices(const Point3& repVertex, int nx, int ny) {
+    std::vector<int> neighbors;
+    for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy) {
+            for (int dz = -1; dz <= 1; ++dz) {
+                if (dx != 0 || dy != 0 || dz != 0) {
+                    Point3 neighbor(repVertex.x() + dx, repVertex.y() + dy, repVertex.z() + dz);
+                    neighbors.push_back(get_cube_index(neighbor, nx, ny));
+                }
+            }
+        }
+    }
+    return neighbors;
+}
+
+
 bool is_adjacent(const Cube &cubeA, const Cube &cubeB)
 {
     return (std::abs(cubeA.repVertex.x() - cubeB.repVertex.x()) <= 1 &&
@@ -253,33 +302,28 @@ bool is_adjacent(const Cube &cubeA, const Cube &cubeB)
             std::abs(cubeA.repVertex.z() - cubeB.repVertex.z()) <= 1);
 }
 
-std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes)
-{
+std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube>& activeCubes, int nx, int ny, int nz) {
+    std::unordered_map<int, Cube> indexToCubeMap;
     std::vector<Cube> separatedCubes;
 
-    std::vector<Cube> sortedCubes = activeCubes;
-    std::sort(sortedCubes.begin(), sortedCubes.end(), [](const Cube &a, const Cube &b)
-              {
-        if (a.repVertex.x() != b.repVertex.x()) return a.repVertex.x() < b.repVertex.x();
-        if (a.repVertex.y() != b.repVertex.y()) return a.repVertex.y() < b.repVertex.y();
-        return a.repVertex.z() < b.repVertex.z(); });
+    for (const Cube &cube : activeCubes) {
+        int index = get_cube_index(cube.repVertex, nx, ny);
 
-    // Greedy select non-adjacent cubes
-    for (const Cube &c : sortedCubes)
-    {
         bool isAdj = false;
-        for (const Cube &s : separatedCubes)
-        {
-            if (is_adjacent(c, s))
-            {
-                isAdj = true;
-                break;
+        for (int dz = -1; dz <= 1 && !isAdj; ++dz) {
+            for (int dy = -1; dy <= 1 && !isAdj; ++dy) {
+                for (int dx = -1; dx <= 1 && !isAdj; ++dx) {
+                    int neighborIndex = index + dz * nx * ny + dy * nx + dx;
+                    if (indexToCubeMap.find(neighborIndex) != indexToCubeMap.end()) {
+                        isAdj = true;
+                    }
+                }
             }
         }
 
-        if (!isAdj)
-        {
-            separatedCubes.push_back(c);
+        if (!isAdj) {
+            separatedCubes.push_back(cube);
+            indexToCubeMap[index] = cube;
         }
     }
 
@@ -383,28 +427,7 @@ std::string objectToString(const Object &obj)
     Line3 line;
     if (CGAL::assign(seg, obj))
     {
-        Point3 p1, p2;
-        p1 = seg.source();
-        p2 = seg.target();
-        stream << "Segment: ";
-
-        if (p1.x() < p2.x()) {
-            stream << p1 << " " << p2;
-        } else if (p1.x() == p2.x()) {
-            if (p1.x() < p2.y()) {
-                stream << p1 << " " << p2;
-            } else if (p1.y() == p2.y()) {
-                if (p1.z() <=p2.z()) {
-                    stream << p1 << " " << p2;
-                } else {
-                    stream << p2 << " " << p1;
-                }
-            } else {
-                stream << p2 << " " << p1;
-            }
-        } else {
-            stream << p2 << " " << p1;
-        }
+        stream << "Segment: " << seg;
     }
     else if (CGAL::assign(ray, obj))
     {
@@ -533,6 +556,74 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     return c;
 }
 
+
+float trilinear_interpolate(const Point &p, const Grid &grid) {
+    bool debug = false;
+
+    // Convert point coordinates to grid space
+    float gx = p.x() / grid.dx;
+    float gy = p.y() / grid.dy;
+    float gz = p.z() / grid.dz;
+
+    if (debug) {
+        std::cout << "Grid dimensions: " << grid.nx << " " << grid.ny << " " << grid.nz << std::endl;
+        std::cout << "(gx, gy, gz): " << gx << " " << gy << " " << gz << std::endl;
+    }
+
+    // Determine the indices of the eight surrounding grid points
+    int x0 = static_cast<int>(std::floor(gx));
+    int x1 = x0 + 1;
+    int y0 = static_cast<int>(std::floor(gy));
+    int y1 = y0 + 1;
+    int z0 = static_cast<int>(std::floor(gz));
+    int z1 = z0 + 1;
+
+    // Handle boundaries to avoid accessing out of bounds
+    if (x0 < 0 || x1 >= grid.nx || y0 < 0 || y1 >= grid.ny || z0 < 0 || z1 >= grid.nz) {
+        return 0; // Return 0 for out-of-bounds access
+    }
+
+    // Compute the differences
+    float xd = gx - x0;
+    float yd = gy - y0;
+    float zd = gz - z0;
+
+    // Retrieve values at the eight surrounding grid points using direct indexing
+    float c000 = grid.data[z0 * grid.nx * grid.ny + y0 * grid.nx + x0];
+    float c001 = grid.data[z1 * grid.nx * grid.ny + y0 * grid.nx + x0];
+    float c010 = grid.data[z0 * grid.nx * grid.ny + y1 * grid.nx + x0];
+    float c011 = grid.data[z1 * grid.nx * grid.ny + y1 * grid.nx + x0];
+    float c100 = grid.data[z0 * grid.nx * grid.ny + y0 * grid.nx + x1];
+    float c101 = grid.data[z1 * grid.nx * grid.ny + y0 * grid.nx + x1];
+    float c110 = grid.data[z0 * grid.nx * grid.ny + y1 * grid.nx + x1];
+    float c111 = grid.data[z1 * grid.nx * grid.ny + y1 * grid.nx + x1];
+
+    if (debug) {
+        std::cout << "Point is: (" << p << ")\nEight corners of the cube: " << c000 << " " << c001 << " " << c010 << " " << c011 << " " << c100 << " " << c101 << " " << c110 << " " << c111 << std::endl;
+        std::cout << "Two corners of the cube: (" << x0 << " " << y0 << " " << z0 << ") and (" << x1 << " " << y1 << " " << z1 << ")" << std::endl;
+    }
+
+    // Interpolate along z-axis
+    float c00 = c000 * (1 - zd) + c001 * zd;
+    float c01 = c010 * (1 - zd) + c011 * zd;
+    float c10 = c100 * (1 - zd) + c101 * zd;
+    float c11 = c110 * (1 - zd) + c111 * zd;
+
+    // Interpolate along y-axis
+    float c0 = c00 * (1 - yd) + c01 * yd;
+    float c1 = c10 * (1 - yd) + c11 * yd;
+
+    // Interpolate along x-axis
+    float c = c0 * (1 - xd) + c1 * xd;
+
+    if (debug) {
+        std::cout << "Result: scalar value at (" << p << ") is " << c << std::endl;
+    }
+
+    return c;
+}
+
+
 std::array<Point, 8> get_cube_corners(const Point &center, float side_length)
 {
     float half_side = side_length / 2.0;
@@ -564,12 +655,10 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
     {
         if (flag_v1_positive)
         {
-            std::cout << "+ Point: v1 (" << v1 << "), Result : Positive" << std::endl;
             return 1;
         }
         else
         {
-            std::cout << "+ Point: v2 (" << v2 << "), Result : Negative" << std::endl;
             return -1;
         }
     }
@@ -577,12 +666,10 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
     {
         if (flag_v1_positive)
         {
-            std::cout << "+ Point: v1 (" << v1 << "), Result : Negative" << std::endl;
             return -1;
         }
         else
         {
-            std::cout << "+ Point: v2 (" << v2 << "), Result : Positive" << std::endl;
             return 1;
         }
     }

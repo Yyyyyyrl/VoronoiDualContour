@@ -53,6 +53,8 @@ struct Cube
     // The vertex stands for the lowest corner vertex of the cube, for example the cube defined by (0,0,0) and (1,1,1) will have repVertex (0,0,0)
     Point repVertex, center;
     int sidelength;
+    // Default constructor
+    Cube() : repVertex(Point3(0, 0, 0)), center(Point3(0, 0, 0)), sidelength(1) {}
     Cube(Point v, Point c, int len) : repVertex(v), sidelength(len), center(c) {}
 };
 
@@ -113,14 +115,18 @@ std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size);
 /*Preprocessing*/
 void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid);
 Grid load_nrrd_data(const std::string &file_path);
+Grid supersample_grid(const Grid &grid, int n);
+
 
 /*
 Functions for Active Cube Centers
 */
 bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue);
 bool is_adjacent(const Cube &cubeA, const Cube &cubeB);
+int get_cube_index(const Point &repVertex, int nx, int ny);
+std::vector<int> find_neighbor_indices(const Point3& repVertex, int nx, int ny);
 std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes);
-std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes);
+std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes, int nx, int ny, int nz);
 std::vector<Cube> separate_active_cubes_graph(std::vector<Cube> &activeCubes);
 
 std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue);
@@ -136,6 +142,7 @@ General Helper Functions
 Point compute_centroid(const std::vector<Point> &points);
 Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue);
 float trilinear_interpolate(const Point &p, const ScalarGrid &grid);
+float trilinear_interpolate(const Point &p, const Grid &grid);
 std::array<Point, 8> get_cube_corners(const Point &center, float side_length);
 int get_orientation(const int iFacet, const Point v1, const Point v2, const float f1, const float f2);
 

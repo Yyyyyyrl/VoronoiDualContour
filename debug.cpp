@@ -1,6 +1,12 @@
 #include "debug.h"
 
 
+/*Helper Functions*/
+// Boolean value that controlls whether the debug print commands are executed
+bool debug = false;
+// Boolena value controlls whether the progress print commands are executed
+bool indicator = true;
+
 void print_cell(Delaunay::Cell c)
 {
     using namespace std;
