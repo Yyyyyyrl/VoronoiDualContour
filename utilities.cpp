@@ -134,6 +134,7 @@ Grid supersample_grid( const Grid &grid, int n) {
     return {data2, nx2, ny2, nz2, dx2, dy2, dz2};
 }
 
+
 /*
 Preprocessing
 */
@@ -144,7 +145,7 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
     grid.ny = nrrdGrid.ny;
     grid.nz = nrrdGrid.nz;
 
-    // Define grid dimensions
+    // Define gridf dimensions
     grid.min_x = 0;
     grid.min_y = 0;
     grid.min_z = 0;
@@ -460,14 +461,14 @@ bool is_bipolar(float val1, float val2, float isovalue)
 General Helper Functions
 */
 
-Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue)
+Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const Grid &data_grid)
 {
     if (std::abs(val1 - val2) < 1e-6) // Avoid division by zero or near-zero differences
         return p1;
     float t = (isovalue - val1) / (val2 - val1);
-    return Point(p1.x() + t * (p2.x() - p1.x()),
-                 p1.y() + t * (p2.y() - p1.y()),
-                 p1.z() + t * (p2.z() - p1.z()));
+    return Point(p1.x() + t * (p2.x() - p1.x()) * data_grid.dx,
+                 p1.y() + t * (p2.y() - p1.y()) * data_grid.dy,
+                 p1.z() + t * (p2.z() - p1.z()) * data_grid.dz);
 }
 
 Point compute_centroid(const std::vector<Point> &points)

@@ -3,7 +3,7 @@
 
 /*Helper Functions*/
 // Boolean value that controlls whether the debug print commands are executed
-bool debug = false;
+bool debug = true;
 // Boolena value controlls whether the progress print commands are executed
 bool indicator = true;
 

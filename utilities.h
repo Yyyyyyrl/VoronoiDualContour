@@ -140,7 +140,7 @@ bool isDegenerate(const Object &obj);
 General Helper Functions
 */
 Point compute_centroid(const std::vector<Point> &points);
-Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue);
+Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const Grid &data_grid);
 float trilinear_interpolate(const Point &p, const ScalarGrid &grid);
 float trilinear_interpolate(const Point &p, const Grid &grid);
 std::array<Point, 8> get_cube_corners(const Point &center, float side_length);

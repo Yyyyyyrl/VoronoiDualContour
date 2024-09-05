@@ -56,10 +56,15 @@ int main(int argc, char *argv[])
     }
 
     Grid data_grid = load_nrrd_data(file_path);
-    if (supersample) {
-        std::cout << "Original: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+    float spacing_x = data_grid.dx; // Spacing along the x-axis
+    float spacing_y = data_grid.dy; // Spacing along the y-axis
+    float spacing_z = data_grid.dz; // Spacing along the z-axis
+    std::cout << "Spacings of loaded data: " << spacing_x << " " << spacing_y << " " << spacing_z << std::endl;
+    if (supersample)
+    {
+        std::cout << "Original size: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
         data_grid = supersample_grid(data_grid, supersample_r);
-        std::cout << "After supersampling: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+        std::cout << "After supersampling size: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
     }
     std::vector<Cube> activeCubes = find_active_cubes(data_grid, isovalue);
     if (sep_isov)
@@ -76,7 +81,15 @@ int main(int argc, char *argv[])
         std::cout << "Loaded data and Calculating Bounding box" << std::endl;
     }
 
-    K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
+    std::vector<Point> scaledGridPoints;
+    for (const auto &pt : gridPoints)
+    {
+        scaledGridPoints.push_back(Point(
+            pt.x() * data_grid.dx,
+            pt.y() * data_grid.dy,
+            pt.z() * data_grid.dz));
+    }
+    K::Iso_cuboid_3 bbox = CGAL::bounding_box(scaledGridPoints.begin(), scaledGridPoints.end());
 
     if (debug)
     {
@@ -85,7 +98,7 @@ int main(int argc, char *argv[])
                   << bbox.max() << ")" << std::endl;
     }
 
-    float cubeSideLength = 1.0;
+    float cubeSideLength = data_grid.dx;
 
     // Construct Delaunay Triangulation
     if (indicator)
@@ -105,12 +118,12 @@ int main(int argc, char *argv[])
 
     // *** DEBUG ***
     // Print Delaunay tetrahedra.
-/*     for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
-         cell_it != dt.all_cells_end(); cell_it++)
-    {
+    /*     for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
+             cell_it != dt.all_cells_end(); cell_it++)
+        {
 
-        print_cell(*cell_it);
-    } */
+            print_cell(*cell_it);
+        } */
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -304,12 +317,10 @@ int main(int argc, char *argv[])
                         if (iOrient < 0)
                         {
                             dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-
                         }
                         else
                         {
                             dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-
                         }
                     }
                     else
@@ -317,12 +328,10 @@ int main(int argc, char *argv[])
                         if (iOrient >= 0)
                         {
                             dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-
                         }
                         else
                         {
                             dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-
                         }
                     }
                 }
@@ -391,12 +400,10 @@ int main(int argc, char *argv[])
                             if (iOrient < 0)
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-
                             }
                             else
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-
                             }
                         }
                         else
@@ -404,12 +411,10 @@ int main(int argc, char *argv[])
                             if (iOrient >= 0)
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-
                             }
                             else
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-
                             }
                         }
                     }
@@ -469,19 +474,16 @@ int main(int argc, char *argv[])
                         Point p2 = c->vertex(d2)->point();
                         Point p3 = c->vertex(d3)->point();
 
-
                         int iOrient = get_orientation(iFacet, intersection1, intersection2, iPt1_val, iPt2_val);
                         if (dt.is_infinite(c))
                         {
                             if (iOrient < 0)
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-
                             }
                             else
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-
                             }
                         }
                         else
@@ -489,12 +491,10 @@ int main(int argc, char *argv[])
                             if (iOrient >= 0)
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-
                             }
                             else
                             {
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-
                             }
                         }
                     }
@@ -559,14 +559,14 @@ int main(int argc, char *argv[])
             if (((val1 > isovalue) && (val2 <= isovalue)) || ((val1 >= isovalue) && (val2 < isovalue)) || ((val1 < isovalue) && (val2 >= isovalue)) || ((val1 <= isovalue) && (val2 > isovalue))) // FIX: change to comparison, no arithmatic
             {
                 Point p1(
-                    center.x() + cubeVertices[idx1][0] - 0.5 * cubeSize,
-                    center.y() + cubeVertices[idx1][1] - 0.5 * cubeSize,
-                    center.z() + cubeVertices[idx1][2] - 0.5 * cubeSize);
+                    center.x() + spacing_x * (cubeVertices[idx1][0] - 0.5 * cubeSize),
+                    center.y() + spacing_y * (cubeVertices[idx1][1] - 0.5 * cubeSize),
+                    center.z() + spacing_z * (cubeVertices[idx1][2] - 0.5 * cubeSize));
                 Point p2(
-                    center.x() + cubeVertices[idx2][0] - 0.5 * cubeSize,
-                    center.y() + cubeVertices[idx2][1] - 0.5 * cubeSize,
-                    center.z() + cubeVertices[idx2][2] - 0.5 * cubeSize);
-                Point intersect = interpolate(p1, p2, val1, val2, isovalue);
+                    center.x() + spacing_x * (cubeVertices[idx2][0] - 0.5 * cubeSize),
+                    center.y() + spacing_y * (cubeVertices[idx2][1] - 0.5 * cubeSize),
+                    center.z() + spacing_z * (cubeVertices[idx2][2] - 0.5 * cubeSize));
+                Point intersect = interpolate(p1, p2, val1, val2, isovalue, data_grid);
                 intersectionPoints.push_back(intersect);
             }
         }
@@ -603,5 +603,3 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
-
-// TODO: Clean up the code, and solve the orientation issue
