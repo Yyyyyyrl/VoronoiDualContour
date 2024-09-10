@@ -134,12 +134,13 @@ std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue);
 std::vector<Point> load_grid_points(const Grid &grid);
 bool is_bipolar(float val1, float val2, float isovalue = 0);
 bool isDegenerate(const Object &obj);
+bool is_degenerate(Delaunay::Cell_handle cell);
 
 
 /*
 General Helper Functions
 */
-Point compute_centroid(const std::vector<Point> &points);
+Point compute_centroid(const std::vector<Point> &points, bool supersample, int ratio);
 Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const Grid &data_grid);
 float trilinear_interpolate(const Point &p, const ScalarGrid &grid);
 float trilinear_interpolate(const Point &p, const Grid &grid);

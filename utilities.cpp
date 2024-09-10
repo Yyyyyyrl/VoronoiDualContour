@@ -102,6 +102,20 @@ Grid load_nrrd_data(const std::string &file_path)
     float dz = nrrd->axis[2].spacing;
 
 
+    // Initialize min/max values
+    float min_x = 0.0f, max_x = (nx - 1) * dx;
+    float min_y = 0.0f, max_y = (ny - 1) * dy;
+    float min_z = 0.0f, max_z = (nz - 1) * dz;
+
+    // You could also check the bounds dynamically by looking at the index
+    // but in this case, it's assumed the data aligns perfectly with grid structure
+
+    std::cout << "Grid dimensions: " << nx << "x" << ny << "x" << nz << std::endl;
+    std::cout << "Spacing: dx=" << dx << ", dy=" << dy << ", dz=" << dz << std::endl;
+    std::cout << "X range: [" << min_x << ", " << max_x << "]" << std::endl;
+    std::cout << "Y range: [" << min_y << ", " << max_y << "]" << std::endl;
+    std::cout << "Z range: [" << min_z << ", " << max_z << "]" << std::endl;
+    
     nrrdNuke(nrrd); // Properly dispose of the Nrrd structure
 
     return {data, nx, ny, nz, dx, dy, dz};
@@ -210,10 +224,6 @@ bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue)
         {0, 1, 1} // Top face
     };
 
-    if (debug)
-    {
-        std::cout << "Checking cube at (" << x << ", " << y << ", " << z << "):\n"; // Debugging output
-    }
     for (const auto &edge : edges)
     {
         auto [v1x, v1y, v1z] = vertex_offsets[edge.first];
@@ -229,18 +239,11 @@ bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue)
 
             if ((val1 < isovalue && val2 > isovalue) || (val1 > isovalue && val2 < isovalue))
             {
-                if (debug)
-                {
-                    std::cout << "Active edge detected, cube is active.\n"; // Debugging output
-                }
                 return true;
             }
         }
     }
-    if (debug)
-    {
-        std::cout << "No active edges, cube is inactive.\n"; // Debugging output
-    }
+
     return false;
 }
 
@@ -255,7 +258,9 @@ std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue)
             {
                 if (is_cube_active(grid, i, j, k, isovalue))
                 {
-                    activeCubes.push_back(Cube(Point(i, j, k), Point(i+0.5,j+0.5,k+0.5),1));
+                    Point repVertex(i * grid.dx, j * grid.dy, k * grid.dz);
+                    Point center((i+0.5) * grid.dx, (j+0.5) * grid.dy, (k+0.5) * grid.dz);
+                    activeCubes.push_back(Cube(repVertex, center, 1));
                 }
             }
         }
@@ -452,6 +457,21 @@ bool isDegenerate(const Object &obj)
     return false;
 }
 
+
+bool is_degenerate(Delaunay::Cell_handle cell) {
+    Point p0 = cell->vertex(0)->point();
+    Point p1 = cell->vertex(1)->point();
+    Point p2 = cell->vertex(2)->point();
+    Point p3 = cell->vertex(3)->point();
+
+    // Compute the volume of the tetrahedron using the determinant formula
+    K::FT vol = CGAL::volume(p0, p1, p2, p3);
+
+    // If the volume is very close to zero, treat the cell as degenerate
+    return CGAL::abs(vol) < 1e-6;  // Adjust the threshold if needed
+}
+
+
 bool is_bipolar(float val1, float val2, float isovalue)
 {
     return (val1 - isovalue) * (val2 - isovalue) < 0;
@@ -471,7 +491,7 @@ Point interpolate(const Point &p1, const Point &p2, float val1, float val2, floa
                  p1.z() + t * (p2.z() - p1.z()) * data_grid.dz);
 }
 
-Point compute_centroid(const std::vector<Point> &points)
+Point compute_centroid(const std::vector<Point> &points, bool supersample, int ratio)
 {
     float sumX = 0, sumY = 0, sumZ = 0;
     for (const auto &pt : points)
@@ -481,7 +501,17 @@ Point compute_centroid(const std::vector<Point> &points)
         sumZ += pt.z();
     }
     int n = points.size();
-    return Point(sumX / n, sumY / n, sumZ / n);
+    float x, y, z;
+    x = sumX / n;
+    y = sumY / n;
+    z = sumZ / n;
+
+    if (supersample) {
+        x = x / ratio;
+        y = y / ratio;
+        z = z / ratio;
+    }
+    return Point(x, y, z);
 }
 
 float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
@@ -491,11 +521,6 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     float gy = (p.y() - grid.min_y) / grid.dy;
     float gz = (p.z() - grid.min_z) / grid.dz;
 
-    if (debug)
-    {
-        std::cout << "grid dimension: " << grid.nx << " " << grid.ny << " " << grid.nz << std::endl;
-        std::cout << "(gx, gy, gz): " << gx << " " << gy << " " << gz << std::endl;
-    }
 
     int x0 = (int)std::floor(gx);
     if (x0 == grid.nx - 1)
@@ -534,12 +559,6 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     float c110 = grid.get_value(x1, y1, z0);
     float c111 = grid.get_value(x1, y1, z1);
 
-    if (debug)
-    {
-        std::cout << "Point is: (" << p << ")\n Eight corners of the cube: " << c000 << " " << c001 << " " << c010 << " " << c011 << " " << c100 << " " << c101 << " " << c110 << " " << c111 << std::endl;
-        std::cout << "Two corners of the cube: (" << x0 << " " << y0 << " " << z0 << ") and (" << x1 << " " << y1 << " " << z1 << ")" << std::endl;
-    }
-
     float c00 = c000 * (1 - zd) + c001 * zd;
     float c01 = c010 * (1 - zd) + c011 * zd;
     float c10 = c100 * (1 - zd) + c101 * zd;
@@ -550,10 +569,6 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
 
     float c = c0 * (1 - xd) + c1 * xd;
 
-    if (debug)
-    {
-        std::cout << "Result: scalar value at (" << p << ") is " << c << std::endl;
-    }
     return c;
 }
 
@@ -566,10 +581,6 @@ float trilinear_interpolate(const Point &p, const Grid &grid) {
     float gy = p.y() / grid.dy;
     float gz = p.z() / grid.dz;
 
-    if (debug) {
-        std::cout << "Grid dimensions: " << grid.nx << " " << grid.ny << " " << grid.nz << std::endl;
-        std::cout << "(gx, gy, gz): " << gx << " " << gy << " " << gz << std::endl;
-    }
 
     // Determine the indices of the eight surrounding grid points
     int x0 = static_cast<int>(std::floor(gx));
@@ -599,10 +610,6 @@ float trilinear_interpolate(const Point &p, const Grid &grid) {
     float c110 = grid.data[z0 * grid.nx * grid.ny + y1 * grid.nx + x1];
     float c111 = grid.data[z1 * grid.nx * grid.ny + y1 * grid.nx + x1];
 
-    if (debug) {
-        std::cout << "Point is: (" << p << ")\nEight corners of the cube: " << c000 << " " << c001 << " " << c010 << " " << c011 << " " << c100 << " " << c101 << " " << c110 << " " << c111 << std::endl;
-        std::cout << "Two corners of the cube: (" << x0 << " " << y0 << " " << z0 << ") and (" << x1 << " " << y1 << " " << z1 << ")" << std::endl;
-    }
 
     // Interpolate along z-axis
     float c00 = c000 * (1 - zd) + c001 * zd;
@@ -616,10 +623,6 @@ float trilinear_interpolate(const Point &p, const Grid &grid) {
 
     // Interpolate along x-axis
     float c = c0 * (1 - xd) + c1 * xd;
-
-    if (debug) {
-        std::cout << "Result: scalar value at (" << p << ") is " << c << std::endl;
-    }
 
     return c;
 }

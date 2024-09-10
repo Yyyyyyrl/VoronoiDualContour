@@ -16,9 +16,6 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    // Load the scalar grid here; for example purposes, we set some arbitrary values
-    ScalarGrid grid(100, 100, 100, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-
     // Read data points and find centers of active cubes
     std::string file_path = argv[2];
     float isovalue = std::atof(argv[1]);
@@ -56,15 +53,11 @@ int main(int argc, char *argv[])
     }
 
     Grid data_grid = load_nrrd_data(file_path);
-    float spacing_x = data_grid.dx; // Spacing along the x-axis
-    float spacing_y = data_grid.dy; // Spacing along the y-axis
-    float spacing_z = data_grid.dz; // Spacing along the z-axis
-    std::cout << "Spacings of loaded data: " << spacing_x << " " << spacing_y << " " << spacing_z << std::endl;
     if (supersample)
     {
-        std::cout << "Original size: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+        //std::cout << "Original: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
         data_grid = supersample_grid(data_grid, supersample_r);
-        std::cout << "After supersampling size: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+        //std::cout << "After supersampling: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
     }
     std::vector<Cube> activeCubes = find_active_cubes(data_grid, isovalue);
     if (sep_isov)
@@ -73,6 +66,13 @@ int main(int argc, char *argv[])
     }
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
+
+    std::vector<Point> activeCubeCenters_Normalized;
+    for (const auto &center: activeCubeCenters) {
+        activeCubeCenters_Normalized.push_back(Point( center.x() / data_grid.dx, center.y() / data_grid.dy, center.z() / data_grid.dz));
+    }
+    // Load the scalar grid here; for example purposes, we set some arbitrary values
+    ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);
 
@@ -81,15 +81,7 @@ int main(int argc, char *argv[])
         std::cout << "Loaded data and Calculating Bounding box" << std::endl;
     }
 
-    std::vector<Point> scaledGridPoints;
-    for (const auto &pt : gridPoints)
-    {
-        scaledGridPoints.push_back(Point(
-            pt.x() * data_grid.dx,
-            pt.y() * data_grid.dy,
-            pt.z() * data_grid.dz));
-    }
-    K::Iso_cuboid_3 bbox = CGAL::bounding_box(scaledGridPoints.begin(), scaledGridPoints.end());
+    K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
 
     if (debug)
     {
@@ -105,7 +97,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Delaunay triangulation..." << std::endl;
     }
-    Delaunay dt(activeCubeCenters.begin(), activeCubeCenters.end());
+    Delaunay dt(activeCubeCenters_Normalized.begin(), activeCubeCenters_Normalized.end());
     int index = 0;
 
     std::map<Point, int> point_index_map;
@@ -115,15 +107,16 @@ int main(int argc, char *argv[])
         point_index_map[pt] = i;
         i++;
     }
+    
 
     // *** DEBUG ***
     // Print Delaunay tetrahedra.
-    /*     for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
+        for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
              cell_it != dt.all_cells_end(); cell_it++)
         {
 
             print_cell(*cell_it);
-        } */
+        }
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -140,26 +133,15 @@ int main(int argc, char *argv[])
     {
 
         Point voronoi_vertex = dt.dual(cit);
+        std::cout << "Voronoi vertex (normalized): " << voronoi_vertex << std::endl;
+        Point scaled_voronoi_vertex(voronoi_vertex.x() * data_grid.dx,
+                                voronoi_vertex.y() * data_grid.dy,
+                                voronoi_vertex.z() * data_grid.dz);
 
-        if (seen_points.insert(voronoi_vertex).second)
+        if (seen_points.insert(scaled_voronoi_vertex).second)
         { // insert returns a pair, where .second is a bool indicating success
-            voronoi_vertices.push_back(voronoi_vertex);
-            if (debug)
-            {
-                std::cout << "Adding Voronoi vertex at " << dt.dual(cit) << " derived from cell with vertices: "
-                          << cit->vertex(0)->point() << ", "
-                          << cit->vertex(1)->point() << ", "
-                          << cit->vertex(2)->point() << ", "
-                          << cit->vertex(3)->point() << std::endl;
-            }
-        }
-        else if (debug)
-        {
-            std::cout << "Duplicate Voronoi vertex skipped: " << voronoi_vertex << " derived from cell with vertices: "
-                      << cit->vertex(0)->point() << ", "
-                      << cit->vertex(1)->point() << ", "
-                      << cit->vertex(2)->point() << ", "
-                      << cit->vertex(3)->point() << std::endl;
+            voronoi_vertices.push_back(scaled_voronoi_vertex);
+            //std::cout << "voronoi vertex: " << voronoi_vertex << std::endl;
         }
     }
     /*
@@ -179,22 +161,9 @@ int main(int argc, char *argv[])
 
         if (isDegenerate(vEdge))
         {
-            if (debug)
-            {
-                std::cout << "skipping degenerate voronoi edge:" << objectToString(vEdge) << std::endl;
-                continue;
-            }
+            continue;
         }
         std::string edgeRep = objectToString(vEdge);
-
-        if (debug)
-        {
-            print_facet(facet);
-            CGAL::assign(ray, vEdge);
-
-            // std::cout << "Facet: " << facet.first->vertex(0)->point() << ", " <<  facet.first->vertex(1)->point() << ", " << facet.first->vertex(2)->point() << std::endl;
-            std::cout << "vEdge: " << ray << std::endl;
-        }
 
         delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
 
@@ -202,30 +171,15 @@ int main(int argc, char *argv[])
         {
             voronoi_edges.push_back(vEdge);
             seen_edges.insert(edgeRep);
-            if (debug)
-            {
-                std::cout << "Added Voronoi Edge: " << edgeRep << std::endl;
-            }
-
-            // returns a line segment or ray, and it's the voronoi edge
-            // For ray, make a bounding box and take intersection to determine if it's bipolar
-
-            if (debug)
-            {
-                if (CGAL::assign(ray, vEdge))
-                {
-                    std::cout << "Voronoi Edge is a ray: " << ray << std::endl;
-                }
-                else if (CGAL::assign(line, vEdge))
-                {
-                    std::cout << "Voronoi Edge is a line: " << line << std::endl;
-                }
-            }
         }
     }
 
     if (out_csv)
     {
+        std::cout << "Export voronoi Diagram" << std::endl;
+/*         for (auto &edge : voronoi_edges) {
+            std::cout << "Edge: " << edge << std::endl;   
+        } */
         export_voronoi_to_csv(voronoi_vertices, voronoi_edges, out_csv_name);
     }
 
@@ -244,10 +198,6 @@ int main(int argc, char *argv[])
         float value = trilinear_interpolate(vertex, grid);
         voronoi_vertex_values.push_back(value);
         vertexValueMap[vertex] = value;
-        if (debug)
-        {
-            std::cout << "Interpolated scalar value at (" << vertex << "): " << value << std::endl;
-        }
     }
 
     /*
@@ -276,10 +226,6 @@ int main(int argc, char *argv[])
             // If the edge is a segment the two ends must be both in voronoi_vertices so their scalar values are pre-calculated
             if (is_bipolar(vertexValueMap[v1], vertexValueMap[v2], isovalue))
             {
-                if (debug)
-                {
-                    std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;
-                }
                 // TODO: Find the Delaunay Triangle dual to the edge
 
                 intersectObj = CGAL::intersection(bbox, Ray3(seg.source(), v2 - v1));
@@ -344,10 +290,6 @@ int main(int argc, char *argv[])
 
             if (CGAL::assign(iseg, intersectObj))
             {
-                if (debug)
-                {
-                    std::cout << "Intersection seg: " << iseg.source() << " to " << iseg.target() << " with ray: " << ray << std::endl;
-                }
 
                 // assign a corresponding scalar value to the intersection point and check if the segment between the source and intersection point is bi-polar
                 Point intersection_point = iseg.target();
@@ -371,10 +313,6 @@ int main(int argc, char *argv[])
                 // Check if it's bipolar
                 if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue))
                 {
-                    if (debug)
-                    {
-                        std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;
-                    }
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
                     {
@@ -431,10 +369,6 @@ int main(int argc, char *argv[])
             if (CGAL::assign(iseg, intersectObj))
             {
 
-                if (debug)
-                {
-                    std::cout << "Intersection seg: " << iseg << std::endl;
-                }
                 Point intersection1 = iseg.source();
                 Point intersection2 = iseg.target();
 
@@ -455,10 +389,6 @@ int main(int argc, char *argv[])
 
                 if (is_bipolar(iPt1_val, iPt2_val, isovalue))
                 {
-                    if (debug)
-                    {
-                        std::cout << "Bipolar edge found: " << iseg.source() << " to " << iseg.target() << std::endl;
-                    }
                     // TODO: Find the Delaunay Triangle dual to the edge
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
@@ -532,7 +462,7 @@ int main(int argc, char *argv[])
     for (const auto &center : activeCubeCenters)
     {
         std::vector<Point> intersectionPoints;
-        float cubeSize = 1.0;
+        float cubeSize = data_grid.dx;
         std::array<float, 8> scalarValues;
 
         /*         if (debug) {std::cout <<"Cube center: " << center.x() << " " << center.y() << " " << center.z() << std::endl;} */
@@ -540,9 +470,9 @@ int main(int argc, char *argv[])
         for (int i = 0; i < 8; i++)
         {
             Point vertex(
-                center.x() + cubeVertices[i][0] - 0.5 * cubeSize,
-                center.y() + cubeVertices[i][1] - 0.5 * cubeSize,
-                center.z() + cubeVertices[i][2] - 0.5 * cubeSize);
+                center.x() + (cubeVertices[i][0] - 0.5) * cubeSize,
+                center.y() + (cubeVertices[i][1] - 0.5) * cubeSize,
+                center.z() + (cubeVertices[i][2] - 0.5) * cubeSize);
             scalarValues[i] = grid.get_scalar_value_at_point(vertex);
         }
 
@@ -559,13 +489,15 @@ int main(int argc, char *argv[])
             if (((val1 > isovalue) && (val2 <= isovalue)) || ((val1 >= isovalue) && (val2 < isovalue)) || ((val1 < isovalue) && (val2 >= isovalue)) || ((val1 <= isovalue) && (val2 > isovalue))) // FIX: change to comparison, no arithmatic
             {
                 Point p1(
-                    center.x() + spacing_x * (cubeVertices[idx1][0] - 0.5 * cubeSize),
-                    center.y() + spacing_y * (cubeVertices[idx1][1] - 0.5 * cubeSize),
-                    center.z() + spacing_z * (cubeVertices[idx1][2] - 0.5 * cubeSize));
+                    center.x() + (cubeVertices[idx1][0] - 0.5) * cubeSize * data_grid.dx,
+                    center.y() + (cubeVertices[idx1][1] - 0.5) * cubeSize * data_grid.dy,
+                    center.z() + (cubeVertices[idx1][2] - 0.5) * cubeSize * data_grid.dz);
+
                 Point p2(
-                    center.x() + spacing_x * (cubeVertices[idx2][0] - 0.5 * cubeSize),
-                    center.y() + spacing_y * (cubeVertices[idx2][1] - 0.5 * cubeSize),
-                    center.z() + spacing_z * (cubeVertices[idx2][2] - 0.5 * cubeSize));
+                    center.x() + (cubeVertices[idx2][0] - 0.5) * cubeSize * data_grid.dx,
+                    center.y() + (cubeVertices[idx2][1] - 0.5) * cubeSize * data_grid.dy,
+                    center.z() + (cubeVertices[idx2][2] - 0.5) * cubeSize * data_grid.dz);
+
                 Point intersect = interpolate(p1, p2, val1, val2, isovalue, data_grid);
                 intersectionPoints.push_back(intersect);
             }
@@ -574,13 +506,13 @@ int main(int argc, char *argv[])
         // Compute the centroid of the intersection points
         if (!intersectionPoints.empty())
         {
-            Point centroid = compute_centroid(intersectionPoints);
+            Point centroid = compute_centroid(intersectionPoints, supersample, supersample_r);
             isosurfaceVertices.push_back(centroid);
-            if (debug)
+            /* if (debug)
 
             {
                 std::cout << "Iso surface Vertex at : (" << centroid << ")" << std::endl;
-            }
+            } */
         }
     }
 
@@ -603,3 +535,5 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
+
+// TODO: Clean up the code, and solve the orientation issue
