@@ -67,10 +67,6 @@ int main(int argc, char *argv[])
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
 
-    std::vector<Point> activeCubeCenters_Normalized;
-    for (const auto &center: activeCubeCenters) {
-        activeCubeCenters_Normalized.push_back(Point( center.x() / data_grid.dx, center.y() / data_grid.dy, center.z() / data_grid.dz));
-    }
     // Load the scalar grid here; for example purposes, we set some arbitrary values
     ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
     // Put data from the nrrd file into the grid
@@ -97,7 +93,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Delaunay triangulation..." << std::endl;
     }
-    Delaunay dt(activeCubeCenters_Normalized.begin(), activeCubeCenters_Normalized.end());
+    Delaunay dt(activeCubeCenters.begin(), activeCubeCenters.end());
     int index = 0;
 
     std::map<Point, int> point_index_map;
@@ -133,14 +129,10 @@ int main(int argc, char *argv[])
     {
 
         Point voronoi_vertex = dt.dual(cit);
-        std::cout << "Voronoi vertex (normalized): " << voronoi_vertex << std::endl;
-        Point scaled_voronoi_vertex(voronoi_vertex.x() * data_grid.dx,
-                                voronoi_vertex.y() * data_grid.dy,
-                                voronoi_vertex.z() * data_grid.dz);
 
-        if (seen_points.insert(scaled_voronoi_vertex).second)
+        if (seen_points.insert(voronoi_vertex).second)
         { // insert returns a pair, where .second is a bool indicating success
-            voronoi_vertices.push_back(scaled_voronoi_vertex);
+            voronoi_vertices.push_back(voronoi_vertex);
             //std::cout << "voronoi vertex: " << voronoi_vertex << std::endl;
         }
     }
