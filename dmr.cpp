@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
     }
 
     Grid data_grid = load_nrrd_data(file_path);
+    data_grid.print_grid();
     if (supersample)
     {
         //std::cout << "Original: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;

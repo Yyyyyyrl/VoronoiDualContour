@@ -38,7 +38,24 @@ void ScalarGrid::load_from_source(const std::vector<std::vector<std::vector<floa
 }
 
 void Grid::print_grid() {
+    // Print metadata (dimensions and spacing)
+    std::cout << "NRRD Grid Information:\n";
+    std::cout << "Dimensions: " << nx << " " << ny << " " << nz << "\n";
+    std::cout << "Spacing: " << dx << " " << dy << " " << dz << "\n\n";
     
+    // Print the data in a structured format
+    std::cout << "Data:\n";
+    
+    for (int z = 0; z < nz; ++z) {
+        std::cout << "Slice z = " << z << ":\n";
+        for (int y = 0; y < ny; ++y) {
+            for (int x = 0; x < nx; ++x) {
+                std::cout << std::setw(8) << data[z * nx * ny + y * nx + x] << " ";
+            }
+            std::cout << "\n";
+        }
+        std::cout << "\n";
+    }
 }
 
 std::tuple<int, int, int> ScalarGrid::point_to_grid_index(const Point &point) {

@@ -11,6 +11,7 @@
 #include <limits>
 #include <algorithm>
 #include <teem/nrrd.h>
+#include <iomanip>  // For formatted output
 #include <CGAL/bounding_box.h>
 #include <CGAL/intersections.h>
 #include <CGAL/Vector_3.h>
