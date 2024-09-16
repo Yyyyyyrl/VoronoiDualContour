@@ -1,6 +1,6 @@
-#include "utilities.h"
+#include "dmr_utilities.h"
 #include "debug.h"
-#include "io.h"
+#include "dmr_io.h"
 #include <cstdlib>
 /*
 
@@ -16,6 +16,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
+    //TODO: void parse_arg()
     // Read data points and find centers of active cubes
     std::string file_path = argv[2];
     float isovalue = std::atof(argv[1]);
@@ -67,7 +68,7 @@ int main(int argc, char *argv[])
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
 
-    // Load the scalar grid here; for example purposes, we set some arbitrary values
+
     ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);
@@ -107,12 +108,12 @@ int main(int argc, char *argv[])
 
     // *** DEBUG ***
     // Print Delaunay tetrahedra.
-        for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
+/*         for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
              cell_it != dt.all_cells_end(); cell_it++)
         {
 
             print_cell(*cell_it);
-        }
+        } */
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -481,14 +482,14 @@ int main(int argc, char *argv[])
             if (((val1 > isovalue) && (val2 <= isovalue)) || ((val1 >= isovalue) && (val2 < isovalue)) || ((val1 < isovalue) && (val2 >= isovalue)) || ((val1 <= isovalue) && (val2 > isovalue))) // FIX: change to comparison, no arithmatic
             {
                 Point p1(
-                    center.x() + (cubeVertices[idx1][0] - 0.5) * cubeSize * data_grid.dx,
-                    center.y() + (cubeVertices[idx1][1] - 0.5) * cubeSize * data_grid.dy,
-                    center.z() + (cubeVertices[idx1][2] - 0.5) * cubeSize * data_grid.dz);
+                    center.x() + (cubeVertices[idx1][0] - 0.5) * cubeSize,
+                    center.y() + (cubeVertices[idx1][1] - 0.5) * cubeSize,
+                    center.z() + (cubeVertices[idx1][2] - 0.5) * cubeSize);
 
                 Point p2(
-                    center.x() + (cubeVertices[idx2][0] - 0.5) * cubeSize * data_grid.dx,
-                    center.y() + (cubeVertices[idx2][1] - 0.5) * cubeSize * data_grid.dy,
-                    center.z() + (cubeVertices[idx2][2] - 0.5) * cubeSize * data_grid.dz);
+                    center.x() + (cubeVertices[idx2][0] - 0.5) * cubeSize,
+                    center.y() + (cubeVertices[idx2][1] - 0.5) * cubeSize,
+                    center.z() + (cubeVertices[idx2][2] - 0.5) * cubeSize);
 
                 Point intersect = interpolate(p1, p2, val1, val2, isovalue, data_grid);
                 intersectionPoints.push_back(intersect);
@@ -500,11 +501,7 @@ int main(int argc, char *argv[])
         {
             Point centroid = compute_centroid(intersectionPoints, supersample, supersample_r);
             isosurfaceVertices.push_back(centroid);
-            /* if (debug)
 
-            {
-                std::cout << "Iso surface Vertex at : (" << centroid << ")" << std::endl;
-            } */
         }
     }
 
