@@ -144,9 +144,9 @@ Grid load_nrrd_data(const std::string &file_path)
 }
 
 Grid supersample_grid(const Grid &grid, int n) {
-    int nx2 = grid.nx * n;
-    int ny2 = grid.ny * n;
-    int nz2 = grid.nz * n;
+    int nx2 = grid.nx * n - (n-1);
+    int ny2 = grid.ny * n - (n-1);
+    int nz2 = grid.nz * n - (n-1);
 
     float dx2 = grid.dx / n;
     float dy2 = grid.dy / n;
