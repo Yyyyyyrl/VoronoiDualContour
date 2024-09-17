@@ -2,6 +2,7 @@
 #include "debug.h"
 #include "dmr_io.h"
 #include <cstdlib>
+
 /*
 
 Body Main function
@@ -18,203 +19,10 @@ bool sep_isov = false;
 bool supersample = false;
 int supersample_r;
 
-void parse_arguments(int argc, char *argv[])
+
+std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid)
 {
-    // Initialize required arguments
-    file_path = argv[2];
-    isovalue = std::atof(argv[1]);
-    output_format = argv[3];
-    output_filename = argv[4];
-
-    // Parse optional arguments
-    for (int i = 5; i < argc; ++i)
-    {
-        std::string arg = argv[i];
-
-        if (arg == "--out_csv" && i + 1 < argc)
-        {
-            out_csv = true;
-            out_csv_name = argv[++i];
-        }
-        else if (arg == "--sep_isov")
-        {
-            sep_isov = true;
-        }
-        else if (arg == "--supersample")
-        {
-            supersample = true;
-            supersample_r = std::atoi(argv[++i]);
-        }
-        else
-        {
-            std::cerr << "Unknown argument: " << arg << std::endl;
-            exit(1);
-        }
-    }
-}
-
-
-int main(int argc, char *argv[])
-{
-    if (argc < 4)
-    {
-        std::cerr << "Usage: " << argv[0] << " <isovalue> <(nhdr/nrrd) raw data file path> <output format ( ply/off )> <output filepath> <options>\n --sep_isov : Pick a subset of non-adjacent active cubes to run \n --out_csv : Write the voronoi diagram to a csv file for visualization, follow by the path you want (--out_csv <path/to/the/output/file.csv>) \n --supersample : Supersample the input nrrd data by a factor before running the algorithm, follow by the factor(--supersample <int factor>)" << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    //TODO: void parse_arg()
-    // Read data points and find centers of active cubes
-    parse_arguments(argc, argv);
-    
-    Grid data_grid = load_nrrd_data(file_path);
-    data_grid.print_grid();
-    if (supersample)
-    {
-        //std::cout << "Original: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
-        data_grid = supersample_grid(data_grid, supersample_r);
-        //std::cout << "After supersampling: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
-        std::cout << "After supersample: " << std::endl;
-        data_grid.print_grid();
-    }
-    std::vector<Cube> activeCubes = find_active_cubes(data_grid, isovalue);
-    if (sep_isov)
-    {
-        activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
-    }
-    std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
-    std::vector<Point> gridPoints = load_grid_points(data_grid);
-
-
-    ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
-    // Put data from the nrrd file into the grid
-    initialize_scalar_grid(grid, data_grid);
-
-    if (indicator)
-    {
-        std::cout << "Loaded data and Calculating Bounding box" << std::endl;
-    }
-
-    K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
-
-    if (debug)
-    {
-        std::cout << "Bounding box: ("
-                  << bbox.min() << ") to ("
-                  << bbox.max() << ")" << std::endl;
-    }
-
-    float cubeSideLength = data_grid.dx;
-
-    // Construct Delaunay Triangulation
-    if (indicator)
-    {
-        std::cout << "Constructing Delaunay triangulation..." << std::endl;
-    }
-    Delaunay dt(activeCubeCenters.begin(), activeCubeCenters.end());
-    int index = 0;
-
-    std::map<Point, int> point_index_map;
-    int i = 0;
-    for (const auto &pt : activeCubeCenters)
-    {
-        point_index_map[pt] = i;
-        i++;
-    }
-    
-
-    // *** DEBUG ***
-    // Print Delaunay tetrahedra.
-/*         for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
-             cell_it != dt.all_cells_end(); cell_it++)
-        {
-
-            print_cell(*cell_it);
-        } */
-
-    /*
-    Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
-    */
-    std::vector<Point> voronoi_vertices;
-    std::set<Point> seen_points;
-
-    // Construct Voronoi Diagram
-    if (indicator)
-    {
-        std::cout << "Constructing Voronoi diagram..." << std::endl;
-    }
-    for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
-    {
-
-        Point voronoi_vertex = dt.dual(cit);
-
-        if (seen_points.insert(voronoi_vertex).second)
-        { // insert returns a pair, where .second is a bool indicating success
-            voronoi_vertices.push_back(voronoi_vertex);
-            //std::cout << "voronoi vertex: " << voronoi_vertex << std::endl;
-        }
-    }
-    /*
-    Iterate through each facets in the DT and then calculate Voronoi Edges
-    */
-    std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
-    std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
-    std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
-    for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit)
-    {
-        Facet facet = *fit;
-        Segment3 seg;
-        Ray3 ray;
-        Line3 line;
-
-        Delaunay::Object vEdge = dt.dual(facet);
-
-        if (isDegenerate(vEdge))
-        {
-            continue;
-        }
-        std::string edgeRep = objectToString(vEdge);
-
-        delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
-
-        if (seen_edges.find(edgeRep) == seen_edges.end())
-        {
-            voronoi_edges.push_back(vEdge);
-            seen_edges.insert(edgeRep);
-        }
-    }
-
-    if (out_csv)
-    {
-        std::cout << "Export voronoi Diagram" << std::endl;
-/*         for (auto &edge : voronoi_edges) {
-            std::cout << "Edge: " << edge << std::endl;   
-        } */
-        export_voronoi_to_csv(voronoi_vertices, voronoi_edges, out_csv_name);
-    }
-
-    /*
-    Compute Scalar Values at Voronoi Vertices
-    */
-    if (indicator)
-    {
-        std::cout << "Computing scalar values at Voronoi vertices..." << std::endl;
-    }
-    std::map<Point, float> vertexValueMap;
-    std::vector<float> voronoi_vertex_values;
-
-    for (const auto &vertex : voronoi_vertices)
-    {
-        float value = trilinear_interpolate(vertex, grid);
-        voronoi_vertex_values.push_back(value);
-        vertexValueMap[vertex] = value;
-    }
-
-    /*
-    For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
-    */
-
-    std::vector<DelaunayTriangle> dualTriangles; // To store the dual triangles of bipolar Voronoi edges
-
+    std::vector<DelaunayTriangle> dualTriangles;
     for (const auto &edge : voronoi_edges)
     {
         Object intersectObj;
@@ -441,7 +249,210 @@ int main(int argc, char *argv[])
             }
         }
     }
+    return dualTriangles;
+} // TODO: Clean up the code, and solve the orientation issue
 
+void parse_arguments(int argc, char *argv[])
+{
+    // Initialize required arguments
+    file_path = argv[2];
+    isovalue = std::atof(argv[1]);
+    output_format = argv[3];
+    output_filename = argv[4];
+
+    // Parse optional arguments
+    for (int i = 5; i < argc; ++i)
+    {
+        std::string arg = argv[i];
+
+        if (arg == "--out_csv" && i + 1 < argc)
+        {
+            out_csv = true;
+            out_csv_name = argv[++i];
+        }
+        else if (arg == "--sep_isov")
+        {
+            sep_isov = true;
+        }
+        else if (arg == "--supersample")
+        {
+            supersample = true;
+            supersample_r = std::atoi(argv[++i]);
+        }
+        else
+        {
+            std::cerr << "Unknown argument: " << arg << std::endl;
+            exit(1);
+        }
+    }
+}
+
+
+int main(int argc, char *argv[])
+{
+    if (argc < 4)
+    {
+        std::cerr << "Usage: " << argv[0] << " <isovalue> <(nhdr/nrrd) raw data file path> <output format ( ply/off )> <output filepath> <options>\n --sep_isov : Pick a subset of non-adjacent active cubes to run \n --out_csv : Write the voronoi diagram to a csv file for visualization, follow by the path you want (--out_csv <path/to/the/output/file.csv>) \n --supersample : Supersample the input nrrd data by a factor before running the algorithm, follow by the factor(--supersample <int factor>)" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    //TODO: void parse_arg()
+    // Read data points and find centers of active cubes
+    parse_arguments(argc, argv);
+    
+    Grid data_grid = load_nrrd_data(file_path);
+    data_grid.print_grid();
+    if (supersample)
+    {
+        //std::cout << "Original: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+        data_grid = supersample_grid(data_grid, supersample_r);
+        //std::cout << "After supersampling: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+        std::cout << "After supersample: " << std::endl;
+        data_grid.print_grid();
+    }
+    std::vector<Cube> activeCubes = find_active_cubes(data_grid, isovalue);
+    if (sep_isov)
+    {
+        activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
+    }
+    std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
+    std::vector<Point> gridPoints = load_grid_points(data_grid);
+
+
+    ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
+    // Put data from the nrrd file into the grid
+    initialize_scalar_grid(grid, data_grid);
+
+    if (indicator)
+    {
+        std::cout << "Loaded data and Calculating Bounding box" << std::endl;
+    }
+
+    K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
+
+    if (debug)
+    {
+        std::cout << "Bounding box: ("
+                  << bbox.min() << ") to ("
+                  << bbox.max() << ")" << std::endl;
+    }
+
+    float cubeSideLength = data_grid.dx;
+
+    // Construct Delaunay Triangulation
+    if (indicator)
+    {
+        std::cout << "Constructing Delaunay triangulation..." << std::endl;
+    }
+    Delaunay dt(activeCubeCenters.begin(), activeCubeCenters.end());
+    int index = 0;
+
+    std::map<Point, int> point_index_map;
+    int i = 0;
+    for (const auto &pt : activeCubeCenters)
+    {
+        point_index_map[pt] = i;
+        i++;
+    }
+    
+
+    // *** DEBUG ***
+    // Print Delaunay tetrahedra.
+/*         for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
+             cell_it != dt.all_cells_end(); cell_it++)
+        {
+
+            print_cell(*cell_it);
+        } */
+
+    /*
+    Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
+    */
+    std::vector<Point> voronoi_vertices;
+    std::set<Point> seen_points;
+
+    // Construct Voronoi Diagram
+    if (indicator)
+    {
+        std::cout << "Constructing Voronoi diagram..." << std::endl;
+    }
+    for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
+    {
+
+        Point voronoi_vertex = dt.dual(cit);
+
+        if (seen_points.insert(voronoi_vertex).second)
+        { // insert returns a pair, where .second is a bool indicating success
+            voronoi_vertices.push_back(voronoi_vertex);
+            //std::cout << "voronoi vertex: " << voronoi_vertex << std::endl;
+        }
+    }
+    /*
+    Iterate through each facets in the DT and then calculate Voronoi Edges
+    */
+    std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
+    std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
+    std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
+    for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit)
+    {
+        Facet facet = *fit;
+        Segment3 seg;
+        Ray3 ray;
+        Line3 line;
+
+        Delaunay::Object vEdge = dt.dual(facet);
+
+        if (isDegenerate(vEdge))
+        {
+            continue;
+        }
+        std::string edgeRep = objectToString(vEdge);
+
+        delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
+
+        if (seen_edges.find(edgeRep) == seen_edges.end())
+        {
+            voronoi_edges.push_back(vEdge);
+            seen_edges.insert(edgeRep);
+        }
+    }
+
+    if (out_csv)
+    {
+        std::cout << "Export voronoi Diagram" << std::endl;
+/*         for (auto &edge : voronoi_edges) {
+            std::cout << "Edge: " << edge << std::endl;   
+        } */
+        export_voronoi_to_csv(voronoi_vertices, voronoi_edges, out_csv_name);
+    }
+
+    /*
+    Compute Scalar Values at Voronoi Vertices
+    */
+    if (indicator)
+    {
+        std::cout << "Computing scalar values at Voronoi vertices..." << std::endl;
+    }
+    std::map<Point, float> vertexValueMap;
+    std::vector<float> voronoi_vertex_values;
+
+    for (const auto &vertex : voronoi_vertices)
+    {
+        float value = trilinear_interpolate(vertex, grid);
+        voronoi_vertex_values.push_back(value);
+        vertexValueMap[vertex] = value;
+    }
+
+    /*
+    For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
+    */
+
+    std::vector<DelaunayTriangle> dualTriangles = computeDualTriangles(voronoi_edges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
+
+
+    /*
+    Compute Isosurface Vertices
+    */
     const int cubeVertices[8][3] = {
         {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, // bottom face
         {0, 0, 1},
@@ -540,5 +551,3 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
-
-// TODO: Clean up the code, and solve the orientation issue

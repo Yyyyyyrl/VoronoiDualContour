@@ -695,3 +695,4 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
         }
     }
 }
+

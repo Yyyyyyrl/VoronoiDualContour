@@ -161,4 +161,11 @@ float trilinear_interpolate(const Point &p, const Grid &grid);
 std::array<Point, 8> get_cube_corners(const Point &center, float side_length);
 int get_orientation(const int iFacet, const Point v1, const Point v2, const float f1, const float f2);
 
+
+/*
+Main Algorithm
+*/
+
+
+
 #endif
