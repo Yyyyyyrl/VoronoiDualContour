@@ -143,32 +143,35 @@ Grid load_nrrd_data(const std::string &file_path)
     return {data, nx, ny, nz, dx, dy, dz};
 }
 
-Grid supersample_grid( const Grid &grid, int n) {
+Grid supersample_grid(const Grid &grid, int n) {
     int nx2 = grid.nx * n;
     int ny2 = grid.ny * n;
     int nz2 = grid.nz * n;
 
-    float dx2 = grid.dx ;
-    float dy2 = grid.dy ;
-    float dz2 = grid.dz ;
+    float dx2 = grid.dx / n;
+    float dy2 = grid.dy / n;
+    float dz2 = grid.dz / n;
 
     std::vector<float> data2(nx2 * ny2 * nz2);
 
     for (int z = 0; z < nz2; ++z) {
         for (int y = 0; y < ny2; ++y) {
             for (int x = 0; x < nx2; ++x) {
-                float px = grid.dx * (x / float(n));
-                float py = grid.dy * (y / float(n));
-                float pz = grid.dz * (z / float(n));
+                // Convert to original grid space (ensure float division)
+                float px = static_cast<float>(x) / n * grid.dx;
+                float py = static_cast<float>(y) / n * grid.dy;
+                float pz = static_cast<float>(z) / n * grid.dz;
 
+                // Perform trilinear interpolation
                 float interpolate_val = trilinear_interpolate(Point(px, py, pz), grid);
-                data2[z*nx2*ny2 + y*nx2 + x] = interpolate_val;
+                data2[z * nx2 * ny2 + y * nx2 + x] = interpolate_val;
             }
         }
     }
 
     return {data2, nx2, ny2, nz2, dx2, dy2, dz2};
 }
+
 
 
 /*
@@ -528,11 +531,11 @@ Point compute_centroid(const std::vector<Point> &points, bool supersample, int r
     y = sumY / n;
     z = sumZ / n;
 
-    if (supersample) {
+/*     if (supersample) {
         x = x / ratio;
         y = y / ratio;
         z = z / ratio;
-    }
+    } */
     return Point(x, y, z);
 }
 
@@ -596,33 +599,25 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
 
 
 float trilinear_interpolate(const Point &p, const Grid &grid) {
-    bool debug = false;
-
     // Convert point coordinates to grid space
     float gx = p.x() / grid.dx;
     float gy = p.y() / grid.dy;
     float gz = p.z() / grid.dz;
 
-
     // Determine the indices of the eight surrounding grid points
     int x0 = static_cast<int>(std::floor(gx));
-    int x1 = x0 + 1;
+    int x1 = std::min(x0 + 1, grid.nx - 1); // Clamp x1 to grid boundary
     int y0 = static_cast<int>(std::floor(gy));
-    int y1 = y0 + 1;
+    int y1 = std::min(y0 + 1, grid.ny - 1); // Clamp y1 to grid boundary
     int z0 = static_cast<int>(std::floor(gz));
-    int z1 = z0 + 1;
-
-    // Handle boundaries to avoid accessing out of bounds
-    if (x0 < 0 || x1 >= grid.nx || y0 < 0 || y1 >= grid.ny || z0 < 0 || z1 >= grid.nz) {
-        return 0; // Return 0 for out-of-bounds access
-    }
+    int z1 = std::min(z0 + 1, grid.nz - 1); // Clamp z1 to grid boundary
 
     // Compute the differences
     float xd = gx - x0;
     float yd = gy - y0;
     float zd = gz - z0;
 
-    // Retrieve values at the eight surrounding grid points using direct indexing
+    // Retrieve values at the eight surrounding grid points
     float c000 = grid.data[z0 * grid.nx * grid.ny + y0 * grid.nx + x0];
     float c001 = grid.data[z1 * grid.nx * grid.ny + y0 * grid.nx + x0];
     float c010 = grid.data[z0 * grid.nx * grid.ny + y1 * grid.nx + x0];
@@ -631,7 +626,6 @@ float trilinear_interpolate(const Point &p, const Grid &grid) {
     float c101 = grid.data[z1 * grid.nx * grid.ny + y0 * grid.nx + x1];
     float c110 = grid.data[z0 * grid.nx * grid.ny + y1 * grid.nx + x1];
     float c111 = grid.data[z1 * grid.nx * grid.ny + y1 * grid.nx + x1];
-
 
     // Interpolate along z-axis
     float c00 = c000 * (1 - zd) + c001 * zd;
@@ -648,6 +642,7 @@ float trilinear_interpolate(const Point &p, const Grid &grid) {
 
     return c;
 }
+
 
 
 std::array<Point, 8> get_cube_corners(const Point &center, float side_length)

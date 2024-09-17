@@ -44,6 +44,17 @@ typedef K::Line_3 Line3;
 typedef K::Point_3 Point3;
 typedef K::Vector_3 Vector3;
 
+//Global Variable
+extern std::string file_path;
+extern float isovalue;
+extern std::string output_format;
+extern std::string output_filename;
+extern std::string out_csv_name;
+extern bool out_csv;
+extern bool sep_isov;
+extern bool supersample;
+extern int supersample_r;
+
 
 /*
 Structs

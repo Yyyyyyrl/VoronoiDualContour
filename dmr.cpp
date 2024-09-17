@@ -7,27 +7,26 @@
 Body Main function
 
 */
+// Global variables
+std::string file_path;
+float isovalue;
+std::string output_format;
+std::string output_filename;
+std::string out_csv_name;
+bool out_csv = false;
+bool sep_isov = false;
+bool supersample = false;
+int supersample_r;
 
-int main(int argc, char *argv[])
+void parse_arguments(int argc, char *argv[])
 {
-    if (argc < 4)
-    {
-        std::cerr << "Usage: " << argv[0] << " <isovalue> <(nhdr/nrrd) raw data file path> <output format ( ply/off )> <output filepath> <options>\n --sep_isov : Pick a subset of non-adjacent active cubes to run \n --out_csv : Write the voronoi diagram to a csv file for visualization, follow by the path you want (--out_csv <path/to/the/output/file.csv>) \n --supersample : Supersample the input nrrd data by a factor before running the algorithm, follow by the factor(--supersample <int factor>)" << std::endl;
-        return EXIT_FAILURE;
-    }
+    // Initialize required arguments
+    file_path = argv[2];
+    isovalue = std::atof(argv[1]);
+    output_format = argv[3];
+    output_filename = argv[4];
 
-    //TODO: void parse_arg()
-    // Read data points and find centers of active cubes
-    std::string file_path = argv[2];
-    float isovalue = std::atof(argv[1]);
-    std::string output_format = argv[3];
-    std::string output_filename = argv[4];
-    std::string out_csv_name;
-    bool out_csv = false;
-    bool sep_isov = false;
-    bool supersample = false;
-    int supersample_r;
-
+    // Parse optional arguments
     for (int i = 5; i < argc; ++i)
     {
         std::string arg = argv[i];
@@ -35,7 +34,7 @@ int main(int argc, char *argv[])
         if (arg == "--out_csv" && i + 1 < argc)
         {
             out_csv = true;
-            out_csv_name = arg[++i];
+            out_csv_name = argv[++i];
         }
         else if (arg == "--sep_isov")
         {
@@ -49,10 +48,24 @@ int main(int argc, char *argv[])
         else
         {
             std::cerr << "Unknown argument: " << arg << std::endl;
-            return 1;
+            exit(1);
         }
     }
+}
 
+
+int main(int argc, char *argv[])
+{
+    if (argc < 4)
+    {
+        std::cerr << "Usage: " << argv[0] << " <isovalue> <(nhdr/nrrd) raw data file path> <output format ( ply/off )> <output filepath> <options>\n --sep_isov : Pick a subset of non-adjacent active cubes to run \n --out_csv : Write the voronoi diagram to a csv file for visualization, follow by the path you want (--out_csv <path/to/the/output/file.csv>) \n --supersample : Supersample the input nrrd data by a factor before running the algorithm, follow by the factor(--supersample <int factor>)" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    //TODO: void parse_arg()
+    // Read data points and find centers of active cubes
+    parse_arguments(argc, argv);
+    
     Grid data_grid = load_nrrd_data(file_path);
     data_grid.print_grid();
     if (supersample)
@@ -60,6 +73,8 @@ int main(int argc, char *argv[])
         //std::cout << "Original: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
         data_grid = supersample_grid(data_grid, supersample_r);
         //std::cout << "After supersampling: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
+        std::cout << "After supersample: " << std::endl;
+        data_grid.print_grid();
     }
     std::vector<Cube> activeCubes = find_active_cubes(data_grid, isovalue);
     if (sep_isov)
