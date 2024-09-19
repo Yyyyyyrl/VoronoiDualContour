@@ -20,35 +20,83 @@ bool supersample = false;
 int supersample_r;
 
 std::map<Point, float> vertexValueMap;
+std::vector<Point> activeCubeCenters;
 std::vector<Object> bipolar_voronoi_edges;
 
 
 // Function to crop points based on min and max coordinates and write to CSV
-void cropAndWriteToCSV(const std::vector<Point>& points, double minX, double minY, double minZ, 
-                       double maxX, double maxY, double maxZ, const std::string& filename) {
+void cropAndWriteToCSV(const std::vector<Point>& points, float minX, float minY, float minZ, 
+                       float maxX, float maxY, float maxZ, const std::string& filename, bool save_cropped) {
     std::ofstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Failed to open the file!" << std::endl;
         return;
     }
+
+    std::vector<Point> temp;
     
     // Write CSV header
     file << "x,y,z\n";
 
     // Iterate through the list and filter points within the specified range
     for (const auto& point : points) {
-        double x = point.x();
-        double y = point.y();
-        double z = point.z();
+        std::cout << "Point: " << point << std::endl;
+        float x = point.x();
+        float y = point.y();
+        float z = point.z();
 
         if (x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ) {
             // Write the point to CSV
             file << x << "," << y << "," << z << "\n";
+            temp.push_back(point);
         }
     }
 
     file.close();
     std::cout << "Points successfully written to " << filename << std::endl;
+    if (save_cropped) {
+        activeCubeCenters = temp;
+    }
+}
+
+Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const Point &v1, const Point &v2)
+{
+    // Convert the point to grid space
+    float gx = p.x() / grid.dx;
+    float gy = p.y() / grid.dy;
+    float gz = p.z() / grid.dz;
+
+    // Check if the point is outside the bounds
+    if (gx < 0 || gx >= grid.nx || gy < 0 || gy >= grid.ny || gz < 0 || gz >= grid.nz)
+    {
+        // If the point is out of bounds, find the closest in-bound point on the segment (v1, v2)
+        // Convert v1 and v2 to grid space
+        float v1_gx = v1.x() / grid.dx;
+        float v1_gy = v1.y() / grid.dy;
+        float v1_gz = v1.z() / grid.dz;
+
+        float v2_gx = v2.x() / grid.dx;
+        float v2_gy = v2.y() / grid.dy;
+        float v2_gz = v2.z() / grid.dz;
+
+        // Get the parameter t for the projection of point p onto the segment [v1, v2]
+        float t = ((gx - v1_gx) * (v2_gx - v1_gx) + (gy - v1_gy) * (v2_gy - v1_gy) + (gz - v1_gz) * (v2_gz - v1_gz)) /
+                  ((v2_gx - v1_gx) * (v2_gx - v1_gx) + (v2_gy - v1_gy) * (v2_gy - v1_gy) + (v2_gz - v1_gz) * (v2_gz - v1_gz));
+
+        // Clamp t to [0, 1] to ensure the closest point lies on the segment
+        t = std::max(0.0f, std::min(t, 1.0f));
+
+        // Compute the closest point in grid space
+        float px = v1_gx + t * (v2_gx - v1_gx);
+        float py = v1_gy + t * (v2_gy - v1_gy);
+        float pz = v1_gz + t * (v2_gz - v1_gz);
+
+        // Convert the grid-space point back to world-space and return
+        return Point(px * grid.dx, py * grid.dy, pz * grid.dz);
+    }
+
+    // If the point is within bounds, return the original point
+    return p;
 }
 
 std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid)
@@ -75,9 +123,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
             if (is_bipolar(vertexValueMap[v1], vertexValueMap[v2], isovalue))
             {
                 
-                bipolar_voronoi_edges.push_back(edge);
-                std::cout << "Type: Segment \n Vertex 1 : " << v1 << " Value: " << vertexValueMap[v1] << " Vertex 2 : " << v2 << " Value: " << vertexValueMap[v2] << std::endl;
-                // TODO: Find the Delaunay Triangle dual to the edge
+                bipolar_voronoi_edges.push_back(edge);               // TODO: Find the Delaunay Triangle dual to the edge
 
                 intersectObj = CGAL::intersection(bbox, Ray3(seg.source(), v2 - v1));
                 CGAL::assign(iseg, intersectObj);
@@ -150,7 +196,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                 v1 = iseg.source();
                 v2 = iseg.target();
 
-                float iPt_value = trilinear_interpolate(intersection_point, grid);
+                float iPt_value = trilinear_interpolate(adjust_outside_bound_points(intersection_point, grid, v1, v2), grid);
 
                 if (vertexValueMap[iseg.source()] >= iPt_value)
                 {
@@ -164,9 +210,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                 // Check if it's bipolar
                 if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue))
                 {
-                    bipolar_voronoi_edges.push_back(edge);
-                    std::cout << "Type: Ray \n Vertex 1 : " << v1 << " Value: " << vertexValueMap[v1] << " Vertex 2(intersection with bbx) : " << v2 << " Value: " << vertexValueMap[v2] << std::endl;
-                
+                    bipolar_voronoi_edges.push_back(edge);               
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
                     {
@@ -226,8 +270,8 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                 Point intersection1 = iseg.source();
                 Point intersection2 = iseg.target();
 
-                float iPt1_val = trilinear_interpolate(intersection1, grid);
-                float iPt2_val = trilinear_interpolate(intersection2, grid);
+                float iPt1_val = trilinear_interpolate(adjust_outside_bound_points(intersection1, grid, intersection1, intersection2), grid);
+                float iPt2_val = trilinear_interpolate(adjust_outside_bound_points(intersection2, grid, intersection1, intersection2), grid);
 
                 CGAL::Orientation o;
                 Point positive;
@@ -244,8 +288,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                 if (is_bipolar(iPt1_val, iPt2_val, isovalue))
                 {
                     bipolar_voronoi_edges.push_back(edge);
-                    std::cout << "Type: Line \n Intersection 1 : " << intersection1 << " Value: " << iPt1_val << " Vertex 2 : " << intersection2 << " Value: " << iPt2_val << std::endl;
-                
+               
                     // TODO: Find the Delaunay Triangle dual to the edge
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
@@ -355,12 +398,14 @@ int main(int argc, char *argv[])
     {
         activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
     }
-    std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
+    activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
 
     ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);
+
+    //cropAndWriteToCSV(activeCubeCenters, 27, 27, 28, 35, 29 ,33 , "../temps/fuel_crop.csv", true);
 
     if (indicator)
     {

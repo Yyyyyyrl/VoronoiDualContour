@@ -37,4 +37,4 @@ def visualize_points_from_csv(filename):
     plt.show()
 
 # Call the function with the CSV file name
-visualize_points_from_csv('fuel-crop.csv')
+visualize_points_from_csv('fuel_crop.csv')
