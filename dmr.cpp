@@ -358,8 +358,6 @@ int main(int argc, char *argv[])
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
 
-    cropAndWriteToCSV(activeCubeCenters, 40, 50, 60, 50, 60, 70, "../temps/fuel-crop.csv");
-
     ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);

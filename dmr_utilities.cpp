@@ -546,39 +546,24 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     float gy = p.y() / grid.dy;
     float gz = p.z() / grid.dz;
 
+    // Clamp gx, gy, gz to valid grid bounds
+    gx = std::max(0.0f, std::min(gx, (float)(grid.nx - 1)));
+    gy = std::max(0.0f, std::min(gy, (float)(grid.ny - 1)));
+    gz = std::max(0.0f, std::min(gz, (float)(grid.nz - 1)));
 
     int x0 = (int)std::floor(gx);
-    if (x0 == grid.nx - 1)
-    {
-        --x0;
-    }
-    int x1 = x0 + 1;
+    int x1 = std::min(x0 + 1, grid.nx - 1);
     int y0 = (int)std::floor(gy);
-    if (y0 == grid.ny - 1)
-    {
-        --y0;
-    }
-    int y1 = y0 + 1;
+    int y1 = std::min(y0 + 1, grid.ny - 1);
     int z0 = (int)std::floor(gz);
-    if (z0 == grid.nz - 1)
-    {
-        --z0;
-    }
-    int z1 = z0 + 1;
+    int z1 = std::min(z0 + 1, grid.nz - 1);
 
-    if (x0 < 0 || x1 >= grid.nx || y0 < 0 || y1 >= grid.ny || z0 < 0 || z1 >= grid.nz)
-    {
-        return 0; // Handle out of bounds access
-    }
-    //TODO: Out of bound case:
-    /*
-    Intersect with the bounding box adn then query and force into the bounding box
-    */
-
+    // Fractional part of coordinates
     float xd = gx - x0;
     float yd = gy - y0;
     float zd = gz - z0;
 
+    // Get the values from the grid at the 8 corner points
     float c000 = grid.get_value(x0, y0, z0);
     float c001 = grid.get_value(x0, y0, z1);
     float c010 = grid.get_value(x0, y1, z0);
@@ -588,6 +573,7 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     float c110 = grid.get_value(x1, y1, z0);
     float c111 = grid.get_value(x1, y1, z1);
 
+    // Perform trilinear interpolation
     float c00 = c000 * (1 - zd) + c001 * zd;
     float c01 = c010 * (1 - zd) + c011 * zd;
     float c10 = c100 * (1 - zd) + c101 * zd;
