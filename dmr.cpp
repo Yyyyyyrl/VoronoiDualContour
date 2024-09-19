@@ -19,6 +19,37 @@ bool sep_isov = false;
 bool supersample = false;
 int supersample_r;
 
+std::map<Point, float> vertexValueMap;
+std::vector<Object> bipolar_voronoi_edges;
+
+
+// Function to crop points based on min and max coordinates and write to CSV
+void cropAndWriteToCSV(const std::vector<Point>& points, double minX, double minY, double minZ, 
+                       double maxX, double maxY, double maxZ, const std::string& filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open the file!" << std::endl;
+        return;
+    }
+    
+    // Write CSV header
+    file << "x,y,z\n";
+
+    // Iterate through the list and filter points within the specified range
+    for (const auto& point : points) {
+        double x = point.x();
+        double y = point.y();
+        double z = point.z();
+
+        if (x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ) {
+            // Write the point to CSV
+            file << x << "," << y << "," << z << "\n";
+        }
+    }
+
+    file.close();
+    std::cout << "Points successfully written to " << filename << std::endl;
+}
 
 std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid)
 {
@@ -43,6 +74,9 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
             // If the edge is a segment the two ends must be both in voronoi_vertices so their scalar values are pre-calculated
             if (is_bipolar(vertexValueMap[v1], vertexValueMap[v2], isovalue))
             {
+                
+                bipolar_voronoi_edges.push_back(edge);
+                std::cout << "Type: Segment \n Vertex 1 : " << v1 << " Value: " << vertexValueMap[v1] << " Vertex 2 : " << v2 << " Value: " << vertexValueMap[v2] << std::endl;
                 // TODO: Find the Delaunay Triangle dual to the edge
 
                 intersectObj = CGAL::intersection(bbox, Ray3(seg.source(), v2 - v1));
@@ -130,6 +164,9 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                 // Check if it's bipolar
                 if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue))
                 {
+                    bipolar_voronoi_edges.push_back(edge);
+                    std::cout << "Type: Ray \n Vertex 1 : " << v1 << " Value: " << vertexValueMap[v1] << " Vertex 2(intersection with bbx) : " << v2 << " Value: " << vertexValueMap[v2] << std::endl;
+                
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
                     {
@@ -206,6 +243,9 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                 if (is_bipolar(iPt1_val, iPt2_val, isovalue))
                 {
+                    bipolar_voronoi_edges.push_back(edge);
+                    std::cout << "Type: Line \n Intersection 1 : " << intersection1 << " Value: " << iPt1_val << " Vertex 2 : " << intersection2 << " Value: " << iPt2_val << std::endl;
+                
                     // TODO: Find the Delaunay Triangle dual to the edge
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
@@ -301,14 +341,14 @@ int main(int argc, char *argv[])
     parse_arguments(argc, argv);
     
     Grid data_grid = load_nrrd_data(file_path);
-    data_grid.print_grid();
+    if (debug) {data_grid.print_grid();}
     if (supersample)
     {
         //std::cout << "Original: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
         data_grid = supersample_grid(data_grid, supersample_r);
         //std::cout << "After supersampling: " << data_grid.nx << " " << data_grid.ny << " " << data_grid.nz << std::endl;
         std::cout << "After supersample: " << std::endl;
-        data_grid.print_grid();
+        if (debug) {data_grid.print_grid();}
     }
     std::vector<Cube> activeCubes = find_active_cubes(data_grid, isovalue);
     if (sep_isov)
@@ -318,6 +358,7 @@ int main(int argc, char *argv[])
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
 
+    cropAndWriteToCSV(activeCubeCenters, 40, 50, 60, 50, 60, 70, "../temps/fuel-crop.csv");
 
     ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
     // Put data from the nrrd file into the grid
@@ -417,14 +458,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (out_csv)
-    {
-        std::cout << "Export voronoi Diagram" << std::endl;
-/*         for (auto &edge : voronoi_edges) {
-            std::cout << "Edge: " << edge << std::endl;   
-        } */
-        export_voronoi_to_csv(voronoi_vertices, voronoi_edges, out_csv_name);
-    }
 
     /*
     Compute Scalar Values at Voronoi Vertices
@@ -433,7 +466,6 @@ int main(int argc, char *argv[])
     {
         std::cout << "Computing scalar values at Voronoi vertices..." << std::endl;
     }
-    std::map<Point, float> vertexValueMap;
     std::vector<float> voronoi_vertex_values;
 
     for (const auto &vertex : voronoi_vertices)
@@ -449,6 +481,14 @@ int main(int argc, char *argv[])
 
     std::vector<DelaunayTriangle> dualTriangles = computeDualTriangles(voronoi_edges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
 
+    if (out_csv)
+    {
+        std::cout << "Export voronoi Diagram" << std::endl;
+/*         for (auto &edge : voronoi_edges) {
+            std::cout << "Edge: " << edge << std::endl;   
+        } */
+        export_voronoi_to_csv(voronoi_vertices, bipolar_voronoi_edges, out_csv_name);
+    }
 
     /*
     Compute Isosurface Vertices

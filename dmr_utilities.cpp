@@ -570,6 +570,10 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     {
         return 0; // Handle out of bounds access
     }
+    //TODO: Out of bound case:
+    /*
+    Intersect with the bounding box adn then query and force into the bounding box
+    */
 
     float xd = gx - x0;
     float yd = gy - y0;
@@ -696,3 +700,6 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
     }
 }
 
+
+
+//TODO : Look up table for the vertices to keep track of +/- conditions
