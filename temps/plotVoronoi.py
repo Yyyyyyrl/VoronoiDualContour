@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import csv
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 def load_voronoi_from_csv(filename):
     voronoi_vertices = []
@@ -31,10 +32,34 @@ def load_voronoi_from_csv(filename):
                     voronoi_edges.append({'type': edge_type, 'points': [p1, direction]})
     return voronoi_vertices, voronoi_edges
 
-def plot_voronoi_3d(voronoi_vertices, voronoi_edges):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    
+def read_triangles_3d(filename):
+    triangles = []
+    vertices = {}
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+        current_poly = None
+        for line in lines:
+            line = line.strip()
+            if line.startswith('Poly'):
+                current_poly = []
+                triangles.append(current_poly)
+            elif line.startswith('Vertices:'):
+                continue
+            elif line:
+                parts = line.split()
+                vertex_id = int(parts[0])
+                coords = tuple(float(x) for x in parts[1].strip('()').split(','))
+                vertices[vertex_id] = coords
+                current_poly.append(vertex_id)
+    return vertices, triangles
+
+def plot_triangles_3d(ax, vertices, triangles, color='red', label='Triangles'):
+    for triangle in triangles:
+        triangle_points = [vertices[vid] for vid in triangle]
+        poly = [[triangle_points[0], triangle_points[1], triangle_points[2]]]
+        ax.add_collection3d(Poly3DCollection(poly, facecolors=color, edgecolors='k', linewidths=1, alpha=0.5))
+
+def plot_voronoi_3d(voronoi_vertices, voronoi_edges, ax):
     # Plot vertices
     for vertex in voronoi_vertices:
         ax.scatter(vertex[0], vertex[1], vertex[2], c='b', marker='o')
@@ -56,13 +81,27 @@ def plot_voronoi_3d(voronoi_vertices, voronoi_edges):
             line = np.array([p1, p1 + 2 * np.array(direction)])
             ax.plot(line[:, 0], line[:, 1], line[:, 2], 'y-')
 
-        # Label axes
+    # Label axes
     ax.set_xlabel('X Axis')
     ax.set_ylabel('Y Axis')
     ax.set_zlabel('Z Axis')
+
+def plot_combined_voronoi_and_triangles_3d(voronoi_file, triangles_file):
+    voronoi_vertices, voronoi_edges = load_voronoi_from_csv(voronoi_file)
+    vertices, triangles = read_triangles_3d(triangles_file)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot Voronoi diagram
+    plot_voronoi_3d(voronoi_vertices, voronoi_edges, ax)
+
+    # Plot additional triangles
+    plot_triangles_3d(ax, vertices, triangles, color='red', label='Triangles')
+
     plt.show()
 
 # Example usage
-filename = input("csv file path:")
-voronoi_vertices, voronoi_edges = load_voronoi_from_csv(filename)
-plot_voronoi_3d(voronoi_vertices, voronoi_edges)
+voronoi_file = input("CSV file path for Voronoi diagram: ")
+triangles_file = input("txt file for vertices and triangles: ")  # Path to the triangles file
+plot_combined_voronoi_and_triangles_3d(voronoi_file, triangles_file)
