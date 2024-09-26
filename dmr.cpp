@@ -468,9 +468,15 @@ int main(int argc, char *argv[])
         if (seen_points.insert(voronoi_vertex).second)
         { // insert returns a pair, where .second is a bool indicating success
             voronoi_vertices.push_back(voronoi_vertex);
-            //std::cout << "voronoi vertex: " << voronoi_vertex << std::endl;
         }
     }
+
+    //TODO: Use a Hash table to store the info of every voronoi vertex
+    /*
+    Hash Key: (p1, p2, p3, p4) points from the cit used to calculate the voronoi_vertex
+    Info: Scalar Value and Whether positive/negative
+    
+    */
     /*
     Iterate through each facets in the DT and then calculate Voronoi Edges
     */
@@ -517,6 +523,15 @@ int main(int argc, char *argv[])
         voronoi_vertex_values.push_back(value);
         vertexValueMap[vertex] = value;
     }
+    std::cout << "Value at 23,30.5,35: " << vertexValueMap[Point(23,30.5,35)] << std::endl;
+    std::cout << "Value at 23,30.5,33.5: " << vertexValueMap[Point(23,30.5,33.5)] << std::endl;
+    std::cout << "Value at 23.5,30.5,35: " << vertexValueMap[Point(23.5,30.5,35)] << std::endl;
+    std::cout << "Value at 23,31,35: " << vertexValueMap[Point(23,31,35)] << std::endl;
+    std::cout << "Value at 23,30,35: " << vertexValueMap[Point(23,30,35)] << std::endl;
+    std::cout << "Value at 23,30.5,43: " << vertexValueMap[Point(23,30.5,43)] << std::endl;
+    std::cout << "Value at 23.5,30,35.5: " << vertexValueMap[Point(23.5,30,35.5)] << std::endl;
+    std::cout << "Value at 22.5,30.5,35: " << vertexValueMap[Point(22.5,30.5,35)] << std::endl;
+    std::cout << "Value at 22.5,31,34.5: " << vertexValueMap[Point(22.5,31,34.5)] << std::endl;
 
     /*
     For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
@@ -530,7 +545,7 @@ int main(int argc, char *argv[])
 /*         for (auto &edge : voronoi_edges) {
             std::cout << "Edge: " << edge << std::endl;   
         } */
-        export_voronoi_to_csv(voronoi_vertices, bipolar_voronoi_edges, out_csv_name);
+        export_voronoi_to_csv(voronoi_vertices, voronoi_edges, out_csv_name);
     }
 
     /*
@@ -589,7 +604,7 @@ int main(int argc, char *argv[])
 
             /*             if (debug) {std::cout << "edge: " << idx1 << " " << idx2 << " val1: " << val1 << " val2: " << val2 << std::endl;} */
             // Check if the edge crosses the isovalue
-            if (((val1 > isovalue) && (val2 <= isovalue)) || ((val1 >= isovalue) && (val2 < isovalue)) || ((val1 < isovalue) && (val2 >= isovalue)) || ((val1 <= isovalue) && (val2 > isovalue))) // FIX: change to comparison, no arithmatic
+            if (((val1 >= isovalue) && (val2 < isovalue)) || ((val1 < isovalue) && (val2 >= isovalue))) // FIX: change to comparison instead of arithmatic // This is way too complicated.
             {
                 Point p1(
                     center.x() + (cubeVertices[idx1][0] - 0.5) * cubeSize,

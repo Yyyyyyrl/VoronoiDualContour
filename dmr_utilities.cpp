@@ -499,7 +499,7 @@ bool is_degenerate(Delaunay::Cell_handle cell) {
 
 bool is_bipolar(float val1, float val2, float isovalue)
 {
-    return (val1 - isovalue) * (val2 - isovalue) < 0;
+    return ((val1 < isovalue) && (val2 >= isovalue)) || ((val1 >= isovalue) && (val2 < isovalue));
 }
 
 /*

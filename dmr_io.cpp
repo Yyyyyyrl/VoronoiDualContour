@@ -74,6 +74,7 @@ void export_voronoi_to_csv(const std::vector<Point> &voronoi_vertices, const std
     file << "vertices\n";
     for (const auto &vertex : voronoi_vertices)
     {
+        //
         file << vertex.x() << "," << vertex.y() << "," << vertex.z() << "\n";
     }
 
