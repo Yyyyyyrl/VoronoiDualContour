@@ -40,7 +40,6 @@ void cropAndWriteToCSV(const std::vector<Point>& points, float minX, float minY,
 
     // Iterate through the list and filter points within the specified range
     for (const auto& point : points) {
-        std::cout << "Point: " << point << std::endl;
         float x = point.x();
         float y = point.y();
         float z = point.z();
@@ -101,6 +100,9 @@ Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const 
 
 std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid)
 {
+
+    std::ofstream file("../temps/fuel-sep-sup2-record.txt");
+
     std::vector<DelaunayTriangle> dualTriangles;
     for (const auto &edge : voronoi_edges)
     {
@@ -130,6 +132,12 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                 Point intersection_point = iseg.target();
                 CGAL::Orientation o;
                 Point positive;
+
+
+                Point p1 = seg.source();
+                Point p2 = seg.target();
+                file << "Segment3," << p1.x() << "," << p1.y() << "," << p1.z() << ","
+                 << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
 
                 if (vertexValueMap[v1] >= vertexValueMap[v2])
                 {
@@ -177,6 +185,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                             dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
                         }
                     }
+                    file << "DUAL: " << p1 << " " << p2 << " " << p3 << "\n";
                 }
             }
         }
@@ -210,6 +219,11 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                 // Check if it's bipolar
                 if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue))
                 {
+
+                    Point p1 = ray.source();
+                    Vector3 direction = ray.direction().vector();
+                    file << "Ray3," << p1.x() << "," << p1.y() << "," << p1.z() << "," << direction.x() << "," << direction.y() << "," << direction.z() << "\n";
+                    
                     bipolar_voronoi_edges.push_back(edge);               
 
                     for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
@@ -253,6 +267,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
                             }
                         }
+                        file << "DUAL: " << p1 << " " << p2 << " " << p3 << "\n";
                     }
                 }
             }
@@ -287,6 +302,10 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                 if (is_bipolar(iPt1_val, iPt2_val, isovalue))
                 {
+
+                    Point p1 = line.point(0);
+                    Point p2 = line.point(1);
+                    file << "Line3," << p1.x() << "," << p1.y() << "," << p1.z() << "," << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
                     bipolar_voronoi_edges.push_back(edge);
                
                     // TODO: Find the Delaunay Triangle dual to the edge
@@ -327,11 +346,13 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
                             }
                         }
+                        file << "DUAL: " << p1 << " " << p2 << " " << p3 << "\n";
                     }
                 }
             }
         }
     }
+    file.close();
     return dualTriangles;
 } // TODO: Clean up the code, and solve the orientation issue
 
@@ -405,7 +426,7 @@ int main(int argc, char *argv[])
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);
 
-    //cropAndWriteToCSV(activeCubeCenters, 27, 27, 28, 35, 29 ,33 , "../temps/fuel_crop.csv", true);
+    //cropAndWriteToCSV(activeCubeCenters, 48, 26, 27, 52, 30 ,30 , "../temps/fuel_cropN.csv", true);
 
     if (indicator)
     {
@@ -523,15 +544,6 @@ int main(int argc, char *argv[])
         voronoi_vertex_values.push_back(value);
         vertexValueMap[vertex] = value;
     }
-    std::cout << "Value at 23,30.5,35: " << vertexValueMap[Point(23,30.5,35)] << std::endl;
-    std::cout << "Value at 23,30.5,33.5: " << vertexValueMap[Point(23,30.5,33.5)] << std::endl;
-    std::cout << "Value at 23.5,30.5,35: " << vertexValueMap[Point(23.5,30.5,35)] << std::endl;
-    std::cout << "Value at 23,31,35: " << vertexValueMap[Point(23,31,35)] << std::endl;
-    std::cout << "Value at 23,30,35: " << vertexValueMap[Point(23,30,35)] << std::endl;
-    std::cout << "Value at 23,30.5,43: " << vertexValueMap[Point(23,30.5,43)] << std::endl;
-    std::cout << "Value at 23.5,30,35.5: " << vertexValueMap[Point(23.5,30,35.5)] << std::endl;
-    std::cout << "Value at 22.5,30.5,35: " << vertexValueMap[Point(22.5,30.5,35)] << std::endl;
-    std::cout << "Value at 22.5,31,34.5: " << vertexValueMap[Point(22.5,31,34.5)] << std::endl;
 
     /*
     For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
@@ -539,13 +551,20 @@ int main(int argc, char *argv[])
 
     std::vector<DelaunayTriangle> dualTriangles = computeDualTriangles(voronoi_edges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
 
+
+    std::cout << "Value at vertex (50,27,28): " << vertexValueMap[Point(50,27,28)] << std::endl;
+    std::cout << "Value at vertex (50,27,29): " << vertexValueMap[Point(50,27,29)] << std::endl;
+    std::cout << "Value at vertex (50,28,28): " << vertexValueMap[Point(50,28,28)] << std::endl;
+    std::cout << "Value at vertex (50,28,29): " << vertexValueMap[Point(50,28,29)] << std::endl;
+    std::cout << "Value at vertex (53.25,37.75,34.75): " << vertexValueMap[Point(53.25,37.75,34.75)] << std::endl;
+    std::cout << "Value at vertex (45.625,34.125,32.125): " << vertexValueMap[Point(45.625,34.125,32.125)] << std::endl;
     if (out_csv)
     {
         std::cout << "Export voronoi Diagram" << std::endl;
 /*         for (auto &edge : voronoi_edges) {
             std::cout << "Edge: " << edge << std::endl;   
         } */
-        export_voronoi_to_csv(voronoi_vertices, voronoi_edges, out_csv_name);
+        export_voronoi_to_csv(voronoi_vertices, bipolar_voronoi_edges, out_csv_name);
     }
 
     /*
@@ -626,9 +645,18 @@ int main(int argc, char *argv[])
         {
             Point centroid = compute_centroid(intersectionPoints, supersample, supersample_r);
             isosurfaceVertices.push_back(centroid);
+            
 
         }
     }
+
+    std::cout << "Number of active Cube centers: " << activeCubeCenters.size() << std::endl;
+    std::cout << "number of iso vertices: " << isosurfaceVertices.size() << std::endl;
+    std::cout << "Vertex 22 (50.1649,27.5694,28.456) from: " << activeCubeCenters[22] << std::endl;
+    std::cout << "Vertex 10 (49.9742,27.5694,28.456) from: " << activeCubeCenters[10] << std::endl;
+    std::cout << "Vertex 598 (31.7188,27.991,31.25) from: " << activeCubeCenters[598] << std::endl;
+    std::cout << "Vertex 599 (31.8438,28.0025,31.25) from: " << activeCubeCenters[599] << std::endl;
+
 
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
     if (output_format == "off")
