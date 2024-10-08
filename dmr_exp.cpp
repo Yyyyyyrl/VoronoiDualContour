@@ -393,6 +393,23 @@ void parse_arguments(int argc, char *argv[])
     }
 }
 
+
+//TODO:
+/*
+
+option: --sepPos or --sepNeg
+
+For every Voronoi Cell Polytope P
+	1. Map each bipolar edge e to a vertex v_e
+	2. For each facet of P, with vertices that are either marked positive or negative (larger or smaller than isovalue)
+		Let v_1, v_2, ..., v_k be vertices with v_1 being positive/negative
+		If SepNeg/SepPos and there are some vertices v_i and v_j being positive/negative and every vertices in between are negative/positive ( that is, v_i+1, v_i+2, ..., v_j-1 are negative/positive):
+			Take the center of edge (v_i, v_i+1) name c_i and (v_j-1, v_j) name c_j and connect the two centers to form (c_i, c_j)
+	3. This process will generate cycles
+	4. Add isovertex for each cycle ( calculate centroid of cycle )
+	
+
+*/
 // Helper function to get the midpoint or any point along the bipolar edge
 Point getMidpointOfEdge(const Object& edge) {
     Segment3 segment;
