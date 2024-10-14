@@ -4,10 +4,9 @@
 #include <cstdlib>
 
 /*
-
 Body Main function
-
 */
+
 // Global variables
 std::string file_path;
 float isovalue;
@@ -23,6 +22,7 @@ std::map<Point, float> vertexValueMap;
 std::vector<Point> activeCubeCenters;
 std::vector<Object> bipolar_voronoi_edges;
 std::map<Delaunay::Vertex_handle, std::vector<Point>> voronoi_cells;
+
 
 
 
@@ -410,6 +410,11 @@ For every Voronoi Cell Polytope P
 	
 
 */
+
+bool isPositive(double value) {
+    return value >= isovalue;
+}
+
 // Helper function to get the midpoint or any point along the bipolar edge
 Point getMidpointOfEdge(const Object& edge) {
     Segment3 segment;
@@ -429,7 +434,7 @@ Point getMidpointOfEdge(const Object& edge) {
     throw std::runtime_error("Unknown Voronoi edge type");
 }
 
-// Step 1: Map bipolar edges to a vertex
+// Map bipolar edges to a vertex
 std::map<Object, Point> mapBipolarEdges(const VoronoiFacet& facet) {
     std::map<Object, Point> bipolar_edge_to_vertex;
 
@@ -457,7 +462,7 @@ std::map<Object, Point> mapBipolarEdges(const VoronoiFacet& facet) {
     return bipolar_edge_to_vertex;
 }
     
-// Step 2: Process facets of the Voronoi cell
+// Process facets of the Voronoi cell
 void processVoronoiCell(const std::vector<VoronoiFacet>& facets) {
     std::vector<Object> new_edges;  // Store the new edges created in the process
 
@@ -495,7 +500,7 @@ void processVoronoiCell(const std::vector<VoronoiFacet>& facets) {
         }
     }
 
-    // Step 3: Process the cycles
+    // Process the cycles
     // Group the new edges into cycles (closed loops)
 
     std::vector<std::vector<Object>> cycles = generateCycles(new_edges);
@@ -504,6 +509,7 @@ void processVoronoiCell(const std::vector<VoronoiFacet>& facets) {
     for (const auto& cycle : cycles) {
         Point centroid = calculateCentroid(cycle);
         // Add the isovertex to your data structure
+        isosurfaceVertices.push_back(centroid);
     }
 }
 
@@ -682,14 +688,6 @@ int main(int argc, char *argv[])
     }
     
 
-    // *** DEBUG ***
-    // Print Delaunay tetrahedra.
-/*         for (Delaunay::All_cells_iterator cell_it = dt.all_cells_begin();
-             cell_it != dt.all_cells_end(); cell_it++)
-        {
-
-            print_cell(*cell_it);
-        } */
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -728,6 +726,7 @@ int main(int argc, char *argv[])
     Info: Scalar Value and Whether positive/negative
     
     */
+
     /*
     Iterate through each facets in the DT and then calculate Voronoi Edges
     */
@@ -758,6 +757,14 @@ int main(int argc, char *argv[])
         }
     }
 
+        // Assuming voronoi_cells is already filled with your Voronoi diagram data
+    for (const auto& cell_entry : voronoi_cells) {
+        const std::vector<VoronoiFacet>& facets = cell_entry.second;
+
+        // Process each Voronoi cell
+        processVoronoiCell(facets);
+    }
+
     
 
     /*
@@ -783,12 +790,6 @@ int main(int argc, char *argv[])
     std::vector<DelaunayTriangle> dualTriangles = computeDualTriangles(voronoi_edges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
 
 
-/*     std::cout << "Value at vertex (50,27,28): " << vertexValueMap[Point(50,27,28)] << std::endl;
-    std::cout << "Value at vertex (50,27,29): " << vertexValueMap[Point(50,27,29)] << std::endl;
-    std::cout << "Value at vertex (50,28,28): " << vertexValueMap[Point(50,28,28)] << std::endl;
-    std::cout << "Value at vertex (50,28,29): " << vertexValueMap[Point(50,28,29)] << std::endl;
-    std::cout << "Value at vertex (53.25,37.75,34.75): " << vertexValueMap[Point(53.25,37.75,34.75)] << std::endl;
-    std::cout << "Value at vertex (45.625,34.125,32.125): " << vertexValueMap[Point(45.625,34.125,32.125)] << std::endl; */
     if (out_csv)
     {
         std::cout << "Export voronoi Diagram" << std::endl;
@@ -880,13 +881,6 @@ int main(int argc, char *argv[])
 
         }
     }
-
-/*     std::cout << "Number of active Cube centers: " << activeCubeCenters.size() << std::endl;
-    std::cout << "number of iso vertices: " << isosurfaceVertices.size() << std::endl;
-    std::cout << "Vertex 22 (50.1649,27.5694,28.456) from: " << activeCubeCenters[22] << std::endl;
-    std::cout << "Vertex 10 (49.9742,27.5694,28.456) from: " << activeCubeCenters[10] << std::endl;
-    std::cout << "Vertex 598 (31.7188,27.991,31.25) from: " << activeCubeCenters[598] << std::endl;
-    std::cout << "Vertex 599 (31.8438,28.0025,31.25) from: " << activeCubeCenters[599] << std::endl; */
 
 
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
