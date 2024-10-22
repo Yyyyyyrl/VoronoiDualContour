@@ -15,6 +15,9 @@
 #include <CGAL/bounding_box.h>
 #include <CGAL/intersections.h>
 #include <CGAL/Vector_3.h>
+#include <CGAL/Polyhedron_3.h>
+#include <CGAL/convex_hull_3.h>
+#include <CGAL/centroid.h>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Delaunay_triangulation_3.h>
 #include <CGAL/Triangulation_vertex_base_with_info_3.h>
@@ -30,6 +33,7 @@ typedef CGAL::Triangulation_data_structure_3<Vb, Cb> Tds;
 
 // Define Delaunay Triangulation
 typedef CGAL::Delaunay_triangulation_3<K, Tds> Delaunay;
+typedef CGAL::Polyhedron_3<K> Polyhedron_3;
 typedef Delaunay::Point Point;
 typedef Delaunay::Cell_handle Cell_handle;
 typedef Delaunay::Vertex_handle Vertex_handle;
@@ -43,6 +47,7 @@ typedef K::Ray_3 Ray3;
 typedef K::Line_3 Line3;
 typedef K::Point_3 Point3;
 typedef K::Vector_3 Vector3;
+typedef K::Plane_3 Plane_3;
 
 //Global Variable
 extern std::string file_path;
@@ -55,10 +60,48 @@ extern bool sep_isov;
 extern bool supersample;
 extern int supersample_r;
 
+/*
+Classes
+*/
+
+struct VoronoiFacet {
+    std::vector<Point> vertices;          // Ordered vertices of the facet
+    std::vector<float> vertex_values;     // Scalar values at the vertices
+
+    VoronoiFacet(const std::vector<Point>& verts, const std::vector<float>& values)
+        : vertices(verts), vertex_values(values) {}
+};
+
+struct Cycle {
+    std::vector<Point> midpoints; // Midpoints forming the cycle
+    Point isovertex;              // Centroid of the cycle
+
+    void compute_centroid();
+
+};
+
+// VoronoiCell class to represent a Voronoi cell (polytope)
+struct VoronoiCell {
+    Vertex_handle delaunay_vertex;                    // Corresponding Delaunay vertex
+    std::vector<Point> voronoi_vertices;              // Voronoi vertices (coordinates)
+    std::vector<float> vertex_values;                 // Scalar values at the vertices
+    std::vector<VoronoiFacet> facets;                        // Facets of the Voronoi cell
+    CGAL::Polyhedron_3<K> polyhedron;                 // Polyhedron representing the cell
+    std::vector<Cycle> cycles;
+
+    VoronoiCell(Vertex_handle vh) : delaunay_vertex(vh) {}
+};
+
+// Define a structure to hold the midpoint and associated information
+struct EdgeMidpoint {
+    Point midpoint;
+    int facet_index; // Index of the facet this edge belongs to
+};
 
 /*
 Structs
 */
+
 
 struct Cube
 {
@@ -149,7 +192,7 @@ std::vector<Point> load_grid_points(const Grid &grid);
 bool is_bipolar(float val1, float val2, float isovalue = 0);
 bool isDegenerate(const Object &obj);
 bool is_degenerate(Delaunay::Cell_handle cell);
-
+bool isPositive(double value);
 
 /*
 General Helper Functions

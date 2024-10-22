@@ -22,6 +22,7 @@ int supersample_r;
 std::map<Point, float> vertexValueMap;
 std::vector<Point> activeCubeCenters;
 std::vector<Object> bipolar_voronoi_edges;
+std::vector<Point> isosurfaceVertices;
 
 
 // Function to crop points based on min and max coordinates and write to CSV
@@ -545,6 +546,137 @@ int main(int argc, char *argv[])
         vertexValueMap[vertex] = value;
     }
 
+
+    /*
+    Construct Voronoi Cells
+    */
+
+    std::vector<VoronoiCell> voronoi_cells;
+
+    for (auto vh = dt.finite_vertices_begin(); vh != dt.finite_vertices_end(); ++vh) {
+        VoronoiCell vc(vh);
+
+        std::vector<Cell_handle> incident_cells;
+        dt.finite_incident_cells(vh, std::back_inserter(incident_cells));
+
+        // Collect Voronoi vertices and their scalar Values
+        for (Cell_handle ch : incident_cells) {
+            if (dt.is_infinite(ch)) {
+                continue; // Skip infinite cells
+            }
+
+            Point voronoi_vertex = dt.dual(ch);
+            vc.voronoi_vertices.push_back(voronoi_vertex);
+
+            //Collect the scalar value
+            float value = vertexValueMap[voronoi_vertex];
+            vc.vertex_values.push_back(value);
+        }
+
+        // Build the convex hull and then extract facets from the polyhedron
+        CGAL::convex_hull_3(vc.voronoi_vertices.begin(), vc.voronoi_vertices.end(), vc.polyhedron);
+
+        for (auto facet_it = vc.polyhedron.facets_begin(); facet_it != vc.polyhedron.facets_end(); ++facet_it) {
+            std::vector<Point> facet_vertices;
+            std::vector<float> facet_values;
+
+            //Get the halfedge around the facet
+            auto h = facet_it->facet_begin();
+            do {
+                Point p = h->vertex()->point();
+                facet_vertices.push_back(p);
+
+                //Get the scalar value
+                float value = vertexValueMap[p];
+                facet_values.push_back(value);
+
+                ++h;
+            } while (h != facet_it->facet_begin());
+
+            // Extract the store the facet
+            vc.facets.emplace_back(facet_vertices, facet_values);
+
+        }
+
+        voronoi_cells.push_back(vc);
+    
+    }
+
+
+    /*
+    Algorithm SepNeg/SepPos
+    */
+    std::map<std::pair<Point, Point>, EdgeMidpoint> bipolar_edge_map;
+
+    for (auto& vc : voronoi_cells) {
+        std::vector<std::vector<Point>> cycles; // To store cycles for each cell
+
+        for (size_t i = 0; i < vc.facets.size(); ++i) {
+            VoronoiFacet& facet = vc.facets[i];
+            std::vector<Point> edge_midpoints; // Midpoints for this facet
+
+            size_t num_vertices = facet.vertices.size();
+            for (size_t j = 0; j < num_vertices; ++j) {
+                // Get current and next vertex indices
+                size_t idx1 = j;
+                size_t idx2 = (j + 1) % num_vertices;
+
+                float val1 = facet.vertex_values[idx1];
+                float val2 = facet.vertex_values[idx2];
+
+                // Check if the edge is bipolar (crosses the isovalue)
+                if ((val1 - isovalue) * (val2 - isovalue) < 0) {
+                    // Compute the point where the scalar value equals the isovalue
+                    Point p1 = facet.vertices[idx1];
+                    Point p2 = facet.vertices[idx2];
+
+                    double t = (isovalue - val1) / (val2 - val1);
+
+                    // Compute the vector from p1 to p2
+                    Vector3 v = p2 - p1;
+
+                    // Compute the interpolated point
+                    Point midpoint = p1 + t * v;
+
+                    edge_midpoints.push_back(midpoint);
+
+                    // Map the edge to the midpoint
+                    std::pair<Point, Point> edge = std::make_pair(p1, p2);
+                    bipolar_edge_map[edge] = { midpoint, static_cast<int>(i) };
+                }
+            }
+
+            // Connect midpoints if conditions are met
+            if (edge_midpoints.size() >= 2) {
+                // For simplicity, connect consecutive midpoints
+                for (size_t k = 0; k < edge_midpoints.size(); ++k) {
+                    Point c_i = edge_midpoints[k];
+                    Point c_j = edge_midpoints[(k + 1) % edge_midpoints.size()];
+
+                    // Store the edge (c_i, c_j)
+                    // You can store this in a data structure representing edges
+                    // For cycles, we'll collect these midpoints
+                    cycles.emplace_back(std::vector<Point>{ c_i, c_j });
+                }
+            }
+        }
+
+        // Process cycles to compute isovertex
+        for (auto& cycle : cycles) {
+            // Compute centroid of the cycle
+            Point centroid = CGAL::centroid(cycle.begin(), cycle.end());
+
+            // Store the isovertex
+            // You can store it in the VoronoiCell or another appropriate data structure
+            isosurfaceVertices.push_back(centroid);
+        }
+    }
+
+
+
+
+
+
     /*
     For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
     */
@@ -552,12 +684,12 @@ int main(int argc, char *argv[])
     std::vector<DelaunayTriangle> dualTriangles = computeDualTriangles(voronoi_edges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
 
 
-    std::cout << "Value at vertex (50,27,28): " << vertexValueMap[Point(50,27,28)] << std::endl;
+/*     std::cout << "Value at vertex (50,27,28): " << vertexValueMap[Point(50,27,28)] << std::endl;
     std::cout << "Value at vertex (50,27,29): " << vertexValueMap[Point(50,27,29)] << std::endl;
     std::cout << "Value at vertex (50,28,28): " << vertexValueMap[Point(50,28,28)] << std::endl;
     std::cout << "Value at vertex (50,28,29): " << vertexValueMap[Point(50,28,29)] << std::endl;
     std::cout << "Value at vertex (53.25,37.75,34.75): " << vertexValueMap[Point(53.25,37.75,34.75)] << std::endl;
-    std::cout << "Value at vertex (45.625,34.125,32.125): " << vertexValueMap[Point(45.625,34.125,32.125)] << std::endl;
+    std::cout << "Value at vertex (45.625,34.125,32.125): " << vertexValueMap[Point(45.625,34.125,32.125)] << std::endl; */
     if (out_csv)
     {
         std::cout << "Export voronoi Diagram" << std::endl;
@@ -590,8 +722,7 @@ int main(int argc, char *argv[])
         {3, 7} // vertical edges
     };
 
-    std::vector<Point> isosurfaceVertices;
-    if (indicator)
+/*     if (indicator)
     {
         std::cout << "Processing each active cube to find isosurface vertices..." << std::endl;
     }
@@ -602,7 +733,6 @@ int main(int argc, char *argv[])
         float cubeSize = data_grid.dx;
         std::array<float, 8> scalarValues;
 
-        /*         if (debug) {std::cout <<"Cube center: " << center.x() << " " << center.y() << " " << center.z() << std::endl;} */
         // Compute the global coordinates of the cube vertices and their scalar values
         for (int i = 0; i < 8; i++)
         {
@@ -621,7 +751,6 @@ int main(int argc, char *argv[])
             float val1 = scalarValues[idx1];
             float val2 = scalarValues[idx2];
 
-            /*             if (debug) {std::cout << "edge: " << idx1 << " " << idx2 << " val1: " << val1 << " val2: " << val2 << std::endl;} */
             // Check if the edge crosses the isovalue
             if (((val1 >= isovalue) && (val2 < isovalue)) || ((val1 < isovalue) && (val2 >= isovalue))) // FIX: change to comparison instead of arithmatic // This is way too complicated.
             {
@@ -648,14 +777,14 @@ int main(int argc, char *argv[])
             
 
         }
-    }
+    } */
 
-    std::cout << "Number of active Cube centers: " << activeCubeCenters.size() << std::endl;
+/*     std::cout << "Number of active Cube centers: " << activeCubeCenters.size() << std::endl;
     std::cout << "number of iso vertices: " << isosurfaceVertices.size() << std::endl;
     std::cout << "Vertex 22 (50.1649,27.5694,28.456) from: " << activeCubeCenters[22] << std::endl;
     std::cout << "Vertex 10 (49.9742,27.5694,28.456) from: " << activeCubeCenters[10] << std::endl;
     std::cout << "Vertex 598 (31.7188,27.991,31.25) from: " << activeCubeCenters[598] << std::endl;
-    std::cout << "Vertex 599 (31.8438,28.0025,31.25) from: " << activeCubeCenters[599] << std::endl;
+    std::cout << "Vertex 599 (31.8438,28.0025,31.25) from: " << activeCubeCenters[599] << std::endl; */
 
 
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh

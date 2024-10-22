@@ -1,5 +1,11 @@
 #include "dmr_utilities.h"
 
+
+void Cycle::compute_centroid() {
+    isovertex = CGAL::centroid(midpoints.begin(), midpoints.end());
+}
+
+
 ScalarGrid::ScalarGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z)
     : nx(nx), ny(ny), nz(nz), dx(dx), dy(dy), dz(dz), min_x(min_x), min_y(min_y), min_z(min_z)
 {
@@ -684,6 +690,12 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
             return 1;
         }
     }
+}
+
+
+// Function to check if a scalar value is positive or negative
+bool isPositive(double value) {
+    return value >= isovalue;
 }
 
 
