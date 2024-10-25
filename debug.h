@@ -21,8 +21,8 @@
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 
 // Define the vertex base with information
-typedef CGAL::Triangulation_vertex_base_with_info_3<unsigned, K> Vb;
-typedef CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K> Cb;
+typedef CGAL::Triangulation_vertex_base_with_info_3<bool, K> Vb;
+typedef CGAL::Delaunay_triangulation_cell_base_3<K> Cb;
 typedef CGAL::Triangulation_data_structure_3<Vb, Cb> Tds;
 
 // Define Delaunay Triangulation

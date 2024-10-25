@@ -27,8 +27,8 @@
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 
 // Define the vertex base with information
-typedef CGAL::Triangulation_vertex_base_with_info_3<unsigned, K> Vb;
-typedef CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K> Cb;
+typedef CGAL::Triangulation_vertex_base_with_info_3<bool, K> Vb;
+typedef CGAL::Delaunay_triangulation_cell_base_3<K> Cb;
 typedef CGAL::Triangulation_data_structure_3<Vb, Cb> Tds;
 
 // Define Delaunay Triangulation
@@ -97,6 +97,27 @@ struct EdgeMidpoint {
     Point midpoint;
     int facet_index; // Index of the facet this edge belongs to
 };
+
+struct LabeledPoint {
+    Point point;
+    bool is_dummy;
+};
+
+struct PointComparator {
+    bool operator()(const Point& a, const Point& b) const {
+        const double epsilon = 1e-6;
+        return (std::fabs(a.x() - b.x()) < epsilon) &&
+               (std::fabs(a.y() - b.y()) < epsilon) &&
+               (std::fabs(a.z() - b.z()) < epsilon);
+    }
+};
+
+struct MidpointNode {
+    Point point;                   // Midpoint coordinates
+    std::vector<int> connected_to; // Indices of connected midpoints
+};
+
+
 
 /*
 Structs
