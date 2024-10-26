@@ -476,9 +476,10 @@ int main(int argc, char *argv[])
     }
 
     if (multi_isov)
-    { // Assuming activeCubeCenters is your vector of points
+    {
         K::Iso_cuboid_3 delaunayBbox = CGAL::bounding_box(activeCubeCenters.begin(), activeCubeCenters.end());
 
+        // Six Corner Points
         double xmin = delaunayBbox.xmin();
         double xmax = delaunayBbox.xmax();
         double ymin = delaunayBbox.ymin();
@@ -486,6 +487,7 @@ int main(int argc, char *argv[])
         double zmin = delaunayBbox.zmin();
         double zmax = delaunayBbox.zmax();
 
+        // Bounding box side length
         double lx = xmax - xmin;
         double ly = ymax - ymin;
         double lz = zmax - zmin;
@@ -496,6 +498,7 @@ int main(int argc, char *argv[])
             all_points.push_back({p, false});
         }
 
+        // Add 24 dummy points to the point set forming triangulation
         std::vector<Point> dummy_points = {
             Point(xmin - lx, ymin, zmin),
             Point(xmin, ymin - ly, zmin),
@@ -542,13 +545,13 @@ int main(int argc, char *argv[])
     int index = 0;
 
     std::map<Point, int> point_index_map;
-    std::map<std::pair<Point, bool>, int> point_info_index_map;
     int i = 0;
     if (multi_isov)
     {
         for (const auto &pt : points_with_info)
         {
-            point_info_index_map[pt] = i;
+            Point p = pt.first; //pt in this case is pair of <Point, bool>
+            point_index_map[p] = i;
             i++;
         }
     }
@@ -560,9 +563,6 @@ int main(int argc, char *argv[])
             i++;
         }
     }
-
-    // *** DEBUG ***
-    // Print Delaunay tetrahedra.
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -744,7 +744,7 @@ int main(int argc, char *argv[])
                     float val2 = facet.vertex_values[idx2];
 
                     // Check for bipolar edge
-                    if ((val1 - isovalue) * (val2 - isovalue) < 0)
+                    if (is_bipolar(val1, val2, isovalue))
                     {
                         // Linear interpolation to find the exact point where the isovalue is crossed
                         Point p1 = facet.vertices[idx1];
@@ -775,25 +775,22 @@ int main(int argc, char *argv[])
                 }
 
                 // Connect midpoints in this facet
+                /* The number of midpoints should be multiple of 2 as bipolar edges in a facet should come in pairs,
+                So traverse through the vertices of the facet and connect consecutive pairs together
+                */
                 size_t num_midpoints = facet_midpoint_indices.size();
-                if (num_midpoints == 2)
+                for (size_t k = 0; k < num_midpoints; k += 2)
                 {
-                    // Connect the two midpoints
-                    int idx1 = facet_midpoint_indices[0];
-                    int idx2 = facet_midpoint_indices[1];
+                    int idx1 = facet_midpoint_indices[k];
+                    int idx2 = facet_midpoint_indices[k + 1];
                     midpoints[idx1].connected_to.push_back(idx2);
                     midpoints[idx2].connected_to.push_back(idx1);
                 }
-                else if (num_midpoints > 2)
-                {
-                    // Should not happen in a planar facet
-                    // Handle accordingly (e.g., triangulate facet)
-                }
             }
 
-            // Now, extract cycles from the graph of midpoints
+            // Extract cycles from the graph of midpoints
             std::vector<std::vector<int>> cycles_indices;
-            std::set<int> visited;
+            std::set<int> visited; // Stores the index of the vertices that are already visited 
 
             for (size_t i = 0; i < midpoints.size(); ++i)
             {

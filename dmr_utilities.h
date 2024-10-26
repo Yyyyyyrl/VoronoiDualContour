@@ -60,9 +60,6 @@ extern bool sep_isov;
 extern bool supersample;
 extern int supersample_r;
 
-/*
-Classes
-*/
 
 struct VoronoiFacet {
     std::vector<Point> vertices;          // Ordered vertices of the facet
