@@ -114,7 +114,6 @@ Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const 
 std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid)
 {
 
-    std::ofstream file("../temps/fuel-sep-sup2-record.txt");
 
     std::vector<DelaunayTriangle> dualTriangles;
     for (const auto &edge : voronoi_edges)
@@ -148,8 +147,6 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                 Point p1 = seg.source();
                 Point p2 = seg.target();
-                file << "Segment3," << p1.x() << "," << p1.y() << "," << p1.z() << ","
-                     << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
 
                 if (vertexValueMap[v1] >= vertexValueMap[v2])
                 {
@@ -197,7 +194,6 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                             dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
                         }
                     }
-                    file << "DUAL: " << p1 << " " << p2 << " " << p3 << "\n";
                 }
             }
         }
@@ -234,7 +230,6 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                     Point p1 = ray.source();
                     Vector3 direction = ray.direction().vector();
-                    file << "Ray3," << p1.x() << "," << p1.y() << "," << p1.z() << "," << direction.x() << "," << direction.y() << "," << direction.z() << "\n";
 
                     bipolar_voronoi_edges.push_back(edge);
 
@@ -279,7 +274,6 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
                             }
                         }
-                        file << "DUAL: " << p1 << " " << p2 << " " << p3 << "\n";
                     }
                 }
             }
@@ -317,7 +311,6 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                     Point p1 = line.point(0);
                     Point p2 = line.point(1);
-                    file << "Line3," << p1.x() << "," << p1.y() << "," << p1.z() << "," << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
                     bipolar_voronoi_edges.push_back(edge);
 
                     // TODO: Find the Delaunay Triangle dual to the edge
@@ -358,13 +351,11 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                                 dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
                             }
                         }
-                        file << "DUAL: " << p1 << " " << p2 << " " << p3 << "\n";
                     }
                 }
             }
         }
     }
-    file.close();
     return dualTriangles;
 } // TODO: Clean up the code, and solve the orientation issue
 
@@ -643,6 +634,7 @@ int main(int argc, char *argv[])
 
         std::vector<VoronoiCell> voronoi_cells;
 
+        // Iterate over all finite vertices of the Delaunay Triangulation and for each vertex, collect all finite cells incident to the vertex and append to incident_cells
         for (auto vh = dt.finite_vertices_begin(); vh != dt.finite_vertices_end(); ++vh)
         {
             if (vh->info())
@@ -686,31 +678,34 @@ int main(int argc, char *argv[])
             }
 
             // Build the convex hull and then extract facets from the polyhedron
-            CGAL::convex_hull_3(vc.voronoi_vertices.begin(), vc.voronoi_vertices.end(), vc.polyhedron);
+            CGAL::convex_hull_3(vc.voronoi_vertices.begin(), vc.voronoi_vertices.end(), vc.polyhedron); // A function computes convex hull of a set of 3D points, stores in vc.polyhedron
 
+            // Extract facets from polyhedrons
             for (auto facet_it = vc.polyhedron.facets_begin(); facet_it != vc.polyhedron.facets_end(); ++facet_it)
             {
                 std::vector<Point> facet_vertices;
                 std::vector<float> facet_values;
 
                 // Get the halfedge around the facet
-                auto h = facet_it->facet_begin();
+                auto h = facet_it->facet_begin(); // Returns a halfedge iterator to traverse around the facet
                 do
                 {
+                    // Get the point corresponding to the vertex of this halfedge
                     Point p = h->vertex()->point();
                     facet_vertices.push_back(p);
 
-                    // Get the scalar value
+                    // Retrieve the scalar value associated with this point
                     float value = vertexValueMap[p];
                     facet_values.push_back(value);
 
                     ++h;
-                } while (h != facet_it->facet_begin());
+                } while (h != facet_it->facet_begin()); // Loop until we complete the cycle
 
-                // Extract the store the facet
+                // Extract and create a Facet object and add it to the VoronoiCell
                 vc.facets.emplace_back(facet_vertices, facet_values);
             }
 
+            // Add the VoronoiCell to the collection
             voronoi_cells.push_back(vc);
         }
 
