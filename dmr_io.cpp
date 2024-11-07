@@ -1,8 +1,7 @@
 #include "dmr_io.h"
 
 
-
-void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
+void writeOFFSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
     std::ofstream out(filename);
     if (!out)
@@ -30,7 +29,31 @@ void writeOFF(const std::string &filename, const std::vector<Point> &vertices, c
     out.close();
 }
 
-void writePLY(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
+void writeOFFMulti(const std::string &filename, const std::vector<Point> &isosurfaceVertices, const std::vector<IsoTriangle> isoTriangles){
+    std::ofstream out(filename);
+    if (!out) {
+        std::cerr << "Cannot open file for writing: " << filename << std::endl;
+        return;
+    }
+
+    // Header
+    out << "OFF\n";
+    out << isosurfaceVertices.size() << " " << isoTriangles.size() << " 0\n";
+
+    // Write vertex coordinates
+    for (const auto& vertex : isosurfaceVertices) {
+        out << vertex << "\n";
+    }
+
+    // Write face indices
+    for (const auto& triangle : isoTriangles) {
+        out << "3 " << triangle.vertex_indices[0] << " " << triangle.vertex_indices[1] << " " << triangle.vertex_indices[2] << "\n";
+    }
+
+    out.close();
+}
+
+void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
     std::ofstream out(filename);
     if (!out)
@@ -65,6 +88,37 @@ void writePLY(const std::string &filename, const std::vector<Point> &vertices, c
     out.close();
 }
 
+void writePLYMulti(const std::string &filename, const std::vector<Point> &isosurfaceVertices, const std::vector<IsoTriangle> isoTriangles) {
+    std::ofstream out(filename);
+    if (!out)
+    {
+        std::cerr << "Cannot open file for writing: " << filename << std::endl;
+        return;
+    }
+
+    // Write PLY header
+    out << "ply\n";
+    out << "format ascii 1.0\n";
+    out << "element vertex " << isosurfaceVertices.size() << "\n";
+    out << "property float x\n";
+    out << "property float y\n";
+    out << "property float z\n";
+    out << "element face " << isoTriangles.size() << "\n";
+    out << "property list uchar int vertex_index\n";
+    out << "end_header\n";
+
+    // Write vertex coordinates
+    for (const auto& vertex : isosurfaceVertices) {
+        out << vertex << "\n";
+    }
+
+    // Write face indices
+    for (const auto& triangle : isoTriangles) {
+        out << "3 " << triangle.vertex_indices[0] << " " << triangle.vertex_indices[1] << " " << triangle.vertex_indices[2] << "\n";
+    }
+
+    out.close();
+}
 
 void export_voronoi_to_csv(const std::vector<Point> &voronoi_vertices, const std::vector<Object> &voronoi_edges, const std::string &filename)
 {
@@ -110,4 +164,43 @@ void export_voronoi_to_csv(const std::vector<Point> &voronoi_vertices, const std
     }
 
     file.close();
+}
+
+// Function to crop points based on min and max coordinates and write to CSV
+void cropAndWriteToCSV(const std::vector<Point> &points, float minX, float minY, float minZ,
+                       float maxX, float maxY, float maxZ, const std::string &filename, bool save_cropped)
+{
+    std::ofstream file(filename);
+    if (!file.is_open())
+    {
+        std::cerr << "Failed to open the file!" << std::endl;
+        return;
+    }
+
+    std::vector<Point> temp;
+
+    // Write CSV header
+    file << "x,y,z\n";
+
+    // Iterate through the list and filter points within the specified range
+    for (const auto &point : points)
+    {
+        float x = point.x();
+        float y = point.y();
+        float z = point.z();
+
+        if (x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ)
+        {
+            // Write the point to CSV
+            file << x << "," << y << "," << z << "\n";
+            temp.push_back(point);
+        }
+    }
+
+    file.close();
+    std::cout << "Points successfully written to " << filename << std::endl;
+    if (save_cropped)
+    {
+        activeCubeCenters = temp;
+    }
 }

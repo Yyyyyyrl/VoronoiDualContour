@@ -1,415 +1,7 @@
-#include "dmr_utilities.h"
-#include "debug.h"
-#include "dmr_io.h"
-#include <cstdlib>
-#include <map>
-
-/*
-
-Body Main function
-
-*/
-// Global variables
-std::string file_path;
-float isovalue;
-std::string output_format;
-std::string output_filename;
-std::string out_csv_name;
-bool out_csv = false;
-bool sep_isov = false;
-bool supersample = false;
-bool multi_isov = true;
-int supersample_r;
-
-std::map<Point, float> vertexValueMap;
-std::vector<Point> activeCubeCenters;
-std::vector<Object> bipolar_voronoi_edges;
-std::vector<Point> isosurfaceVertices;
-
-std::vector<LabeledPoint> all_points;
-std::vector<std::pair<Point, bool>> points_with_info;
-
-Grid data_grid;
-Delaunay dt;
-
-// Function to crop points based on min and max coordinates and write to CSV
-void cropAndWriteToCSV(const std::vector<Point> &points, float minX, float minY, float minZ,
-                       float maxX, float maxY, float maxZ, const std::string &filename, bool save_cropped)
-{
-    std::ofstream file(filename);
-    if (!file.is_open())
-    {
-        std::cerr << "Failed to open the file!" << std::endl;
-        return;
-    }
-
-    std::vector<Point> temp;
-
-    // Write CSV header
-    file << "x,y,z\n";
-
-    // Iterate through the list and filter points within the specified range
-    for (const auto &point : points)
-    {
-        float x = point.x();
-        float y = point.y();
-        float z = point.z();
-
-        if (x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ)
-        {
-            // Write the point to CSV
-            file << x << "," << y << "," << z << "\n";
-            temp.push_back(point);
-        }
-    }
-
-    file.close();
-    std::cout << "Points successfully written to " << filename << std::endl;
-    if (save_cropped)
-    {
-        activeCubeCenters = temp;
-    }
-}
-
-Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const Point &v1, const Point &v2)
-{
-    // Convert the point to grid space
-    float gx = p.x() / grid.dx;
-    float gy = p.y() / grid.dy;
-    float gz = p.z() / grid.dz;
-
-    // Check if the point is outside the bounds
-    if (gx < 0 || gx >= grid.nx || gy < 0 || gy >= grid.ny || gz < 0 || gz >= grid.nz)
-    {
-        // If the point is out of bounds, find the closest in-bound point on the segment (v1, v2)
-        // Convert v1 and v2 to grid space
-        float v1_gx = v1.x() / grid.dx;
-        float v1_gy = v1.y() / grid.dy;
-        float v1_gz = v1.z() / grid.dz;
-
-        float v2_gx = v2.x() / grid.dx;
-        float v2_gy = v2.y() / grid.dy;
-        float v2_gz = v2.z() / grid.dz;
-
-        // Get the parameter t for the projection of point p onto the segment [v1, v2]
-        float t = ((gx - v1_gx) * (v2_gx - v1_gx) + (gy - v1_gy) * (v2_gy - v1_gy) + (gz - v1_gz) * (v2_gz - v1_gz)) /
-                  ((v2_gx - v1_gx) * (v2_gx - v1_gx) + (v2_gy - v1_gy) * (v2_gy - v1_gy) + (v2_gz - v1_gz) * (v2_gz - v1_gz));
-
-        // Clamp t to [0, 1] to ensure the closest point lies on the segment
-        t = std::max(0.0f, std::min(t, 1.0f));
-
-        // Compute the closest point in grid space
-        float px = v1_gx + t * (v2_gx - v1_gx);
-        float py = v1_gy + t * (v2_gy - v1_gy);
-        float pz = v1_gz + t * (v2_gz - v1_gz);
-
-        // Convert the grid-space point back to world-space and return
-        return Point(px * grid.dx, py * grid.dy, pz * grid.dz);
-    }
-
-    // If the point is within bounds, return the original point
-    return p;
-}
-
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid)
-{
-
-
-    std::vector<DelaunayTriangle> dualTriangles;
-    for (const auto &edge : voronoi_edges)
-    {
-        Object intersectObj;
-        Segment3 seg, iseg;
-        Ray3 ray;
-        Line3 line;
-        Point3 v1, v2, ip;
-        Vector3 vec1, vec2, norm;
-        bool isFinite = false;
-
-        if (CGAL::assign(seg, edge))
-        {
-            // If the edge is a segment
-            v1 = seg.source();
-            v2 = seg.target();
-
-            // Check if it's bipolar
-            // If the edge is a segment the two ends must be both in voronoi_vertices so their scalar values are pre-calculated
-            if (is_bipolar(vertexValueMap[v1], vertexValueMap[v2], isovalue))
-            {
-
-                bipolar_voronoi_edges.push_back(edge); // TODO: Find the Delaunay Triangle dual to the edge
-
-                intersectObj = CGAL::intersection(bbox, Ray3(seg.source(), v2 - v1));
-                CGAL::assign(iseg, intersectObj);
-                Point intersection_point = iseg.target();
-                CGAL::Orientation o;
-                Point positive;
-
-                Point p1 = seg.source();
-                Point p2 = seg.target();
-
-                if (vertexValueMap[v1] >= vertexValueMap[v2])
-                {
-                    positive = v1;
-                }
-                else
-                {
-                    positive = v2;
-                }
-
-                for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
-                {
-                    int iFacet = facet.second;
-                    Cell_handle c = facet.first;
-                    int d1, d2, d3;
-                    d1 = (iFacet + 1) % 4;
-                    d2 = (iFacet + 2) % 4;
-                    d3 = (iFacet + 3) % 4;
-
-                    Point p1 = c->vertex(d1)->point();
-                    Point p2 = c->vertex(d2)->point();
-                    Point p3 = c->vertex(d3)->point();
-
-                    int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], vertexValueMap[v2]);
-
-                    if (dt.is_infinite(c))
-                    {
-                        if (iOrient < 0)
-                        {
-                            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                        }
-                        else
-                        {
-                            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                        }
-                    }
-                    else
-                    {
-                        if (iOrient >= 0)
-                        {
-                            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                        }
-                        else
-                        {
-                            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                        }
-                    }
-                }
-            }
-        }
-        else if (CGAL::assign(ray, edge))
-        {
-            // If the edge is a ray
-            intersectObj = CGAL::intersection(bbox, ray);
-
-            if (CGAL::assign(iseg, intersectObj))
-            {
-
-                // assign a corresponding scalar value to the intersection point and check if the segment between the source and intersection point is bi-polar
-                Point intersection_point = iseg.target();
-                CGAL::Orientation o;
-                Point positive;
-
-                v1 = iseg.source();
-                v2 = iseg.target();
-
-                float iPt_value = trilinear_interpolate(adjust_outside_bound_points(intersection_point, grid, v1, v2), grid);
-
-                if (vertexValueMap[iseg.source()] >= iPt_value)
-                {
-                    positive = v1;
-                }
-                else
-                {
-                    positive = v2;
-                }
-
-                // Check if it's bipolar
-                if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue))
-                {
-
-                    Point p1 = ray.source();
-                    Vector3 direction = ray.direction().vector();
-
-                    bipolar_voronoi_edges.push_back(edge);
-
-                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
-                    {
-
-                        Facet mirror_f = dt.mirror_facet(facet);
-                        Object e = dt.dual(facet);
-
-                        int iFacet = facet.second;
-                        Cell_handle c = facet.first;
-                        int d1, d2, d3;
-                        d1 = (iFacet + 1) % 4;
-                        d2 = (iFacet + 2) % 4;
-                        d3 = (iFacet + 3) % 4;
-
-                        Point p1 = c->vertex(d1)->point();
-                        Point p2 = c->vertex(d2)->point();
-                        Point p3 = c->vertex(d3)->point();
-
-                        int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], iPt_value);
-
-                        if (dt.is_infinite(c))
-                        {
-                            if (iOrient < 0)
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            }
-                            else
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            }
-                        }
-                        else
-                        {
-                            if (iOrient >= 0)
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            }
-                            else
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        else if (CGAL::assign(line, edge))
-        {
-            //  If the edge is a line
-            Ray3 ray1(line.point(), line.direction());
-            Ray3 ray2(line.point(), -line.direction());
-
-            intersectObj = CGAL::intersection(bbox, line);
-            if (CGAL::assign(iseg, intersectObj))
-            {
-
-                Point intersection1 = iseg.source();
-                Point intersection2 = iseg.target();
-
-                float iPt1_val = trilinear_interpolate(adjust_outside_bound_points(intersection1, grid, intersection1, intersection2), grid);
-                float iPt2_val = trilinear_interpolate(adjust_outside_bound_points(intersection2, grid, intersection1, intersection2), grid);
-
-                CGAL::Orientation o;
-                Point positive;
-
-                if (iPt1_val >= iPt2_val)
-                {
-                    positive = intersection1;
-                }
-                else
-                {
-                    positive = intersection2;
-                }
-
-                if (is_bipolar(iPt1_val, iPt2_val, isovalue))
-                {
-
-                    Point p1 = line.point(0);
-                    Point p2 = line.point(1);
-                    bipolar_voronoi_edges.push_back(edge);
-
-                    // TODO: Find the Delaunay Triangle dual to the edge
-
-                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
-                    {
-                        int iFacet = facet.second;
-                        Cell_handle c = facet.first;
-                        int d1, d2, d3;
-                        d1 = (iFacet + 1) % 4;
-                        d2 = (iFacet + 2) % 4;
-                        d3 = (iFacet + 3) % 4;
-
-                        Point p1 = c->vertex(d1)->point();
-                        Point p2 = c->vertex(d2)->point();
-                        Point p3 = c->vertex(d3)->point();
-
-                        int iOrient = get_orientation(iFacet, intersection1, intersection2, iPt1_val, iPt2_val);
-                        if (dt.is_infinite(c))
-                        {
-                            if (iOrient < 0)
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            }
-                            else
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            }
-                        }
-                        else
-                        {
-                            if (iOrient >= 0)
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            }
-                            else
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return dualTriangles;
-} // TODO: Clean up the code, and solve the orientation issue
-
-void parse_arguments(int argc, char *argv[])
-{
-    // Initialize required arguments
-    file_path = argv[2];
-    isovalue = std::atof(argv[1]);
-    output_format = argv[3];
-    output_filename = argv[4];
-
-    // Parse optional arguments
-    for (int i = 5; i < argc; ++i)
-    {
-        std::string arg = argv[i];
-
-        if (arg == "--out_csv" && i + 1 < argc)
-        {
-            out_csv = true;
-            out_csv_name = argv[++i];
-        }
-        else if (arg == "--sep_isov")
-        {
-            sep_isov = true;
-        }
-        else if (arg == "--supersample")
-        {
-            supersample = true;
-            supersample_r = std::atoi(argv[++i]);
-        }
-        else if (arg == "--multi_isov")
-        {
-            multi_isov = true;
-        }
-        else if (arg == "--single_isov")
-        {
-            multi_isov = false;
-        }
-        else
-        {
-            std::cerr << "Unknown argument: " << arg << std::endl;
-            exit(1);
-        }
-    }
-}
+#include "dmr.h"
 
 int main(int argc, char *argv[])
 {
-    if (argc < 4)
-    {
-        std::cerr << "Usage: " << argv[0] << " <isovalue> <(nhdr/nrrd) raw data file path> <output format ( ply/off )> <output filepath> <options>\n --sep_isov : Pick a subset of non-adjacent active cubes to run \n --out_csv : Write the voronoi diagram to a csv file for visualization, follow by the path you want (--out_csv <path/to/the/output/file.csv>) \n --supersample : Supersample the input nrrd data by a factor before running the algorithm, follow by the factor(--supersample <int factor>) \n --multi_isov/single_isov : TBD ( default is multi_isov)" << std::endl;
-        return EXIT_FAILURE;
-    }
-
     // TODO: void parse_arg()
     //  Read data points and find centers of active cubes
     parse_arguments(argc, argv);
@@ -535,13 +127,16 @@ int main(int argc, char *argv[])
 
     int index = 0;
 
-    std::map<Point, int> point_index_map;
     int i = 0;
     if (multi_isov)
     {
         for (const auto &pt : points_with_info)
         {
-            Point p = pt.first; //pt in this case is pair of <Point, bool>
+            if (pt.second == true)
+            {
+                continue;
+            }
+            Point p = pt.first; // pt in this case is pair of <Point, bool>
             point_index_map[p] = i;
             i++;
         }
@@ -785,7 +380,7 @@ int main(int argc, char *argv[])
 
             // Extract cycles from the graph of midpoints
             std::vector<std::vector<int>> cycles_indices;
-            std::set<int> visited; // Stores the index of the vertices that are already visited 
+            std::set<int> visited; // Stores the index of the vertices that are already visited
 
             for (size_t i = 0; i < midpoints.size(); ++i)
             {
@@ -848,6 +443,25 @@ int main(int argc, char *argv[])
                     isosurfaceVertices.push_back(centroid);
                 }
             }
+        }
+
+        // Populate vertex_to_isovertex_indices
+        for (size_t i = 0; i < voronoi_cells.size(); ++i)
+        {
+            VoronoiCell &vc = voronoi_cells[i];
+            Vertex_handle vh = vc.delaunay_vertex;
+            Point delaunay_point = vh->point();
+
+            std::vector<int> isovertex_indices;
+            for (size_t j = 0; j < vc.cycles.size(); ++j)
+            {
+                Cycle &cycle = vc.cycles[j];
+                // Add isovertex to isosurfaceVertices if not already added
+                isosurfaceVertices.push_back(cycle.isovertex);
+                isovertex_index = isosurfaceVertices.size() - 1;
+                isovertex_indices.push_back(isovertex_index);
+            }
+            vertex_to_isovertex_indices[delaunay_point] = isovertex_indices;
         }
     }
     else
@@ -929,7 +543,16 @@ int main(int argc, char *argv[])
     For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
     */
 
-    std::vector<DelaunayTriangle> dualTriangles = computeDualTriangles(voronoi_edges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
+    std::cout << "Checkpoint" << std::endl;
+
+    if (multi_isov)
+    {
+        computeDualTrianglesMulti(voronoi_edges, bbox, delaunay_facet_to_voronoi_edge_map, grid);
+    }
+    else
+    {
+        dualTriangles = computeDualTriangles(voronoi_edges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
+    }
 
     if (out_csv)
     {
@@ -938,18 +561,32 @@ int main(int argc, char *argv[])
     }
 
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
-    if (output_format == "off")
+    if (multi_isov)
     {
-        writeOFF(output_filename, isosurfaceVertices, dualTriangles, point_index_map);
-    }
-    else if (output_format == "ply")
-    {
-        writePLY(output_filename, isosurfaceVertices, dualTriangles, point_index_map);
+        if (output_format == "off") {
+            writeOFFMulti(output_filename, isosurfaceVertices, isoTriangles);
+        } else if (output_format == "ply") {
+            writePLYMulti(output_filename, isosurfaceVertices, isoTriangles);
+        } else {
+            std::cerr << "Unsupported output format: " << output_format << std::endl;
+            return EXIT_FAILURE;
+        }
     }
     else
     {
-        std::cerr << "Unsupported output format: " << output_format << std::endl;
-        return EXIT_FAILURE;
+        if (output_format == "off")
+        {
+            writeOFFSingle(output_filename, isosurfaceVertices, dualTriangles, point_index_map);
+        }
+        else if (output_format == "ply")
+        {
+            writePLYSingle(output_filename, isosurfaceVertices, dualTriangles, point_index_map);
+        }
+        else
+        {
+            std::cerr << "Unsupported output format: " << output_format << std::endl;
+            return EXIT_FAILURE;
+        }
     }
 
     std::cout << "Finished" << std::endl;

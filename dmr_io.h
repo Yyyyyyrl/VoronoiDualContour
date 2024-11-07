@@ -5,16 +5,17 @@
 #include "dmr_utilities.h"
 
 
-// Processing Active Cubes
-
 // Functions for writing output mesh
 
-void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap);
-void writePLY(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap);
+void writeOFFSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap);
+void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap);
 
-void writeOFF(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<std::pair<Point, bool>, int> point_info_index_map);
-void writePLY(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<std::pair<Point, bool>, int> point_info_index_map);
+void writeOFFMulti(const std::string &filename, const std::vector<Point> &vertices, const std::vector<IsoTriangle> isoTriangles);
+void writePLYMulti(const std::string &filename, const std::vector<Point> &vertices, const std::vector<IsoTriangle> isoTriangles);
 
+// Function to crop points based on min and max coordinates and write to CSV
+void cropAndWriteToCSV(const std::vector<Point> &points, float minX, float minY, float minZ,
+                       float maxX, float maxY, float maxZ, const std::string &filename, bool save_cropped);
 
 void export_voronoi_to_csv(const std::vector<Point> &voronoi_vertices, const std::vector<Object> &voronoi_edges, const std::string &filename);
 #endif
