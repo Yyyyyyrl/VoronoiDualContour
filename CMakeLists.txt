@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 project(VDC)
 
 set(CMAKE_BUILD_TYPE Release)
+SET(CMAKE_CXX_FLAGS "-std=c++17")
 
 find_package(CGAL)
 
