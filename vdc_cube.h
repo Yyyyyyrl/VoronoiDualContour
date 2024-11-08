@@ -1,7 +1,7 @@
-#ifndef DMR_CUBE_H
-#define DMR_CUBE_H
+#ifndef VDC_CUBE_H
+#define VDC_CUBE_H
 
-#include "dmr_type.h"
+#include "vdc_type.h"
 
 struct Cube
 {

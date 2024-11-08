@@ -1,5 +1,5 @@
-#ifndef DMR_TYPE_H
-#define DMR_TYPE_H
+#ifndef VDC_TYPE_H
+#define VDC_TYPE_H
 
 
 #include <iostream>

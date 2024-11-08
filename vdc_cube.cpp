@@ -1,4 +1,4 @@
-#include "dmr_cube.h"
+#include "vdc_cube.h"
 
 bool is_adjacent(const Cube &cubeA, const Cube &cubeB)
 {

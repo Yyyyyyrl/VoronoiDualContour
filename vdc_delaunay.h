@@ -1,7 +1,7 @@
-#ifndef DMR_DELAUNAY_H
-#define DMR_DELAUNAY_H
+#ifndef VDC_DELAUNAY_H
+#define VDC_DELAUNAY_H
 
-#include "dmr_type.h"
+#include "vdc_type.h"
 
 struct DelaunayTriangle
 {

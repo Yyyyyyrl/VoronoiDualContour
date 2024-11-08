@@ -1,8 +1,8 @@
-#ifndef DMR_GRID_H
-#define DMR_GRID_H
+#ifndef VDC_GRID_H
+#define VDC_GRID_H
 
-#include "dmr_cube.h"
-#include "dmr_type.h"
+#include "vdc_cube.h"
+#include "vdc_type.h"
 
 struct Grid
 {

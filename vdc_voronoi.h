@@ -1,7 +1,7 @@
-#ifndef DMR_VORONOI_H
-#define DMR_VORONOI_H
+#ifndef VDC_VORONOI_H
+#define VDC_VORONOI_H
 
-#include "dmr_type.h"
+#include "vdc_type.h"
 
 struct VoronoiFacet {
     std::vector<Point> vertices;          // Ordered vertices of the facet

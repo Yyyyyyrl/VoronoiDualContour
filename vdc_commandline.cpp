@@ -1,4 +1,4 @@
-#include "dmr_commandline.h"
+#include "vdc_commandline.h"
 
 void print_help()
 {

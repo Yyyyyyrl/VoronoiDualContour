@@ -1,4 +1,4 @@
-#include "dmr_globalvar.h"
+#include "vdc_globalvar.h"
 
 std::string file_path;
 float isovalue;

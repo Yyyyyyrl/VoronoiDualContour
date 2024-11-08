@@ -1,13 +1,13 @@
-#ifndef DMR_UTILITIES_H
-#define DMR_UTILITIES_H
+#ifndef VDC_UTILITIES_H
+#define VDC_UTILITIES_H
 
-#include "dmr_debug.h"
-#include "dmr_type.h"
-#include "dmr_cube.h"
-#include "dmr_grid.h"
-#include "dmr_voronoi.h"
-#include "dmr_delaunay.h"
-#include "dmr_globalvar.h"
+#include "vdc_debug.h"
+#include "vdc_type.h"
+#include "vdc_cube.h"
+#include "vdc_grid.h"
+#include "vdc_voronoi.h"
+#include "vdc_delaunay.h"
+#include "vdc_globalvar.h"
 
 std::string objectToString(const CGAL::Object &obj);
 

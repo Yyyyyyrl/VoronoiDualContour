@@ -1,8 +1,8 @@
-#ifndef DMR_IO_H
-#define DMR_IO_H
+#ifndef VDC_IO_H
+#define VDC_IO_H
 
 
-#include "dmr_utilities.h"
+#include "vdc_utilities.h"
 
 
 // Functions for writing output mesh

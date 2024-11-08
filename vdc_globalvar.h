@@ -1,10 +1,10 @@
-#ifndef DMR_GLOBALVAR_H
-#define DMR_GLOBALVAR_H
+#ifndef VDC_GLOBALVAR_H
+#define VDC_GLOBALVAR_H
 
-#include "dmr_type.h"
-#include "dmr_delaunay.h"
-#include "dmr_grid.h"
-#include "dmr_voronoi.h"
+#include "vdc_type.h"
+#include "vdc_delaunay.h"
+#include "vdc_grid.h"
+#include "vdc_voronoi.h"
 
 //Global Variable
 extern std::string file_path;

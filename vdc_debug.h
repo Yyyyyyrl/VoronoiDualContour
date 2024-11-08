@@ -1,7 +1,7 @@
-#ifndef DMR_DEBUG_H
-#define DMR_DEBUG_H
+#ifndef VDC_DEBUG_H
+#define VDC_DEBUG_H
 
-#include "dmr_type.h"
+#include "vdc_type.h"
 
 extern bool debug;
 extern bool indicator;

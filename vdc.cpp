@@ -1,4 +1,4 @@
-#include "dmr.h"
+#include "vdc.h"
 
 int main(int argc, char *argv[])
 {
