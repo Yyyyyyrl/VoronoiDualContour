@@ -304,239 +304,11 @@ int main(int argc, char *argv[])
             voronoi_cells.push_back(vc);
         }
 
-        /*
-        Algorithm SepNeg/SepPos
-        */
-        std::map<std::pair<Point, Point>, EdgeMidpoint> bipolar_edge_map;
-        std::set<Point> unique_vertices;
-
-        for (auto &vc : voronoi_cells)
-        {
-            std::vector<MidpointNode> midpoints;
-            std::map<std::pair<Point, Point>, int> edge_to_midpoint_index;
-
-            // First pass: Collect midpoints and build edge connectivity
-            for (size_t i = 0; i < vc.facets.size(); ++i)
-            {
-                VoronoiFacet &facet = vc.facets[i];
-                size_t num_vertices = facet.vertices.size();
-
-                // Store indices of midpoints in this facet
-                std::vector<int> facet_midpoint_indices;
-
-                for (size_t j = 0; j < num_vertices; ++j)
-                {
-                    // Current and next vertex indices
-                    size_t idx1 = j;
-                    size_t idx2 = (j + 1) % num_vertices;
-
-                    float val1 = facet.vertex_values[idx1];
-                    float val2 = facet.vertex_values[idx2];
-
-                    // Check for bipolar edge
-                    if (is_bipolar(val1, val2, isovalue))
-                    {
-                        // Linear interpolation to find the exact point where the isovalue is crossed
-                        Point p1 = facet.vertices[idx1];
-                        Point p2 = facet.vertices[idx2];
-
-                        double t = (isovalue - val1) / (val2 - val1);
-                        Point midpoint = p1 + (p2 - p1) * t;
-
-                        // Check if this midpoint already exists
-                        auto edge_key = std::make_pair(std::min(p1, p2), std::max(p1, p2));
-                        if (edge_to_midpoint_index.find(edge_key) == edge_to_midpoint_index.end())
-                        {
-                            // Create new midpoint node
-                            MidpointNode node;
-                            node.point = midpoint;
-                            midpoints.push_back(node);
-                            int midpoint_index = midpoints.size() - 1;
-                            edge_to_midpoint_index[edge_key] = midpoint_index;
-                            facet_midpoint_indices.push_back(midpoint_index);
-                        }
-                        else
-                        {
-                            // Midpoint already exists
-                            int midpoint_index = edge_to_midpoint_index[edge_key];
-                            facet_midpoint_indices.push_back(midpoint_index);
-                        }
-                    }
-                }
-
-                // Connect midpoints in this facet
-                /* The number of midpoints should be multiple of 2 as bipolar edges in a facet should come in pairs,
-                So traverse through the vertices of the facet and connect consecutive pairs together
-                */
-                size_t num_midpoints = facet_midpoint_indices.size();
-                for (size_t k = 0; k < num_midpoints; k += 2)
-                {
-                    int idx1 = facet_midpoint_indices[k];
-                    int idx2 = facet_midpoint_indices[k + 1];
-                    midpoints[idx1].connected_to.push_back(idx2);
-                    midpoints[idx2].connected_to.push_back(idx1);
-                }
-            }
-
-            // Extract cycles from the graph of midpoints
-            std::vector<std::vector<int>> cycles_indices;
-            std::set<int> visited; // Stores the index of the vertices that are already visited
-
-            for (size_t i = 0; i < midpoints.size(); ++i)
-            {
-                if (visited.find(i) == visited.end())
-                {
-                    std::vector<int> cycle;
-                    std::stack<int> stack;
-                    stack.push(i);
-
-                    while (!stack.empty())
-                    {
-                        int current = stack.top();
-                        stack.pop();
-
-                        if (visited.find(current) != visited.end())
-                        {
-                            continue;
-                        }
-
-                        visited.insert(current);
-                        cycle.push_back(current);
-
-                        for (int neighbor : midpoints[current].connected_to)
-                        {
-                            if (visited.find(neighbor) == visited.end())
-                            {
-                                stack.push(neighbor);
-                            }
-                        }
-                    }
-
-                    // If the cycle is closed, add it
-                    if (!cycle.empty())
-                    {
-                        cycles_indices.push_back(cycle);
-                    }
-                }
-            }
-
-            // For each cycle, compute the centroid
-            for (const auto &cycle_indices : cycles_indices)
-            {
-                std::vector<Point> cycle_points;
-                for (int idx : cycle_indices)
-                {
-                    cycle_points.push_back(midpoints[idx].point);
-                }
-
-                // Compute centroid
-                Point centroid = CGAL::centroid(cycle_points.begin(), cycle_points.end());
-
-                // Store the cycle and its isovertex
-                Cycle cycle;
-                cycle.midpoints = cycle_points;
-                cycle.isovertex = centroid;
-                vc.cycles.push_back(cycle);
-
-                if (unique_vertices.insert(centroid).second)
-                { // insert returns a pair, where .second is a bool indicating success
-                    isosurfaceVertices.push_back(centroid);
-                }
-            }
-        }
-
-        // Populate vertex_to_isovertex_indices
-        for (size_t i = 0; i < voronoi_cells.size(); ++i)
-        {
-            VoronoiCell &vc = voronoi_cells[i];
-            Vertex_handle vh = vc.delaunay_vertex;
-            Point delaunay_point = vh->point();
-
-            std::vector<int> isovertex_indices;
-            for (size_t j = 0; j < vc.cycles.size(); ++j)
-            {
-                Cycle &cycle = vc.cycles[j];
-                // Add isovertex to isosurfaceVertices if not already added
-                isosurfaceVertices.push_back(cycle.isovertex);
-                isovertex_index = isosurfaceVertices.size() - 1;
-                isovertex_indices.push_back(isovertex_index);
-            }
-            vertex_to_isovertex_indices[delaunay_point] = isovertex_indices;
-        }
+        Compute_Isosurface_Vertices_Multi(voronoi_cells);
     }
     else
     {
-        /*
-    Compute Isosurface Vertices
-    */
-        const int cubeVertices[8][3] = {
-            {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, // bottom face
-            {0, 0, 1},
-            {1, 0, 1},
-            {1, 1, 1},
-            {0, 1, 1} // top face
-        };
-
-        const int cubeEdges[12][2] = {
-            {0, 1}, {1, 2}, {2, 3}, {3, 0}, // bottom face
-            {4, 5},
-            {5, 6},
-            {6, 7},
-            {7, 4}, // top face
-            {0, 4},
-            {1, 5},
-            {2, 6},
-            {3, 7} // vertical edges
-        };
-        for (const auto &center : activeCubeCenters)
-        {
-            std::vector<Point> intersectionPoints;
-            float cubeSize = data_grid.dx;
-            std::array<float, 8> scalarValues;
-
-            // Compute the global coordinates of the cube vertices and their scalar values
-            for (int i = 0; i < 8; i++)
-            {
-                Point vertex(
-                    center.x() + (cubeVertices[i][0] - 0.5) * cubeSize,
-                    center.y() + (cubeVertices[i][1] - 0.5) * cubeSize,
-                    center.z() + (cubeVertices[i][2] - 0.5) * cubeSize);
-                scalarValues[i] = grid.get_scalar_value_at_point(vertex);
-            }
-
-            // Check each edge for intersection with the isovalue
-            for (const auto &edge : cubeEdges)
-            {
-                int idx1 = edge[0];
-                int idx2 = edge[1];
-                float val1 = scalarValues[idx1];
-                float val2 = scalarValues[idx2];
-
-                // Check if the edge crosses the isovalue
-                if (((val1 >= isovalue) && (val2 < isovalue)) || ((val1 < isovalue) && (val2 >= isovalue))) // FIX: change to comparison instead of arithmatic // This is way too complicated.
-                {
-                    Point p1(
-                        center.x() + (cubeVertices[idx1][0] - 0.5) * cubeSize,
-                        center.y() + (cubeVertices[idx1][1] - 0.5) * cubeSize,
-                        center.z() + (cubeVertices[idx1][2] - 0.5) * cubeSize);
-
-                    Point p2(
-                        center.x() + (cubeVertices[idx2][0] - 0.5) * cubeSize,
-                        center.y() + (cubeVertices[idx2][1] - 0.5) * cubeSize,
-                        center.z() + (cubeVertices[idx2][2] - 0.5) * cubeSize);
-
-                    Point intersect = interpolate(p1, p2, val1, val2, isovalue, data_grid);
-                    intersectionPoints.push_back(intersect);
-                }
-            }
-
-            // Compute the centroid of the intersection points
-            if (!intersectionPoints.empty())
-            {
-                Point centroid = compute_centroid(intersectionPoints, supersample, supersample_r);
-                isosurfaceVertices.push_back(centroid);
-            }
-        }
+        Compute_Isosurface_Vertices_Single(grid);
     }
 
     /*
@@ -592,4 +364,243 @@ int main(int argc, char *argv[])
     std::cout << "Finished" << std::endl;
 
     return EXIT_SUCCESS;
+}
+
+
+void Compute_Isosurface_Vertices_Single(ScalarGrid &grid)
+{
+    /*
+       Compute Isosurface Vertices
+       */
+    const int cubeVertices[8][3] = {
+        {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, // bottom face
+        {0, 0, 1},
+        {1, 0, 1},
+        {1, 1, 1},
+        {0, 1, 1} // top face
+    };
+
+    const int cubeEdges[12][2] = {
+        {0, 1}, {1, 2}, {2, 3}, {3, 0}, // bottom face
+        {4, 5},
+        {5, 6},
+        {6, 7},
+        {7, 4}, // top face
+        {0, 4},
+        {1, 5},
+        {2, 6},
+        {3, 7} // vertical edges
+    };
+    for (const auto &center : activeCubeCenters)
+    {
+        std::vector<Point> intersectionPoints;
+        float cubeSize = data_grid.dx;
+        std::array<float, 8> scalarValues;
+
+        // Compute the global coordinates of the cube vertices and their scalar values
+        for (int i = 0; i < 8; i++)
+        {
+            Point vertex(
+                center.x() + (cubeVertices[i][0] - 0.5) * cubeSize,
+                center.y() + (cubeVertices[i][1] - 0.5) * cubeSize,
+                center.z() + (cubeVertices[i][2] - 0.5) * cubeSize);
+            scalarValues[i] = grid.get_scalar_value_at_point(vertex);
+        }
+
+        // Check each edge for intersection with the isovalue
+        for (const auto &edge : cubeEdges)
+        {
+            int idx1 = edge[0];
+            int idx2 = edge[1];
+            float val1 = scalarValues[idx1];
+            float val2 = scalarValues[idx2];
+
+            // Check if the edge crosses the isovalue
+            if (((val1 >= isovalue) && (val2 < isovalue)) || ((val1 < isovalue) && (val2 >= isovalue))) // FIX: change to comparison instead of arithmatic // This is way too complicated.
+            {
+                Point p1(
+                    center.x() + (cubeVertices[idx1][0] - 0.5) * cubeSize,
+                    center.y() + (cubeVertices[idx1][1] - 0.5) * cubeSize,
+                    center.z() + (cubeVertices[idx1][2] - 0.5) * cubeSize);
+
+                Point p2(
+                    center.x() + (cubeVertices[idx2][0] - 0.5) * cubeSize,
+                    center.y() + (cubeVertices[idx2][1] - 0.5) * cubeSize,
+                    center.z() + (cubeVertices[idx2][2] - 0.5) * cubeSize);
+
+                Point intersect = interpolate(p1, p2, val1, val2, isovalue, data_grid);
+                intersectionPoints.push_back(intersect);
+            }
+        }
+
+        // Compute the centroid of the intersection points
+        if (!intersectionPoints.empty())
+        {
+            Point centroid = compute_centroid(intersectionPoints, supersample, supersample_r);
+            isosurfaceVertices.push_back(centroid);
+        }
+    }
+}
+
+void Compute_Isosurface_Vertices_Multi(std::vector<VoronoiCell> &voronoi_cells)
+{
+    /*
+    Algorithm SepNeg/SepPos
+    */
+    std::map<std::pair<Point, Point>, EdgeMidpoint> bipolar_edge_map;
+    std::set<Point> unique_vertices;
+
+    for (auto &vc : voronoi_cells)
+    {
+        std::vector<MidpointNode> midpoints;
+        std::map<std::pair<Point, Point>, int> edge_to_midpoint_index;
+
+        // First pass: Collect midpoints and build edge connectivity
+        for (size_t i = 0; i < vc.facets.size(); ++i)
+        {
+            VoronoiFacet &facet = vc.facets[i];
+            size_t num_vertices = facet.vertices.size();
+
+            // Store indices of midpoints in this facet
+            std::vector<int> facet_midpoint_indices;
+
+            for (size_t j = 0; j < num_vertices; ++j)
+            {
+                // Current and next vertex indices
+                size_t idx1 = j;
+                size_t idx2 = (j + 1) % num_vertices;
+
+                float val1 = facet.vertex_values[idx1];
+                float val2 = facet.vertex_values[idx2];
+
+                // Check for bipolar edge
+                if (is_bipolar(val1, val2, isovalue))
+                {
+                    // Linear interpolation to find the exact point where the isovalue is crossed
+                    Point p1 = facet.vertices[idx1];
+                    Point p2 = facet.vertices[idx2];
+
+                    double t = (isovalue - val1) / (val2 - val1);
+                    Point midpoint = p1 + (p2 - p1) * t;
+
+                    // Check if this midpoint already exists
+                    auto edge_key = std::make_pair(std::min(p1, p2), std::max(p1, p2));
+                    if (edge_to_midpoint_index.find(edge_key) == edge_to_midpoint_index.end())
+                    {
+                        // Create new midpoint node
+                        MidpointNode node;
+                        node.point = midpoint;
+                        midpoints.push_back(node);
+                        int midpoint_index = midpoints.size() - 1;
+                        edge_to_midpoint_index[edge_key] = midpoint_index;
+                        facet_midpoint_indices.push_back(midpoint_index);
+                    }
+                    else
+                    {
+                        // Midpoint already exists
+                        int midpoint_index = edge_to_midpoint_index[edge_key];
+                        facet_midpoint_indices.push_back(midpoint_index);
+                    }
+                }
+            }
+
+            // Connect midpoints in this facet
+            /* The number of midpoints should be multiple of 2 as bipolar edges in a facet should come in pairs,
+            So traverse through the vertices of the facet and connect consecutive pairs together
+            */
+            size_t num_midpoints = facet_midpoint_indices.size();
+            for (size_t k = 0; k < num_midpoints; k += 2)
+            {
+                int idx1 = facet_midpoint_indices[k];
+                int idx2 = facet_midpoint_indices[k + 1];
+                midpoints[idx1].connected_to.push_back(idx2);
+                midpoints[idx2].connected_to.push_back(idx1);
+            }
+        }
+
+        // Extract cycles from the graph of midpoints
+        std::vector<std::vector<int>> cycles_indices;
+        std::set<int> visited; // Stores the index of the vertices that are already visited
+
+        for (size_t i = 0; i < midpoints.size(); ++i)
+        {
+            if (visited.find(i) == visited.end())
+            {
+                std::vector<int> cycle;
+                std::stack<int> stack;
+                stack.push(i);
+
+                while (!stack.empty())
+                {
+                    int current = stack.top();
+                    stack.pop();
+
+                    if (visited.find(current) != visited.end())
+                    {
+                        continue;
+                    }
+
+                    visited.insert(current);
+                    cycle.push_back(current);
+
+                    for (int neighbor : midpoints[current].connected_to)
+                    {
+                        if (visited.find(neighbor) == visited.end())
+                        {
+                            stack.push(neighbor);
+                        }
+                    }
+                }
+
+                // If the cycle is closed, add it
+                if (!cycle.empty())
+                {
+                    cycles_indices.push_back(cycle);
+                }
+            }
+        }
+
+        // For each cycle, compute the centroid
+        for (const auto &cycle_indices : cycles_indices)
+        {
+            std::vector<Point> cycle_points;
+            for (int idx : cycle_indices)
+            {
+                cycle_points.push_back(midpoints[idx].point);
+            }
+
+            // Compute centroid
+            Point centroid = CGAL::centroid(cycle_points.begin(), cycle_points.end());
+
+            // Store the cycle and its isovertex
+            Cycle cycle;
+            cycle.midpoints = cycle_points;
+            cycle.isovertex = centroid;
+            vc.cycles.push_back(cycle);
+
+            if (unique_vertices.insert(centroid).second)
+            { // insert returns a pair, where .second is a bool indicating success
+                isosurfaceVertices.push_back(centroid);
+            }
+        }
+    }
+
+    // Populate vertex_to_isovertex_indices
+    for (size_t i = 0; i < voronoi_cells.size(); ++i)
+    {
+        VoronoiCell &vc = voronoi_cells[i];
+        Vertex_handle vh = vc.delaunay_vertex;
+        Point delaunay_point = vh->point();
+
+        std::vector<int> isovertex_indices;
+        for (size_t j = 0; j < vc.cycles.size(); ++j)
+        {
+            Cycle &cycle = vc.cycles[j];
+            // Add isovertex to isosurfaceVertices if not already added
+            isosurfaceVertices.push_back(cycle.isovertex);
+            isovertex_index = isosurfaceVertices.size() - 1;
+            isovertex_indices.push_back(isovertex_index);
+        }
+        vertex_to_isovertex_indices[delaunay_point] = isovertex_indices;
+    }
 }

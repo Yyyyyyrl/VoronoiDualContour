@@ -9,3 +9,7 @@
 #include <map>
 
 #endif // VDC_H
+
+void Compute_Isosurface_Vertices_Multi(std::vector<VoronoiCell> &voronoi_cells);
+
+void Compute_Isosurface_Vertices_Single(ScalarGrid &grid);
