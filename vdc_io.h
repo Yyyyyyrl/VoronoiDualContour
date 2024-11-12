@@ -18,4 +18,5 @@ void cropAndWriteToCSV(const std::vector<Point> &points, float minX, float minY,
                        float maxX, float maxY, float maxZ, const std::string &filename, bool save_cropped);
 
 void export_voronoi_to_csv(const std::vector<Point> &voronoi_vertices, const std::vector<Object> &voronoi_edges, const std::string &filename);
+
 #endif
