@@ -3,44 +3,47 @@
 
 #include "vdc_type.h"
 
-struct VoronoiFacet {
-    std::vector<Point> vertices;          // Ordered vertices of the facet
-    std::vector<float> vertex_values;     // Scalar values at the vertices
+struct MidpointNode {
+    Point point;                   // Midpoint coordinates
+    std::vector<int> connected_to; // Indices of connected midpoints
+    int facet_index;               // Index of the facet the midpoint is on
+    int cycle_index;               // Index of the cycle the midpoint belongs to
+};
 
-    VoronoiFacet(const std::vector<Point>& verts, const std::vector<float>& values)
-        : vertices(verts), vertex_values(values) {}
+
+struct VoronoiFacet {
+    std::vector<int> vertices_indices;    // Ordered indices of vertices in VoronoiDiagram.voronoiVertices
+    std::vector<float> vertex_values;     // Scalar values at the vertices
+    VoronoiFacet() {}
 };
 
 struct Cycle {
-    std::vector<Point> midpoints; // Midpoints forming the cycle \remove
-    std::vector<std::pair<int, int>> edges; // Edges that forms the cycle where each edge is represented using indices of the two points
-    Point isovertex;              // Centroid of the cycle
-    int voronoi_cell_index;       // Index of the VoronoiCell it belongs to
-    
-    // Stores edges which mid points forms the cycle and reference to them
-    void compute_centroid();
+    std::vector<int> midpoint_indices;        // Indices of midpoints in the cycle
+    std::vector<std::pair<int, int>> edges;   // Edges forming the cycle (indices into midpoints)
+    Point isovertex;                          // Centroid of the cycle
+    int voronoi_cell_index;                   // Index of the VoronoiCell it belongs to
 
+    void compute_centroid(const std::vector<MidpointNode>& midpoints);
 };
 
 struct VoronoiVertex {
     Point vertex;
-    std::vector<int> cellIndices; // Indices of voronoi cells that contains this vertex
-    std::vector<int> cycleIndices; // Indices of cycles that contains this vertex
-
-    VoronoiVertex(Point p) : vertex(p) {} 
+    std::vector<int> cellIndices; // Indices of Voronoi cells that contain this vertex
+    VoronoiVertex(Point p) : vertex(p) {}
 };
 
 // VoronoiCell class to represent a Voronoi cell (polytope)
 struct VoronoiCell {
-    Vertex_handle delaunay_vertex;                    // Corresponding Delaunay vertex
-    std::vector<Point> voronoi_vertices;              // Voronoi vertices (coordinates)
-    std::vector<float> vertex_values;                 // Scalar values at the vertices
-    std::vector<VoronoiFacet> facets;                        // Facets of the Voronoi cell
-    CGAL::Polyhedron_3<K> polyhedron;                 // Polyhedron representing the cell
+    Vertex_handle delaunay_vertex;
+    int cellIndex;
+    std::vector<int> vertices_indices;       // Indices into VoronoiDiagram.voronoiVertices
+    std::vector<int> facet_indices;          // Indices into VoronoiDiagram.voronoiFacets
+    CGAL::Polyhedron_3<K> polyhedron;
     std::vector<Cycle> cycles;
-    std::map<VoronoiFacet, int> facet_to_cycle_map; // Map from facet to cycle index
-
-    VoronoiCell(Vertex_handle vh) : delaunay_vertex(vh) {}
+    int isoVertexStartIndex;                 // Starting index of isoVertices in VoronoiDiagram.isosurfaceVertices
+    int numIsoVertices;                      // Number of isoVertices in this cell
+    VoronoiCell(Vertex_handle vh)
+        : delaunay_vertex(vh), isoVertexStartIndex(-1), numIsoVertices(0) {}
 };
 
 // Construct a new struct store all the Voronoi Diagram together 
@@ -55,12 +58,14 @@ struct VoronoiCell {
 
 
 struct VoronoiDiagram {
-    std::vector<Point> voronoiVertices;
+    std::vector<VoronoiVertex> voronoiVertices;
     std::vector<Object> voronoiEdges;
-    std::map<Point, float> voronoiVertex2ValuesMap;
-    std::vector<Point> midpoints;
-    std::map<VoronoiCell, int> voronoiCells2IndexMap;
-    std::map<VoronoiFacet, int> voronoiFacets2IndexMap;  
+    std::vector<float> voronoiVertexValues;
+    std::vector<VoronoiCell> voronoiCells;
+    std::vector<VoronoiFacet> voronoiFacets;
+    std::vector<Point> isosurfaceVertices;
+    std::map<Point, int> point_to_vertex_index;
+    std::map<Vertex_handle, int> delaunayVertex_to_voronoiCell_index;
 };
 
 
@@ -83,12 +88,4 @@ struct PointComparator {
                (std::fabs(a.z() - b.z()) < epsilon);
     }
 };
-
-struct MidpointNode {
-    Point point;                   // Midpoint coordinates
-    std::vector<int> connected_to; // Indices of connected midpoints
-    int facet_index;               // Index of the facet the midpoint is on
-    int cycle_index;               // Index of the cycle the midpoint belongs to
-};
-
 #endif

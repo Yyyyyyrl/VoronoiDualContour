@@ -92,6 +92,6 @@ void parse_arguments(int argc, char *argv[])
     if (output_filename.empty())
     {
         std::string base_name = file_path.substr(0, file_path.find_last_of('.'));
-        output_filename = base_name + "." + output_format;
+        output_filename = "../mesh/" + base_name + "." + output_format;
     }
 }

@@ -29,29 +29,37 @@ void writeOFFSingle(const std::string &filename, const std::vector<Point> &verti
     out.close();
 }
 
-void writeOFFMulti(const std::string &filename, const std::vector<Point> &isosurfaceVertices, const std::vector<IsoTriangle> isoTriangles){
+void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles)
+{
     std::ofstream out(filename);
-    if (!out) {
+    if (!out)
+    {
         std::cerr << "Cannot open file for writing: " << filename << std::endl;
         return;
     }
 
     // Header
     out << "OFF\n";
-    out << isosurfaceVertices.size() << " " << isoTriangles.size() << " 0\n";
+    out << voronoiDiagram.isosurfaceVertices.size() << " " << isoTriangles.size() << " 0\n";
 
     // Write vertex coordinates
-    for (const auto& vertex : isosurfaceVertices) {
+    for (const auto &vertex : voronoiDiagram.isosurfaceVertices)
+    {
         out << vertex << "\n";
     }
 
     // Write face indices
-    for (const auto& triangle : isoTriangles) {
-        out << "3 " << triangle.vertex_indices[0] << " " << triangle.vertex_indices[1] << " " << triangle.vertex_indices[2] << "\n";
+    for (const auto &triangle : isoTriangles)
+    {
+        int idx1 = std::get<0>(triangle);
+        int idx2 = std::get<1>(triangle);
+        int idx3 = std::get<2>(triangle);
+        out << "3 " << idx1 << " " << idx2 << " " << idx3 << "\n";
     }
 
     out.close();
 }
+
 
 void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
@@ -88,7 +96,8 @@ void writePLYSingle(const std::string &filename, const std::vector<Point> &verti
     out.close();
 }
 
-void writePLYMulti(const std::string &filename, const std::vector<Point> &isosurfaceVertices, const std::vector<IsoTriangle> isoTriangles) {
+void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles)
+{
     std::ofstream out(filename);
     if (!out)
     {
@@ -99,42 +108,54 @@ void writePLYMulti(const std::string &filename, const std::vector<Point> &isosur
     // Write PLY header
     out << "ply\n";
     out << "format ascii 1.0\n";
-    out << "element vertex " << isosurfaceVertices.size() << "\n";
+    out << "element vertex " << voronoiDiagram.isosurfaceVertices.size() << "\n";
     out << "property float x\n";
     out << "property float y\n";
     out << "property float z\n";
     out << "element face " << isoTriangles.size() << "\n";
-    out << "property list uchar int vertex_index\n";
+    out << "property list uchar int vertex_indices\n";
     out << "end_header\n";
 
     // Write vertex coordinates
-    for (const auto& vertex : isosurfaceVertices) {
-        out << vertex << "\n";
+    for (const auto &vertex : voronoiDiagram.isosurfaceVertices)
+    {
+        out << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
     }
 
     // Write face indices
-    for (const auto& triangle : isoTriangles) {
-        out << "3 " << triangle.vertex_indices[0] << " " << triangle.vertex_indices[1] << " " << triangle.vertex_indices[2] << "\n";
+    for (const auto &triangle : isoTriangles)
+    {
+        int idx1 = std::get<0>(triangle);
+        int idx2 = std::get<1>(triangle);
+        int idx3 = std::get<2>(triangle);
+        out << "3 " << idx1 << " " << idx2 << " " << idx3 << "\n";
     }
 
     out.close();
 }
 
-void export_voronoi_to_csv(const std::vector<Point> &voronoi_vertices, const std::vector<Object> &voronoi_edges, const std::string &filename)
+
+void export_voronoi_to_csv(const VoronoiDiagram &voronoiDiagram, const std::string &filename)
 {
     std::ofstream file(filename);
 
+    if (!file)
+    {
+        std::cerr << "Cannot open file for writing: " << filename << std::endl;
+        return;
+    }
+
     // Export vertices
     file << "vertices\n";
-    for (const auto &vertex : voronoi_vertices)
+    for (const auto &vVertex : voronoiDiagram.voronoiVertices)
     {
-        //
+        Point vertex = vVertex.vertex;
         file << vertex.x() << "," << vertex.y() << "," << vertex.z() << "\n";
     }
 
     // Export edges
     file << "edges\n";
-    for (const auto &edge : voronoi_edges)
+    for (const auto &edge : voronoiDiagram.voronoiEdges)
     {
         Segment3 segment;
         Line3 line;
@@ -165,6 +186,7 @@ void export_voronoi_to_csv(const std::vector<Point> &voronoi_vertices, const std
 
     file.close();
 }
+
 
 // Function to crop points based on min and max coordinates and write to CSV
 void cropAndWriteToCSV(const std::vector<Point> &points, float minX, float minY, float minZ,

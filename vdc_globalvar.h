@@ -30,7 +30,6 @@ extern std::map<Point, std::vector<int>> vertex_to_isovertex_indices; // Map Del
 extern std::vector<DelaunayTriangle> dualTriangles;
 extern std::vector<IsoTriangle> isoTriangles;
 
-extern VoronoiDiagram voronoiDiagram;
 extern Grid data_grid;
 extern Delaunay dt;
 

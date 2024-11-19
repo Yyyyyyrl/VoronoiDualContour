@@ -78,6 +78,12 @@ Point compute_centroid(const std::vector<Point> &points, bool supersample, int r
 }
 
 
+Point compute_centroid(const std::vector<Point> &points)
+{
+    return CGAL::centroid(points.begin(), points.end());
+}
+
+
 
 std::array<Point, 8> get_cube_corners(const Point &center, float side_length)
 {

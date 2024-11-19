@@ -24,7 +24,6 @@ std::map<Point, std::vector<int>> vertex_to_isovertex_indices; // Map Delaunay v
 std::vector<DelaunayTriangle> dualTriangles;
 std::vector<IsoTriangle> isoTriangles;
 
-VoronoiDiagram voronoiDiagram;
 
 Grid data_grid;
 Delaunay dt;

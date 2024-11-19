@@ -2,6 +2,7 @@
 
 int main(int argc, char *argv[])
 {
+    VoronoiDiagram vd;
     // TODO: void parse_arg()
     //  Read data points and find centers of active cubes
     parse_arguments(argc, argv);
@@ -59,23 +60,18 @@ int main(int argc, char *argv[])
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
     */
-    std::vector<Point> voronoi_vertices;
-    std::set<Point> seen_points;
-
     // Construct Voronoi Diagram
     if (indicator)
     {
         std::cout << "Constructing Voronoi diagram..." << std::endl;
     }
-    construct_voronoi_vertices(seen_points, voronoi_vertices);
+    construct_voronoi_vertices(vd);
 
     /*
     Iterate through each facets in the DT and then calculate Voronoi Edges
     */
-    std::vector<Object> voronoi_edges; // Store voronoi edges, which are dual of each facet
-    std::set<std::string> seen_edges;  // Used for checking duplicate edges during iteration
     std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
-    construct_voronoi_edges(delaunay_facet_to_voronoi_edge_map, seen_edges, voronoi_edges);
+    construct_voronoi_edges(vd, delaunay_facet_to_voronoi_edge_map);
 
     /*
     Compute Scalar Values at Voronoi Vertices
@@ -86,7 +82,7 @@ int main(int argc, char *argv[])
     }
     std::vector<float> voronoi_vertex_values;
 
-    compute_voronoi_values(voronoi_vertices, grid, voronoi_vertex_values);
+    compute_voronoi_values(vd, grid);
 
     /*
     Compute Isosurface Vertices
@@ -97,15 +93,13 @@ int main(int argc, char *argv[])
         Construct Voronoi Cells
         */
 
-        std::vector<VoronoiCell> voronoi_cells;
+        construct_voronoi_cells(vd);
 
-        construct_voronoi_cells(voronoi_cells);
-
-        Compute_Isosurface_Vertices_Multi(voronoi_cells);
+        Compute_Isosurface_Vertices_Multi(vd, isovalue);
     }
     else
     {
-        Compute_Isosurface_Vertices_Single(grid);
+        Compute_Isosurface_Vertices_Single(vd, grid);
     }
 
     /*
@@ -113,24 +107,24 @@ int main(int argc, char *argv[])
     */
 
     std::cout << "Checkpoint" << std::endl;
-
+    std::vector<std::tuple<int, int, int>> isoTriangles;
     if (multi_isov)
     {
-        computeDualTrianglesMulti(voronoi_edges, bbox, delaunay_facet_to_voronoi_edge_map, grid);
+        computeDualTrianglesMulti(vd, bbox, delaunay_facet_to_voronoi_edge_map, grid, isovalue, isoTriangles);
     }
     else
     {
-        dualTriangles = computeDualTriangles(voronoi_edges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
+        dualTriangles = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
     }
 
     if (out_csv)
     {
         std::cout << "Export voronoi Diagram" << std::endl;
-        export_voronoi_to_csv(voronoi_vertices, bipolar_voronoi_edges, out_csv_name);
+        export_voronoi_to_csv(vd, out_csv_name);
     }
 
     bool retFlag;
-    int retVal = handle_output_mesh(retFlag);
+    int retVal = handle_output_mesh(retFlag, vd, isoTriangles);
     if (retFlag)
         return retVal;
 
