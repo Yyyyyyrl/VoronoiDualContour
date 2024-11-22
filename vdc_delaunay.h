@@ -18,6 +18,15 @@ struct IsoTriangle {
     }
 };
 
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const IsoTriangle& it)
+{
+    os << "IsoTriangle:\n";
+    os << "  Vertex indices: " << it.vertex_indices[0] << ", "
+       << it.vertex_indices[1] << ", " << it.vertex_indices[2] << "\n";
+
+    return os;
+}
 
 
 

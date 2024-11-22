@@ -64,6 +64,7 @@ struct VoronoiDiagram {
     std::vector<VoronoiCell> voronoiCells;
     std::vector<VoronoiFacet> voronoiFacets;
     std::vector<Point> isosurfaceVertices;
+    std::map<Cell_handle, int> cell_to_vertex_index; // Add this line
     std::map<Point, int> point_to_vertex_index;
     std::map<Vertex_handle, int> delaunayVertex_to_voronoiCell_index;
 };
@@ -88,4 +89,159 @@ struct PointComparator {
                (std::fabs(a.z() - b.z()) < epsilon);
     }
 };
+
+
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiFacet& vf)
+{
+    os << "VoronoiFacet:\n";
+    os << "  Vertices indices: ";
+    for (const int idx : vf.vertices_indices)
+        os << idx << " ";
+    os << "\n";
+
+    os << "  Vertex values: ";
+    for (const float val : vf.vertex_values)
+        os << val << " ";
+    os << "\n";
+
+    return os;
+}
+
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Cycle& cycle)
+{
+    os << "Cycle:\n";
+    os << "  Voronoi cell index: " << cycle.voronoi_cell_index << "\n";
+    os << "  Isovertex: " << cycle.isovertex << "\n";
+
+    os << "  Midpoint indices: ";
+    for (const int idx : cycle.midpoint_indices)
+        os << idx << " ";
+    os << "\n";
+
+    os << "  Edges: ";
+    for (const auto& edge : cycle.edges)
+        os << "(" << edge.first << ", " << edge.second << ") ";
+    os << "\n";
+
+    return os;
+}
+
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiVertex& vv)
+{
+    os << "VoronoiVertex:\n";
+    os << "  Vertex: " << vv.vertex << "\n";
+    os << "  Cell indices: ";
+    for (const int idx : vv.cellIndices)
+        os << idx << " ";
+    os << "\n";
+
+    return os;
+}
+
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiCell& vc)
+{
+    os << "VoronoiCell:\n";
+    os << "  Cell index: " << vc.cellIndex << "\n";
+    os << "  Delaunay vertex: " << vc.delaunay_vertex->point() << "\n";
+
+    os << "  Vertices indices: ";
+    for (const int idx : vc.vertices_indices)
+        os << idx << " ";
+    os << "\n";
+
+    os << "  Facet indices: ";
+    for (const int idx : vc.facet_indices)
+        os << idx << " ";
+    os << "\n";
+
+    os << "  IsoVertex start index: " << vc.isoVertexStartIndex << "\n";
+    os << "  Number of isoVertices: " << vc.numIsoVertices << "\n";
+
+    os << "  Cycles:\n";
+    for (const auto& cycle : vc.cycles)
+        os << cycle;
+
+    return os;
+}
+
+
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
+{
+    os << "VoronoiDiagram:\n";
+
+    // Voronoi Vertices
+    os << "\nVoronoiVertices:\n";
+    for (size_t i = 0; i < vd.voronoiVertices.size(); ++i)
+    {
+        os << "Index " << i << ":\n";
+        os << vd.voronoiVertices[i];
+    }
+
+    // Voronoi Edges
+    os << "\nVoronoiEdges:\n";
+    for (const auto& edge : vd.voronoiEdges)
+    {
+        os << "  Edge: ";
+        Segment3 segment;
+        Line3 line;
+        Ray3 ray;
+
+        if (CGAL::assign(segment, edge))
+        {
+            os << "Segment(" << segment.source() << " - " << segment.target() << ")\n";
+        }
+        else if (CGAL::assign(line, edge))
+        {
+            os << "Line(" << line.point(0) << " - " << line.point(1) << ")\n";
+        }
+        else if (CGAL::assign(ray, edge))
+        {
+            os << "Ray(" << ray.source() << ", direction: " << ray.direction() << ")\n";
+        }
+        else
+        {
+            os << "Unknown edge type.\n";
+        }
+    }
+
+    // Voronoi Vertex Values
+    os << "\nVoronoiVertexValues:\n";
+    for (size_t i = 0; i < vd.voronoiVertexValues.size(); ++i)
+    {
+        os << "  Index " << i << ": " << vd.voronoiVertexValues[i] << "\n";
+    }
+
+    // Voronoi Cells
+    os << "\nVoronoiCells:\n";
+    for (const auto& cell : vd.voronoiCells)
+    {
+        os << cell;
+    }
+
+    // Voronoi Facets
+    os << "\nVoronoiFacets:\n";
+    for (size_t i = 0; i < vd.voronoiFacets.size(); ++i)
+    {
+        os << "Index " << i << ":\n";
+        os << vd.voronoiFacets[i];
+    }
+
+    // Isosurface Vertices
+    os << "\nIsosurfaceVertices:\n";
+    for (size_t i = 0; i < vd.isosurfaceVertices.size(); ++i)
+    {
+        os << "  Index " << i << ": " << vd.isosurfaceVertices[i] << "\n";
+    }
+
+    return os;
+}
+
+
+
+
 #endif
