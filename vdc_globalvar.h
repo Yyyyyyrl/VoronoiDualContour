@@ -22,6 +22,8 @@ extern std::vector<Point> activeCubeCenters;
 extern std::vector<Object> bipolar_voronoi_edges;
 extern std::vector<Point> isosurfaceVertices;
 
+extern K::Iso_cuboid_3 delaunayBbox;
+
 extern std::vector<LabeledPoint> all_points;
 extern std::vector<std::pair<Point, bool>> points_with_info;
 

@@ -270,11 +270,14 @@ void computeDualTrianglesMulti(
             int idx_v1 = voronoiDiagram.point_to_vertex_index[v1];
             int idx_v2 = voronoiDiagram.point_to_vertex_index[v2];
 
+            std::cout << "v1: " << idx_v1 << "\n idx_v2: " << idx_v2 << std::endl;
+
             float val1 = voronoiDiagram.voronoiVertexValues[idx_v1];
             float val2 = voronoiDiagram.voronoiVertexValues[idx_v2];
 
             if (is_bipolar(val1, val2, isovalue))
             {
+                //TODO: Rename to edge->facet map
                 auto it = delaunay_facet_to_voronoi_edge_map.find(edge);
                 if (it != delaunay_facet_to_voronoi_edge_map.end())
                 {
@@ -291,9 +294,14 @@ void computeDualTrianglesMulti(
                         Vertex_handle vh2 = c->vertex(d2);
                         Vertex_handle vh3 = c->vertex(d3);
 
+                        std::cout << "v1: " << vh1->point() << "v2: " << vh2->point() << "v3: " << vh3->point() << std::endl;
+                        
                         int cellIndex1 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh1];
                         int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
                         int cellIndex3 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh3];
+
+                        std::cout << " Cell Indices " << std::endl;
+                        std::cout << " c1 : " << cellIndex1 << "\n c2 : " << cellIndex2 << "\n c3: " << cellIndex3 << std::endl;
 
                         VoronoiCell &vc1 = voronoiDiagram.voronoiCells[cellIndex1];
                         VoronoiCell &vc2 = voronoiDiagram.voronoiCells[cellIndex2];
@@ -304,9 +312,16 @@ void computeDualTrianglesMulti(
                         int idx2 = vc2.isoVertexStartIndex;
                         int idx3 = vc3.isoVertexStartIndex;
 
-                        if (idx1 >= 0 && idx2 >= 0 && idx3 >= 0)
+                        if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                         {
                             isoTriangles.emplace_back(idx1, idx2, idx3);
+                        }
+                        else
+                        {
+                            std::cout << "Problematic triangle" << std::endl;
+                            std::cout << "Vertex 1: " << idx1 << " from Cell " << cellIndex1 << std::endl;
+                            std::cout << "Vertex 2: " << idx2 << " from Cell " << cellIndex2 << std::endl;
+                            std::cout << "Vertex 3: " << idx3 << " from Cell " << cellIndex3 << std::endl;
                         }
                     }
                 }
@@ -348,6 +363,9 @@ void computeDualTrianglesMulti(
                             int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
                             int cellIndex3 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh3];
 
+                            std::cout << " Cell Indices " << std::endl;
+                            std::cout << " c1 : " << cellIndex1 << "\n c2 : " << cellIndex2 << "\n c3: " << cellIndex3 << std::endl;
+
                             VoronoiCell &vc1 = voronoiDiagram.voronoiCells[cellIndex1];
                             VoronoiCell &vc2 = voronoiDiagram.voronoiCells[cellIndex2];
                             VoronoiCell &vc3 = voronoiDiagram.voronoiCells[cellIndex3];
@@ -357,9 +375,16 @@ void computeDualTrianglesMulti(
                             int idx2 = vc2.isoVertexStartIndex;
                             int idx3 = vc3.isoVertexStartIndex;
 
-                            if (idx1 >= 0 && idx2 >= 0 && idx3 >= 0)
+                            if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                             {
                                 isoTriangles.emplace_back(idx1, idx2, idx3);
+                            }
+                            else
+                            {
+                                std::cout << "Problematic triangle" << std::endl;
+                                std::cout << "Vertex 1: " << idx1 << " from Cell " << cellIndex1 << std::endl;
+                                std::cout << "Vertex 2: " << idx2 << " from Cell " << cellIndex2 << std::endl;
+                                std::cout << "Vertex 3: " << idx3 << " from Cell " << cellIndex3 << std::endl;
                             }
                         }
                     }
@@ -401,6 +426,9 @@ void computeDualTrianglesMulti(
                             int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
                             int cellIndex3 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh3];
 
+                            std::cout << " Cell Indices " << std::endl;
+                            std::cout << " c1 : " << cellIndex1 << "\n c2 : " << cellIndex2 << "\n c3: " << cellIndex3 << std::endl;
+
                             VoronoiCell &vc1 = voronoiDiagram.voronoiCells[cellIndex1];
                             VoronoiCell &vc2 = voronoiDiagram.voronoiCells[cellIndex2];
                             VoronoiCell &vc3 = voronoiDiagram.voronoiCells[cellIndex3];
@@ -410,9 +438,16 @@ void computeDualTrianglesMulti(
                             int idx2 = vc2.isoVertexStartIndex;
                             int idx3 = vc3.isoVertexStartIndex;
 
-                            if (idx1 >= 0 && idx2 >= 0 && idx3 >= 0)
+                            if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                             {
                                 isoTriangles.emplace_back(idx1, idx2, idx3);
+                            }
+                            else
+                            {
+                                std::cout << "Problematic triangle" << std::endl;
+                                std::cout << "Vertex 1: " << idx1 << " from Cell " << cellIndex1 << std::endl;
+                                std::cout << "Vertex 2: " << idx2 << " from Cell " << cellIndex2 << std::endl;
+                                std::cout << "Vertex 3: " << idx3 << " from Cell " << cellIndex3 << std::endl;
                             }
                         }
                     }
@@ -620,7 +655,7 @@ void construct_delaunay_triangulation()
 {
     if (multi_isov)
     {
-        K::Iso_cuboid_3 delaunayBbox = CGAL::bounding_box(activeCubeCenters.begin(), activeCubeCenters.end());
+        delaunayBbox = CGAL::bounding_box(activeCubeCenters.begin(), activeCubeCenters.end());
 
         // Six Corner Points
         double xmin = delaunayBbox.xmin();
@@ -690,16 +725,16 @@ void construct_delaunay_triangulation()
     int i = 0;
     if (multi_isov)
     {
-        for (const auto &pt : points_with_info)
+        for (auto vh = dt.finite_vertices_begin(); vh != dt.finite_vertices_end(); ++vh)
+    {
+        if (vh->info() == true)
         {
-            if (pt.second == true)
-            {
-                continue;
-            }
-            Point p = pt.first; // pt in this case is pair of <Point, bool>
-            point_index_map[p] = i;
-            i++;
+            continue; // Skip dummy points
         }
+        Point p = vh->point();
+        point_index_map[p] = i;
+        i++;
+    }
     }
     else
     {
@@ -713,16 +748,22 @@ void construct_delaunay_triangulation()
 
 void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram)
 {
+    voronoiDiagram.voronoiVertices.clear();
+    voronoiDiagram.point_to_vertex_index.clear();
+
     std::set<Point> seen_points;
     for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin();
          cit != dt.finite_cells_end(); ++cit)
     {
+
         Point voronoi_vertex = dt.dual(cit);
+        VoronoiVertex vVertex(voronoi_vertex);
         if (seen_points.insert(voronoi_vertex).second)
         {
             int vertex_index = voronoiDiagram.voronoiVertices.size();
-            voronoiDiagram.voronoiVertices.emplace_back(voronoi_vertex);
+            voronoiDiagram.voronoiVertices.push_back(vVertex);
             voronoiDiagram.point_to_vertex_index[voronoi_vertex] = vertex_index;
+            voronoiDiagram.cell_to_vertex_index[cit] = vertex_index;
         }
     }
 }
@@ -753,7 +794,10 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
         std::vector<Cell_handle> incident_cells;
         dt.finite_incident_cells(vh, std::back_inserter(incident_cells));
 
-        // Collect vertex indices
+        CGAL::Bbox_3 domain_bbox = delaunayBbox.bbox();
+        
+        // Collect vertex indices, ensuring uniqueness
+        std::set<int> unique_vertex_indices_set;
         for (Cell_handle ch : incident_cells)
         {
             if (dt.is_infinite(ch))
@@ -761,9 +805,15 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
                 continue; // Skip infinite cells
             }
             Point voronoi_vertex = dt.dual(ch);
+        
+
+            //Check if voronoi_vertex is within domain and exclude dummy points in the dt
             int vertex_index = voronoiDiagram.point_to_vertex_index[voronoi_vertex];
-            vc.vertices_indices.push_back(vertex_index);
+            unique_vertex_indices_set.insert(vertex_index);
         }
+
+        // Copy unique indices to vector
+        vc.vertices_indices.assign(unique_vertex_indices_set.begin(), unique_vertex_indices_set.end());
 
         // Build convex hull and extract facets
         std::vector<Point> vertex_points;
@@ -771,6 +821,12 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
         {
             vertex_points.push_back(voronoiDiagram.voronoiVertices[idx].vertex);
         }
+
+        // Remove duplicate points
+        std::sort(vertex_points.begin(), vertex_points.end(), [](const Point &a, const Point &b)
+                  { return a.x() < b.x() || (a.x() == b.x() && (a.y() < b.y() || (a.y() == b.y() && a.z() < b.z()))); });
+        vertex_points.erase(std::unique(vertex_points.begin(), vertex_points.end(), PointApproxEqual()), vertex_points.end());
+
         CGAL::convex_hull_3(vertex_points.begin(), vertex_points.end(), vc.polyhedron);
 
         // Extract facets from polyhedron

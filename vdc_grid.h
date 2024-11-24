@@ -18,7 +18,7 @@ struct ScalarGrid
     std::vector<std::vector<std::vector<float>>> data; // 3D vector to store scalar values
     int nx, ny, nz;                                    // Dimensions of the grid
     float dx, dy, dz;                                  // Voxel dimensions
-    float min_x, min_y, min_z;                         // Minimum coordinates of the grid
+    float min_x, min_y, min_z, max_x, max_y, max_z;                         // Minimum coordinates of the grid
 
     ScalarGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z);
 
@@ -54,6 +54,7 @@ std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue);
 
 std::vector<Point> load_grid_points(const Grid &grid);
 
+bool is_point_inside_grid(const Point &p, const ScalarGrid &grid);
 
 Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const Grid &data_grid);
 float trilinear_interpolate(const Point &p, const ScalarGrid &grid);

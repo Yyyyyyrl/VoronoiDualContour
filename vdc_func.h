@@ -5,6 +5,18 @@
 #include "vdc_utilities.h"
 #include "vdc_io.h"
 
+/*Struct*/
+
+struct PointApproxEqual
+{
+    bool operator()(const Point &p1, const Point &p2) const
+    {
+        const double EPSILON = 1e-6;
+        return (CGAL::squared_distance(p1, p2) < EPSILON * EPSILON);
+    }
+};
+
+
 
 /*
 Functions for both single/multi isov that computes the vertices and faces of the final mesh

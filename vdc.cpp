@@ -106,6 +106,16 @@ int main(int argc, char *argv[])
     For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
     */
 
+    std::cout << "Printing out Voronoi Diagram info: " << std::endl;
+    std::ofstream log("vd_info.txt");
+    log << vd;
+    log.close();
+
+    for (const auto& pair : vd.delaunayVertex_to_voronoiCell_index) {
+    std::cout << "Delaunay Vertex: " << pair.first->point() << " -> Voronoi Cell Index: " << pair.second << "\n";
+    }
+
+
     std::cout << "Checkpoint" << std::endl;
     std::vector<std::tuple<int, int, int>> isoTriangles;
     if (multi_isov)
@@ -115,6 +125,11 @@ int main(int argc, char *argv[])
     else
     {
         dualTriangles = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
+    }
+
+    for (const auto& triangle : isoTriangles) {
+    std::cout << "IsoTriangle indices: " << std::get<0>(triangle) << ", "
+              << std::get<1>(triangle) << ", " << std::get<2>(triangle) << "\n";
     }
 
     if (out_csv)

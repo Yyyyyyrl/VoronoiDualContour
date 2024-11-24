@@ -19,6 +19,8 @@ std::vector<Point> isosurfaceVertices;
 std::vector<LabeledPoint> all_points;
 std::vector<std::pair<Point, bool>> points_with_info;
 
+K::Iso_cuboid_3 delaunayBbox;
+
 std::map<Point, int> point_index_map;
 std::map<Point, std::vector<int>> vertex_to_isovertex_indices; // Map Delaunay vertex to its isovertices' indices
 std::vector<DelaunayTriangle> dualTriangles;

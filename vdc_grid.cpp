@@ -180,7 +180,7 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
     grid.ny = nrrdGrid.ny;
     grid.nz = nrrdGrid.nz;
 
-    // Define gridf dimensions
+    // Define grid dimensions
     grid.min_x = 0;
     grid.min_y = 0;
     grid.min_z = 0;
@@ -189,6 +189,10 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
     grid.dx = nrrdGrid.dx;
     grid.dy = nrrdGrid.dy;
     grid.dz = nrrdGrid.dz;
+
+    grid.max_x = nrrdGrid.dx * (grid.nx-1);
+    grid.max_y = nrrdGrid.dy * (grid.ny-1);
+    grid.max_z = nrrdGrid.dz * (grid.nz-1);
 
     // Resizing and initializing the scalar grid data array
     grid.data.resize(grid.nx);
@@ -340,6 +344,17 @@ std::vector<Point> load_grid_points(const Grid &grid)
     }
     return points;
 }
+
+
+bool is_point_inside_grid(const Point &p, const ScalarGrid &grid)
+{
+    return (p.x() >= grid.min_x && p.x() <= grid.max_x &&
+            p.y() >= grid.min_y && p.y() <= grid.max_y &&
+            p.z() >= grid.min_z && p.z() <= grid.max_z);
+}
+
+
+
 
 Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const Grid &data_grid)
 {
