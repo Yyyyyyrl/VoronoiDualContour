@@ -117,10 +117,9 @@ int main(int argc, char *argv[])
 
 
     std::cout << "Checkpoint" << std::endl;
-    std::vector<std::tuple<int, int, int>> isoTriangles;
     if (multi_isov)
     {
-        computeDualTrianglesMulti(vd, bbox, delaunay_facet_to_voronoi_edge_map, grid, isovalue, isoTriangles);
+        computeDualTrianglesMulti(vd, bbox, delaunay_facet_to_voronoi_edge_map, grid, isovalue);
     }
     else
     {
@@ -139,7 +138,7 @@ int main(int argc, char *argv[])
     }
 
     bool retFlag;
-    int retVal = handle_output_mesh(retFlag, vd, isoTriangles);
+    int retVal = handle_output_mesh(retFlag, vd);
     if (retFlag)
         return retVal;
 

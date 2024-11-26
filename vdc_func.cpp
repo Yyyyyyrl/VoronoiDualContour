@@ -252,8 +252,7 @@ void computeDualTrianglesMulti(
     CGAL::Epick::Iso_cuboid_3 &bbox,
     std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
     ScalarGrid &grid,
-    float isovalue,
-    std::vector<std::tuple<int, int, int>> &isoTriangles)
+    float isovalue)
 {
     for (const auto &edge : voronoiDiagram.voronoiEdges)
     {
@@ -270,14 +269,14 @@ void computeDualTrianglesMulti(
             int idx_v1 = voronoiDiagram.point_to_vertex_index[v1];
             int idx_v2 = voronoiDiagram.point_to_vertex_index[v2];
 
-            std::cout << "v1: " << idx_v1 << "\n idx_v2: " << idx_v2 << std::endl;
+            std::cout << "idx_v1: " << idx_v1 << " idx_v2: " << idx_v2 << std::endl;
 
             float val1 = voronoiDiagram.voronoiVertexValues[idx_v1];
             float val2 = voronoiDiagram.voronoiVertexValues[idx_v2];
 
             if (is_bipolar(val1, val2, isovalue))
             {
-                //TODO: Rename to edge->facet map
+                // TODO: Rename to edge->facet map
                 auto it = delaunay_facet_to_voronoi_edge_map.find(edge);
                 if (it != delaunay_facet_to_voronoi_edge_map.end())
                 {
@@ -294,14 +293,14 @@ void computeDualTrianglesMulti(
                         Vertex_handle vh2 = c->vertex(d2);
                         Vertex_handle vh3 = c->vertex(d3);
 
-                        std::cout << "v1: " << vh1->point() << "v2: " << vh2->point() << "v3: " << vh3->point() << std::endl;
-                        
+                        if (vh1->info() || vh2->info() || vh3->info())
+                        {
+                            continue;
+                        }
+
                         int cellIndex1 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh1];
                         int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
                         int cellIndex3 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh3];
-
-                        std::cout << " Cell Indices " << std::endl;
-                        std::cout << " c1 : " << cellIndex1 << "\n c2 : " << cellIndex2 << "\n c3: " << cellIndex3 << std::endl;
 
                         VoronoiCell &vc1 = voronoiDiagram.voronoiCells[cellIndex1];
                         VoronoiCell &vc2 = voronoiDiagram.voronoiCells[cellIndex2];
@@ -358,6 +357,11 @@ void computeDualTrianglesMulti(
                             Vertex_handle vh1 = c->vertex(d1);
                             Vertex_handle vh2 = c->vertex(d2);
                             Vertex_handle vh3 = c->vertex(d3);
+
+                            if (vh1->info() || vh2->info() || vh3->info())
+                            {
+                                continue;
+                            }
 
                             int cellIndex1 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh1];
                             int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
@@ -421,6 +425,11 @@ void computeDualTrianglesMulti(
                             Vertex_handle vh1 = c->vertex(d1);
                             Vertex_handle vh2 = c->vertex(d2);
                             Vertex_handle vh3 = c->vertex(d3);
+
+                            if (vh1->info() || vh2->info() || vh3->info())
+                            {
+                                continue;
+                            }
 
                             int cellIndex1 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh1];
                             int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
@@ -726,15 +735,15 @@ void construct_delaunay_triangulation()
     if (multi_isov)
     {
         for (auto vh = dt.finite_vertices_begin(); vh != dt.finite_vertices_end(); ++vh)
-    {
-        if (vh->info() == true)
         {
-            continue; // Skip dummy points
+            if (vh->info() == true)
+            {
+                continue; // Skip dummy points
+            }
+            Point p = vh->point();
+            point_index_map[p] = i;
+            i++;
         }
-        Point p = vh->point();
-        point_index_map[p] = i;
-        i++;
-    }
     }
     else
     {
@@ -776,6 +785,7 @@ void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid)
         Point vertex = voronoiDiagram.voronoiVertices[i].vertex;
         float value = trilinear_interpolate(vertex, grid);
         voronoiDiagram.voronoiVertexValues[i] = value;
+        vertexValueMap[vertex] = value;
     }
 }
 
@@ -795,7 +805,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
         dt.finite_incident_cells(vh, std::back_inserter(incident_cells));
 
         CGAL::Bbox_3 domain_bbox = delaunayBbox.bbox();
-        
+
         // Collect vertex indices, ensuring uniqueness
         std::set<int> unique_vertex_indices_set;
         for (Cell_handle ch : incident_cells)
@@ -805,9 +815,8 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
                 continue; // Skip infinite cells
             }
             Point voronoi_vertex = dt.dual(ch);
-        
 
-            //Check if voronoi_vertex is within domain and exclude dummy points in the dt
+            // Check if voronoi_vertex is within domain and exclude dummy points in the dt
             int vertex_index = voronoiDiagram.point_to_vertex_index[voronoi_vertex];
             unique_vertex_indices_set.insert(vertex_index);
         }
@@ -886,7 +895,7 @@ void construct_voronoi_edges(
     }
 }
 
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, std::vector<std::tuple<int, int, int>> &isoTriangles)
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd)
 {
     retFlag = true;
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
@@ -910,11 +919,11 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, std::vector<std::tuple
     {
         if (output_format == "off")
         {
-            writeOFFSingle(output_filename, isosurfaceVertices, dualTriangles, point_index_map);
+            writeOFFSingle(output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
         }
         else if (output_format == "ply")
         {
-            writePLYSingle(output_filename, isosurfaceVertices, dualTriangles, point_index_map);
+            writePLYSingle(output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
         }
         else
         {

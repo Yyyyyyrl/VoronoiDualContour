@@ -4,6 +4,7 @@
 #include "vdc_type.h"
 #include "vdc_utilities.h"
 #include "vdc_io.h"
+#include "vdc_globalvar.h"
 
 /*Struct*/
 
@@ -27,8 +28,7 @@ void computeDualTrianglesMulti(
     CGAL::Epick::Iso_cuboid_3 &bbox,
     std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
     ScalarGrid &grid,
-    float isovalue,
-    std::vector<std::tuple<int, int, int>> &isoTriangles);
+    float isovalue);
 
 void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float isovalue);
 void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid);
@@ -50,6 +50,6 @@ void construct_voronoi_edges(
     VoronoiDiagram &voronoiDiagram,
     std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map);
 
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, std::vector<std::tuple<int, int, int>> &isoTriangles);
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd);
 
 #endif

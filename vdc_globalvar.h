@@ -30,7 +30,7 @@ extern std::vector<std::pair<Point, bool>> points_with_info;
 extern std::map<Point, int> point_index_map;
 extern std::map<Point, std::vector<int>> vertex_to_isovertex_indices; // Map Delaunay vertex to its isovertices' indices
 extern std::vector<DelaunayTriangle> dualTriangles;
-extern std::vector<IsoTriangle> isoTriangles;
+extern std::vector<std::tuple<int, int, int>> isoTriangles;
 
 extern Grid data_grid;
 extern Delaunay dt;
