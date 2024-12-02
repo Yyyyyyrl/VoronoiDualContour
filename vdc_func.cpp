@@ -796,6 +796,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
     {
         if (vh->info())
         {
+            std::cout << "Dummy Point excluded: " << vh->point() << std::endl;
             continue;
         }
         VoronoiCell vc(vh);
