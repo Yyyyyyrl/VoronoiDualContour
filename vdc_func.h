@@ -36,7 +36,7 @@ void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGr
 /*
 Setting up the delaunay triangulation
 */
-void construct_delaunay_triangulation();
+void construct_delaunay_triangulation(ScalarGrid &grid);
 
 
 /*

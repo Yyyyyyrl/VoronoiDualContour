@@ -20,3 +20,6 @@ std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes);
 std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes, int nx, int ny, int nz);
 std::vector<Cube> separate_active_cubes_graph(std::vector<Cube> &activeCubes);
 #endif
+
+
+//TODO: 

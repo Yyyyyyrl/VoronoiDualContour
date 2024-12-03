@@ -269,8 +269,6 @@ void computeDualTrianglesMulti(
             int idx_v1 = voronoiDiagram.point_to_vertex_index[v1];
             int idx_v2 = voronoiDiagram.point_to_vertex_index[v2];
 
-            std::cout << "idx_v1: " << idx_v1 << " idx_v2: " << idx_v2 << std::endl;
-
             float val1 = voronoiDiagram.voronoiVertexValues[idx_v1];
             float val2 = voronoiDiagram.voronoiVertexValues[idx_v2];
 
@@ -367,8 +365,6 @@ void computeDualTrianglesMulti(
                             int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
                             int cellIndex3 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh3];
 
-                            std::cout << " Cell Indices " << std::endl;
-                            std::cout << " c1 : " << cellIndex1 << "\n c2 : " << cellIndex2 << "\n c3: " << cellIndex3 << std::endl;
 
                             VoronoiCell &vc1 = voronoiDiagram.voronoiCells[cellIndex1];
                             VoronoiCell &vc2 = voronoiDiagram.voronoiCells[cellIndex2];
@@ -434,9 +430,6 @@ void computeDualTrianglesMulti(
                             int cellIndex1 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh1];
                             int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
                             int cellIndex3 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh3];
-
-                            std::cout << " Cell Indices " << std::endl;
-                            std::cout << " c1 : " << cellIndex1 << "\n c2 : " << cellIndex2 << "\n c3: " << cellIndex3 << std::endl;
 
                             VoronoiCell &vc1 = voronoiDiagram.voronoiCells[cellIndex1];
                             VoronoiCell &vc2 = voronoiDiagram.voronoiCells[cellIndex2];
@@ -657,10 +650,24 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
             vc.cycles.push_back(cycle);
             voronoiDiagram.isosurfaceVertices.push_back(cycle.isovertex);
         }
+
+        if (debug) {
+            std::cout << vc << std::endl;
+        }
+
+        
     }
+    
+    if (debug) {
+        for (size_t i = 0; i < voronoiDiagram.isosurfaceVertices.size(); ++i)
+        {
+            std::cout << "  Index " << i << ": " << voronoiDiagram.isosurfaceVertices[i] << "\n";
+        }
+    }
+
 }
 
-void construct_delaunay_triangulation()
+void construct_delaunay_triangulation(ScalarGrid &grid)
 {
     if (multi_isov)
     {
@@ -673,11 +680,21 @@ void construct_delaunay_triangulation()
         double ymax = delaunayBbox.ymax();
         double zmin = delaunayBbox.zmin();
         double zmax = delaunayBbox.zmax();
+        int nx = ( xmax - xmin ) / grid.dx;
+        int ny = ( ymax - ymin ) / grid.dy;
+        int nz = ( zmax - zmin ) / grid.dz;
+        std::cout << "Bounding box for active Cube Centers: " << std::endl;
+        std::cout << "xmin : " << xmin << " xmax : " << xmax << std::endl;
+        std::cout << "ymin : " << ymin << " ymax : " << ymax << std::endl;
+        std::cout << "zmin : " << zmin << " zmax : " << zmax << std::endl;
 
         // Bounding box side length
         double lx = xmax - xmin;
         double ly = ymax - ymin;
         double lz = zmax - zmin;
+
+        std::cout << "lx: " << lx << " ly: " << ly << " lz: " << lz << std::endl;
+        std::cout << "dx: " << grid.dx << " dy: " << grid.dy << " dz: " << grid.dz << std::endl;
 
         // Add original points
         for (const auto &p : activeCubeCenters)
@@ -686,31 +703,38 @@ void construct_delaunay_triangulation()
         }
 
         // Add 24 dummy points to the point set forming triangulation
-        std::vector<Point> dummy_points = {
-            Point(xmin - lx, ymin, zmin),
-            Point(xmin, ymin - ly, zmin),
-            Point(xmin, ymin, zmin - lz),
-            Point(xmin - lx, ymin, zmax),
-            Point(xmin, ymin - lz, zmax),
-            Point(xmin, ymin, zmax + lz),
-            Point(xmin - lx, ymax, zmin),
-            Point(xmin, ymax + ly, zmin),
-            Point(xmin, ymax, zmin - lz),
-            Point(xmin - lx, ymax, zmax),
-            Point(xmin, ymax + ly, zmax),
-            Point(xmin, ymax, zmax + lz),
-            Point(xmax + lx, ymin, zmin),
-            Point(xmax, ymin - ly, zmin),
-            Point(xmax, ymin, zmin - lz),
-            Point(xmax + lx, ymin, zmax),
-            Point(xmax, ymin - ly, zmax),
-            Point(xmax, ymin, zmax + lz),
-            Point(xmax + lx, ymax, zmin),
-            Point(xmax, ymax + ly, zmin),
-            Point(xmax, ymax, zmin - lz),
-            Point(xmax + lx, ymax, zmax),
-            Point(xmax, ymax + ly, zmax),
-            Point(xmax, ymax, zmax + lz)};
+        std::vector<Point> dummy_points;
+
+        // Face x = xmin-lx and xmax+lx
+        for ( int i = 0; i <= ny; ++i) {
+            double y = ymin + i * grid.dy;
+            for (int j = 0; j <= nz; ++j) {
+                double z = zmin + j * grid.dz;
+                dummy_points.push_back(Point( xmin - grid.dx, y, z));
+                dummy_points.push_back(Point( xmax + grid.dx, y, z));
+            }
+        }
+
+        // Face y = ymin-ly and ymax+ly
+        for ( int i = 0; i <= nx; ++i) {
+            double x = xmin + i * grid.dx;
+            for (int j = 0; j <= nz; ++j) {
+                double z = zmin + j * grid.dz;
+                dummy_points.push_back(Point( x, ymin - grid.dy, z));
+                dummy_points.push_back(Point( x, ymax + grid.dy, z));
+            }
+        }
+
+        // Face z = zmin-lz and zmax+lz
+        for ( int i = 0; i <= nx; ++i) {
+            double x = xmin + i * grid.dx;
+            for (int j = 0; j <= ny; ++j) {
+                double y = ymin + j * grid.dy;
+                dummy_points.push_back(Point( x, y, zmin - grid.dz));
+                dummy_points.push_back(Point( x, y, zmax + grid.dz));
+            }
+        }
+
 
         for (const auto &dp : dummy_points)
         {

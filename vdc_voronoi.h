@@ -133,10 +133,6 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiVertex& vv)
 {
     os << "VoronoiVertex:\n";
     os << "  Vertex: " << vv.vertex << "\n";
-    os << "  Cell indices: ";
-    for (const int idx : vv.cellIndices)
-        os << idx << " ";
-    os << "\n";
 
     return os;
 }
@@ -148,7 +144,7 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiCell& vc)
     os << "  Cell index: " << vc.cellIndex << "\n";
     os << "  Delaunay vertex: " << vc.delaunay_vertex->point() << "\n";
 
-    os << "  Vertices indices: ";
+    os << "  Voronoi Vertices indices: ";
     for (const int idx : vc.vertices_indices)
         os << idx << " ";
     os << "\n";
@@ -216,12 +212,7 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
         os << "  Index " << i << ": " << vd.voronoiVertexValues[i] << "\n";
     }
 
-    // Voronoi Cells
-    os << "\nVoronoiCells:\n";
-    for (const auto& cell : vd.voronoiCells)
-    {
-        os << cell;
-    }
+    
 
     // Voronoi Facets
     os << "\nVoronoiFacets:\n";
@@ -229,6 +220,13 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
     {
         os << "Index " << i << ":\n";
         os << vd.voronoiFacets[i];
+    }
+
+    // Voronoi Cells
+    os << "\nVoronoiCells:\n";
+    for (const auto& cell : vd.voronoiCells)
+    {
+        os << "\n" << cell;
     }
 
     // Isosurface Vertices

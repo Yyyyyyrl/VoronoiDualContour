@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
         std::cout << "Constructing Delaunay triangulation..." << std::endl;
     }
 
-    construct_delaunay_triangulation();
+    construct_delaunay_triangulation(grid);
 
     /*
     Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
@@ -106,14 +106,14 @@ int main(int argc, char *argv[])
     For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
     */
 
-    std::cout << "Printing out Voronoi Diagram info: " << std::endl;
+
     std::ofstream log("vd_info.txt");
     log << vd;
     log.close();
 
-    for (const auto& pair : vd.delaunayVertex_to_voronoiCell_index) {
+    if (debug) {for (const auto& pair : vd.delaunayVertex_to_voronoiCell_index) {
     std::cout << "Delaunay Vertex: " << pair.first->point() << " -> Voronoi Cell Index: " << pair.second << "\n";
-    }
+    } }
 
 
     std::cout << "Checkpoint" << std::endl;
@@ -126,10 +126,10 @@ int main(int argc, char *argv[])
         dualTriangles = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
     }
 
-    for (const auto& triangle : isoTriangles) {
+    if (debug) {for (const auto& triangle : isoTriangles) {
     std::cout << "IsoTriangle indices: " << std::get<0>(triangle) << ", "
               << std::get<1>(triangle) << ", " << std::get<2>(triangle) << "\n";
-    }
+    } }
 
     if (out_csv)
     {
