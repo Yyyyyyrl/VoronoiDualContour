@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
 import sys
-import re
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 
 def parse_vd_info(filename):
     with open(filename, 'r') as f:
@@ -184,7 +183,7 @@ def parse_vd_info(filename):
 def main():
     if len(sys.argv) < 3:
         print("Usage: python3 visVD.py vd_info.txt [cell indices]")
-        print("Example: python3 visVD.py vd_info.txt [1 2 3]")
+        print("Example: python3 visVD.py vd_info.txt 1 2 3")
         sys.exit(1)
 
     filename = sys.argv[1]
@@ -220,6 +219,7 @@ def main():
 
         # Get the facets
         faces = []
+        edges = []
         for facet_idx in cell['facet_indices']:
             if facet_idx not in voronoi_facets:
                 continue
@@ -233,12 +233,22 @@ def main():
             if len(face) >= 3:
                 face_coords = [verts[idx] for idx in face]
                 faces.append(face_coords)
+                # Collect edges
+                for i in range(len(face)):
+                    start = verts[face[i]]
+                    end = verts[face[(i + 1) % len(face)]]
+                    edges.append([start, end])
 
-        # Plot the cell
-        poly = Poly3DCollection(faces, alpha=0.5)
+        # Plot the cell faces
+        poly = Poly3DCollection(faces, alpha=0.3, linewidths=0.5, edgecolors='k')
         # Optionally, set face color based on cell index
         poly.set_facecolor(np.random.rand(3,))
         ax.add_collection3d(poly)
+
+        # Plot the edges
+        if edges:
+            lc = Line3DCollection(edges, colors='k', linewidths=1)
+            ax.add_collection3d(lc)
 
         # Plot the vertices
         verts_array = np.array(verts)
@@ -261,4 +271,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
