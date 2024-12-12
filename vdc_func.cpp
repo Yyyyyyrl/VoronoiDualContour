@@ -777,11 +777,15 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<GRID_FACETS>
         // Add dummy points to the form of triangulation to bound the voronoi diagram
         std::vector<Point> dummy_points;
 
+        // refers to the grid facets
         for (auto f: gridfacets) {
             auto pointsf = add_dummy_from_facet(f, grid);
             dummy_points.insert(dummy_points.end(), pointsf.begin(), pointsf.end());
         }
-/*         // Face x = xmin-dx and xmax+dx
+
+/*      // brute-forcely adding dummy points on all 6 faces corresponding to grid spacing
+
+        // Face x = xmin-dx and xmax+dx
         for ( int i = 0; i <= ny; ++i) {
             double y = ymin + i * grid.dy;
             for (int j = 0; j <= nz; ++j) {
