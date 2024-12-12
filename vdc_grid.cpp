@@ -1,5 +1,6 @@
 #include "vdc_grid.h"
 
+
 ScalarGrid::ScalarGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z)
     : nx(nx), ny(ny), nz(nz), dx(dx), dy(dy), dz(dz), min_x(min_x), min_y(min_y), min_z(min_z)
 {
@@ -37,19 +38,80 @@ void ScalarGrid::load_from_source(const std::vector<std::vector<std::vector<floa
     }
 }
 
-void Grid::print_grid() {
+GRID_FACETS::GRID_FACETS(int OrthDir, int Side, int Nx, int Ny, int Nz)
+    : orth_dir(OrthDir), side(Side)
+{
+    axis_size[0] = Nx;
+    axis_size[1] = Ny;
+    axis_size[2] = Nz;
+
+    int dim_x, dim_y;
+    // Determine the 2D slice dimensions based on orth_dir:
+    if (orth_dir == 0) {
+        // x-facets: the slice is defined in y and z directions
+        dim_x = axis_size[1]; // Ny
+        dim_y = axis_size[2]; // Nz
+    } else if (orth_dir == 1) {
+        // y-facets: the slice is defined in x and z directions
+        dim_x = axis_size[0]; // Nx
+        dim_y = axis_size[2]; // Nz
+    } else {
+        // z-facets: the slice is defined in x and y directions
+        dim_x = axis_size[0]; // Nx
+        dim_y = axis_size[1]; // Ny
+    }
+
+    // Resize the vector to hold dim_x * dim_y booleans and initialize to false
+    cube_flag.resize(dim_x * dim_y, false);
+}
+
+void GRID_FACETS::SetFlag(int x, int y, bool flag)
+{
+    cube_flag[index(x,y)] = flag;
+}
+
+bool GRID_FACETS::CubeFlag(int x, int y) const
+{
+    return cube_flag[index(x,y)];
+}
+
+int GRID_FACETS::index(int x, int y) const
+{
+    int dim_x, dim_y;
+    if (orth_dir == 0) {
+        // x-facets: slice dimension in y,z
+        dim_x = axis_size[1]; // Ny
+        dim_y = axis_size[2]; // Nz
+    } else if (orth_dir == 1) {
+        // y-facets: slice dimension in x,z
+        dim_x = axis_size[0]; // Nx
+        dim_y = axis_size[2]; // Nz
+    } else {
+        // z-facets: slice dimension in x,y
+        dim_x = axis_size[0]; // Nx
+        dim_y = axis_size[1]; // Ny
+    }
+    return y * dim_x + x;
+}
+
+
+void Grid::print_grid()
+{
     // Print metadata (dimensions and spacing)
     std::cout << "NRRD Grid Information:\n";
     std::cout << "Dimensions: " << nx << " " << ny << " " << nz << "\n";
     std::cout << "Spacing: " << dx << " " << dy << " " << dz << "\n\n";
-    
+
     // Print the data in a structured format
     std::cout << "Data:\n";
-    
-    for (int z = 0; z < nz; ++z) {
+
+    for (int z = 0; z < nz; ++z)
+    {
         std::cout << "Slice z = " << z << ":\n";
-        for (int y = 0; y < ny; ++y) {
-            for (int x = 0; x < nx; ++x) {
+        for (int y = 0; y < ny; ++y)
+        {
+            for (int x = 0; x < nx; ++x)
+            {
                 std::cout << std::setw(8) << data[z * nx * ny + y * nx + x] << " ";
             }
             std::cout << "\n";
@@ -58,16 +120,18 @@ void Grid::print_grid() {
     }
 }
 
-std::tuple<int, int, int> ScalarGrid::point_to_grid_index(const Point &point) {
+std::tuple<int, int, int> ScalarGrid::point_to_grid_index(const Point &point)
+{
     int x = static_cast<int>((point.x() - min_x) / dx);
     int y = static_cast<int>((point.y() - min_y) / dy);
     int z = static_cast<int>((point.z() - min_z) / dz);
     return {x, y, z};
 }
 
-float ScalarGrid::get_scalar_value_at_point(const Point &point) {
+float ScalarGrid::get_scalar_value_at_point(const Point &point)
+{
     auto [x, y, z] = point_to_grid_index(point);
-    return get_value(x,y,z);
+    return get_value(x, y, z);
 }
 
 template <typename T>
@@ -80,7 +144,6 @@ std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
     }
     return data;
 }
-
 
 Grid load_nrrd_data(const std::string &file_path)
 {
@@ -122,7 +185,6 @@ Grid load_nrrd_data(const std::string &file_path)
     float dy = nrrd->axis[1].spacing;
     float dz = nrrd->axis[2].spacing;
 
-
     // Initialize min/max values
     float min_x = 0.0f, max_x = (nx - 1) * dx;
     float min_y = 0.0f, max_y = (ny - 1) * dy;
@@ -136,17 +198,18 @@ Grid load_nrrd_data(const std::string &file_path)
     std::cout << "X range: [" << min_x << ", " << max_x << "]" << std::endl;
     std::cout << "Y range: [" << min_y << ", " << max_y << "]" << std::endl;
     std::cout << "Z range: [" << min_z << ", " << max_z << "]" << std::endl;
-    
+
     nrrdNuke(nrrd); // Properly dispose of the Nrrd structure
 
-    //TODO: print_grid()
+    // TODO: print_grid()
     return {data, nx, ny, nz, dx, dy, dz};
 }
 
-Grid supersample_grid(const Grid &grid, int n) {
-    int nx2 = grid.nx * n - (n-1);
-    int ny2 = grid.ny * n - (n-1);
-    int nz2 = grid.nz * n - (n-1);
+Grid supersample_grid(const Grid &grid, int n)
+{
+    int nx2 = grid.nx * n - (n - 1);
+    int ny2 = grid.ny * n - (n - 1);
+    int nz2 = grid.nz * n - (n - 1);
 
     float dx2 = grid.dx / n;
     float dy2 = grid.dy / n;
@@ -154,9 +217,12 @@ Grid supersample_grid(const Grid &grid, int n) {
 
     std::vector<float> data2(nx2 * ny2 * nz2);
 
-    for (int z = 0; z < nz2; ++z) {
-        for (int y = 0; y < ny2; ++y) {
-            for (int x = 0; x < nx2; ++x) {
+    for (int z = 0; z < nz2; ++z)
+    {
+        for (int y = 0; y < ny2; ++y)
+        {
+            for (int x = 0; x < nx2; ++x)
+            {
                 // Convert to original grid space (ensure float division)
                 float px = static_cast<float>(x) / n * grid.dx;
                 float py = static_cast<float>(y) / n * grid.dy;
@@ -171,7 +237,6 @@ Grid supersample_grid(const Grid &grid, int n) {
 
     return {data2, nx2, ny2, nz2, dx2, dy2, dz2};
 }
-
 
 void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
 {
@@ -190,9 +255,9 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
     grid.dy = nrrdGrid.dy;
     grid.dz = nrrdGrid.dz;
 
-    grid.max_x = nrrdGrid.dx * (grid.nx-1);
-    grid.max_y = nrrdGrid.dy * (grid.ny-1);
-    grid.max_z = nrrdGrid.dz * (grid.nz-1);
+    grid.max_x = nrrdGrid.dx * (grid.nx - 1);
+    grid.max_y = nrrdGrid.dy * (grid.ny - 1);
+    grid.max_z = nrrdGrid.dz * (grid.nz - 1);
 
     // Resizing and initializing the scalar grid data array
     grid.data.resize(grid.nx);
@@ -311,6 +376,7 @@ Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const 
 std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue)
 {
     std::vector<Cube> activeCubes;
+    // (nx-1, ny-1, nz-1) cubes total
     for (int i = 0; i < grid.nx - 1; ++i)
     {
         for (int j = 0; j < grid.ny - 1; ++j)
@@ -320,15 +386,14 @@ std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue)
                 if (is_cube_active(grid, i, j, k, isovalue))
                 {
                     Point repVertex(i * grid.dx, j * grid.dy, k * grid.dz);
-                    Point center((i+0.5) * grid.dx, (j+0.5) * grid.dy, (k+0.5) * grid.dz);
-                    activeCubes.push_back(Cube(repVertex, center, 1));
+                    Point center((i+0.5f)*grid.dx, (j+0.5f)*grid.dy, (k+0.5f)*grid.dz);
+                    activeCubes.push_back(Cube(repVertex, center, 1, i, j, k));
                 }
             }
         }
     }
     return activeCubes;
 }
-
 std::vector<Point> load_grid_points(const Grid &grid)
 {
     std::vector<Point> points;
@@ -345,16 +410,12 @@ std::vector<Point> load_grid_points(const Grid &grid)
     return points;
 }
 
-
 bool is_point_inside_grid(const Point &p, const ScalarGrid &grid)
 {
     return (p.x() >= grid.min_x && p.x() <= grid.max_x &&
             p.y() >= grid.min_y && p.y() <= grid.max_y &&
             p.z() >= grid.min_z && p.z() <= grid.max_z);
 }
-
-
-
 
 Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const Grid &data_grid)
 {
@@ -414,8 +475,8 @@ float trilinear_interpolate(const Point &p, const ScalarGrid &grid)
     return c;
 }
 
-
-float trilinear_interpolate(const Point &p, const Grid &grid) {
+float trilinear_interpolate(const Point &p, const Grid &grid)
+{
     // Convert point coordinates to grid space
     float gx = p.x() / grid.dx;
     float gy = p.y() / grid.dy;

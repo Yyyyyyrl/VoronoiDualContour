@@ -667,7 +667,79 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
 
 }
 
-void construct_delaunay_triangulation(ScalarGrid &grid)
+std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &grid) {
+    std::vector<Point> points;
+    
+    int Nx = facet.axis_size[0];
+    int Ny = facet.axis_size[1];
+    int Nz = facet.axis_size[2];
+
+    int dim_x, dim_y;
+    // Determine the "width" and "height" of this facet slice depending on orth_dir
+    if (facet.orth_dir == 0) {
+        // orth_dir=0 (x): slice spans Ny by Nz
+        dim_x = Ny;
+        dim_y = Nz;
+    } else if (facet.orth_dir == 1) {
+        // orth_dir=1 (y): slice spans Nx by Nz
+        dim_x = Nx;
+        dim_y = Nz;
+    } else {
+        // orth_dir=2 (z): slice spans Nx by Ny
+        dim_x = Nx;
+        dim_y = Ny;
+    }
+
+    for (int y = 0; y < dim_y; y++) {
+        for (int x = 0; x < dim_x; x++) {
+            if (facet.CubeFlag(x, y)) {
+                int i, j, k;
+                // Map (x,y) back to (i,j,k) cube indices
+                if (facet.orth_dir == 0) {
+                    // x-facet: (x,y) = (j,k), i fixed by side
+                    j = x; 
+                    k = y;
+                    i = (facet.side == 0) ? 0 : Nx - 1;
+                } else if (facet.orth_dir == 1) {
+                    // y-facet: (x,y) = (i,k), j fixed by side
+                    i = x; 
+                    k = y;
+                    j = (facet.side == 0) ? 0 : Ny - 1;
+                } else {
+                    // z-facet: (x,y) = (i,j), k fixed by side
+                    i = x; 
+                    j = y;
+                    k = (facet.side == 0) ? 0 : Nz - 1;
+                }
+
+                // Calculate the center of the cube
+                double cx = (i + 0.5) * grid.dx;
+                double cy = (j + 0.5) * grid.dy;
+                double cz = (k + 0.5) * grid.dz;
+
+                // Determine offset direction based on facet orientation and side
+                double dx = 0.0, dy = 0.0, dz = 0.0;
+                if (facet.orth_dir == 0) {
+                    dx = (facet.side == 0) ? -grid.dx : grid.dx;
+                } else if (facet.orth_dir == 1) {
+                    dy = (facet.side == 0) ? -grid.dy : grid.dy;
+                } else {
+                    dz = (facet.side == 0) ? -grid.dz : grid.dz;
+                }
+
+                // Create the dummy point just outside the grid boundary in the appropriate direction
+                Point dummy(cx + dx, cy + dy, cz + dz);
+                points.push_back(dummy);
+            }
+        }
+    }
+
+    return points;
+}
+
+
+
+void construct_delaunay_triangulation(Grid &grid, const std::vector<GRID_FACETS> &gridfacets)
 {
     if (multi_isov)
     {
@@ -702,10 +774,14 @@ void construct_delaunay_triangulation(ScalarGrid &grid)
             all_points.push_back({p, false});
         }
 
-        // Add 24 dummy points to the point set forming triangulation
+        // Add dummy points to the form of triangulation to bound the voronoi diagram
         std::vector<Point> dummy_points;
 
-        // Face x = xmin-lx and xmax+lx
+        for (auto f: gridfacets) {
+            auto pointsf = add_dummy_from_facet(f, grid);
+            dummy_points.insert(dummy_points.end(), pointsf.begin(), pointsf.end());
+        }
+/*         // Face x = xmin-dx and xmax+dx
         for ( int i = 0; i <= ny; ++i) {
             double y = ymin + i * grid.dy;
             for (int j = 0; j <= nz; ++j) {
@@ -715,7 +791,7 @@ void construct_delaunay_triangulation(ScalarGrid &grid)
             }
         }
 
-        // Face y = ymin-ly and ymax+ly
+        // Face y = ymin-dy and ymax+dy
         for ( int i = 0; i <= nx; ++i) {
             double x = xmin + i * grid.dx;
             for (int j = 0; j <= nz; ++j) {
@@ -725,7 +801,7 @@ void construct_delaunay_triangulation(ScalarGrid &grid)
             }
         }
 
-        // Face z = zmin-lz and zmax+lz
+        // Face z = zmin-dz and zmax+dz
         for ( int i = 0; i <= nx; ++i) {
             double x = xmin + i * grid.dx;
             for (int j = 0; j <= ny; ++j) {
@@ -733,13 +809,17 @@ void construct_delaunay_triangulation(ScalarGrid &grid)
                 dummy_points.push_back(Point( x, y, zmin - grid.dz));
                 dummy_points.push_back(Point( x, y, zmax + grid.dz));
             }
-        }
+        } */
 
-
+        int count = 0;
         for (const auto &dp : dummy_points)
         {
             all_points.push_back({dp, true});
+            count++;
         }
+
+        std::cout << "Number of Dummy Points added: " << count << std::endl;
+
 
         for (const auto &lp : all_points)
         {
@@ -820,7 +900,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
     {
         if (vh->info())
         {
-            std::cout << "Dummy Point excluded: " << vh->point() << std::endl;
+            //std::cout << "Dummy Point excluded: " << vh->point() << std::endl;
             continue;
         }
         VoronoiCell vc(vh);

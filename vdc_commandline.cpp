@@ -92,6 +92,23 @@ void parse_arguments(int argc, char *argv[])
     if (output_filename.empty())
     {
         std::string base_name = file_path.substr(0, file_path.find_last_of('.'));
-        output_filename = "../mesh/" + base_name + "." + output_format;
+        output_filename = base_name;
+
+        if (multi_isov) {
+            output_filename += "_multi-isov";
+        } else {
+            output_filename += "_single-isov";
+        }
+
+        if (supersample) {
+            output_filename += "_sup-" + std::to_string(supersample_r);
+        }
+        
+        if (sep_isov) {
+            output_filename += "_sep-isov";
+        }
+
+        output_filename += "." + output_format;
+
     }
 }

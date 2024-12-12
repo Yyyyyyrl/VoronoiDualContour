@@ -9,6 +9,8 @@
 #include <cmath>
 #include <limits>
 #include <algorithm>
+#include <cstddef>
+#include <cstring>
 #include <teem/nrrd.h>
 #include <iomanip>  // For formatted output
 #include <CGAL/bounding_box.h>

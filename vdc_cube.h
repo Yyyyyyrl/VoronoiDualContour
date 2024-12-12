@@ -3,15 +3,14 @@
 
 #include "vdc_type.h"
 
-struct Cube
-{
-    // The vertex stands for the lowest corner vertex of the cube, for example the cube defined by (0,0,0) and (1,1,1) will have repVertex (0,0,0)
+struct Cube {
     Point repVertex, center;
     int sidelength;
-    // Default constructor
-    Cube() : repVertex(Point3(0, 0, 0)), center(Point3(0, 0, 0)), sidelength(1) {}
-    Cube(Point v, Point c, int len) : repVertex(v), sidelength(len), center(c) {}
+    int i, j, k; // store indices of the cube
+    Cube() : repVertex(0,0,0), center(0,0,0), sidelength(1), i(0), j(0), k(0) {}
+    Cube(Point v, Point c, int len, int ix, int iy, int iz) : repVertex(v), center(c), sidelength(len), i(ix), j(iy), k(iz) {}
 };
+
 
 bool is_adjacent(const Cube &cubeA, const Cube &cubeB);
 int get_cube_index(const Point &repVertex, int nx, int ny);

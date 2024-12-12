@@ -38,6 +38,32 @@ struct ScalarGrid
 
 };
 
+#include <vector>
+
+struct GRID_FACETS {
+    int orth_dir;      // Which axis: 0=x, 1=y, 2=z
+    int side;          // Which side: 0=lower(min), 1=upper(max)
+    int axis_size[3];  // Number of cubes along each dimension: {Nx, Ny, Nz}
+    std::vector<bool> cube_flag; // Use vector<bool> to store flags
+
+    // Constructor
+    GRID_FACETS(int OrthDir, int Side, int Nx, int Ny, int Nz);
+
+    // Default destructor
+    ~GRID_FACETS() = default; // no need for custom destructor
+
+    // Set flag for a particular (x,y) on the facet slice
+    void SetFlag(int x, int y, bool flag);
+
+    // Get flag for a particular (x,y) on the facet slice
+    bool CubeFlag(int x, int y) const;
+
+private:
+    int index(int x, int y) const;
+};
+
+
+
 // Functions for loading nrrd data
 template <typename T>
 std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size);

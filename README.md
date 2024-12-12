@@ -17,3 +17,4 @@
 - vdc_io.h/cpp: Methods involved with reading input data and write output mesh 
 - compExec.py is a python program that takes two executable of the dmr program and compare their output on some input datas
 - CMakeList.txt: Needed for compilation if using CMake
+
