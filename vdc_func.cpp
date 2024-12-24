@@ -727,31 +727,6 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
 {
     if (multi_isov)
     {
-        delaunayBbox = CGAL::bounding_box(activeCubeCenters.begin(), activeCubeCenters.end());
-
-        // Six Corner Points
-        double xmin = delaunayBbox.xmin();
-        double xmax = delaunayBbox.xmax();
-        double ymin = delaunayBbox.ymin();
-        double ymax = delaunayBbox.ymax();
-        double zmin = delaunayBbox.zmin();
-        double zmax = delaunayBbox.zmax();
-        int nx = (xmax - xmin) / grid.dx;
-        int ny = (ymax - ymin) / grid.dy;
-        int nz = (zmax - zmin) / grid.dz;
-        std::cout << "Bounding box for active Cube Centers: " << std::endl;
-        std::cout << "xmin : " << xmin << " xmax : " << xmax << std::endl;
-        std::cout << "ymin : " << ymin << " ymax : " << ymax << std::endl;
-        std::cout << "zmin : " << zmin << " zmax : " << zmax << std::endl;
-
-        // Bounding box side length
-        double lx = xmax - xmin;
-        double ly = ymax - ymin;
-        double lz = zmax - zmin;
-
-        std::cout << "lx: " << lx << " ly: " << ly << " lz: " << lz << std::endl;
-        std::cout << "dx: " << grid.dx << " dy: " << grid.dy << " dz: " << grid.dz << std::endl;
-
         // Add original points
         for (const auto &p : activeCubeCenters)
         {
