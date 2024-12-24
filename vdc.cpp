@@ -3,7 +3,6 @@
 int main(int argc, char *argv[])
 {
     VoronoiDiagram vd;
-    // TODO: void parse_arg()
     //  Read data points and find centers of active cubes
     parse_arguments(argc, argv);
 
@@ -28,45 +27,70 @@ int main(int argc, char *argv[])
         activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
     }
 
-    int Nx = data_grid.nx - 1; // number of cubes in x-direction
-    int Ny = data_grid.ny - 1;
-    int Nz = data_grid.nz - 1;
+
+    int minIdx[3];
+    int maxIdx[3];
+
+    minIdx[0] = minIdx[1] = minIdx[2] = INT_MAX;
+    maxIdx[0] = maxIdx[1] = maxIdx[2] = INT_MIN;
+
+    for (auto &cube : activeCubes)
+    {
+        if (cube.i < minIdx[0])
+            minIdx[0] = cube.i;
+        if (cube.i > maxIdx[0])
+            maxIdx[0] = cube.i;
+
+        if (cube.j < minIdx[1])
+            minIdx[1] = cube.j;
+        if (cube.j > maxIdx[1])
+            maxIdx[1] = cube.j;
+
+        if (cube.k < minIdx[2])
+            minIdx[2] = cube.k;
+        if (cube.k > maxIdx[2])
+            maxIdx[2] = cube.k;
+    }
 
 
-    // Create 6 facets
-    GRID_FACETS facet_xmin(0, 0, Nx, Ny, Nz);
-    GRID_FACETS facet_xmax(0, 1, Nx, Ny, Nz);
-    GRID_FACETS facet_ymin(1, 0, Nx, Ny, Nz);
-    GRID_FACETS facet_ymax(1, 1, Nx, Ny, Nz);
-    GRID_FACETS facet_zmin(2, 0, Nx, Ny, Nz);
-    GRID_FACETS facet_zmax(2, 1, Nx, Ny, Nz); 
-
+    // Initialize your 6 facets in a 2D array form: grid_facets[d][side]
+    std::vector<std::vector<GRID_FACETS>> grid_facets(3, std::vector<GRID_FACETS>(2,
+                                                                                  GRID_FACETS(0, 0, minIdx, maxIdx)));
+    // Now we must re-construct them properly with the correct (d, side):
+    for (int d = 0; d < 3; d++)
+    {
+        for (int side = 0; side < 2; side++)
+        {
+            grid_facets[d][side] = GRID_FACETS(d, side, minIdx, maxIdx);
+        }
+    }
 
     // Populate them
     for (auto &cube : activeCubes)
     {
-        int i = cube.i;
-        int j = cube.j;
-        int k = cube.k;
+        // Global index
+        int g[3] = {cube.i, cube.j, cube.k};
 
-        // Check if it belongs to any boundary facet:
-        if (i == 0)
-            facet_xmin.SetFlag(j, k, true);
-        if (i == Nx - 1)
-            facet_xmax.SetFlag(j, k, true);
+        for (int d = 0; d < 3; d++)
+        {
+            int d1 = (d + 1) % 3;
+            int d2 = (d + 2) % 3;
 
-        if (j == 0)
-            facet_ymin.SetFlag(i, k, true);
-        if (j == Ny - 1)
-            facet_ymax.SetFlag(i, k, true);
+            for (int side = 0; side < 2; side++)
+            {
+                GRID_FACETS &f = grid_facets[d][side];
 
-        if (k == 0)
-            facet_zmin.SetFlag(i, j, true);
-        if (k == Nz - 1)
-            facet_zmax.SetFlag(i, j, true);
+                // Convert to local indices
+                // localX[d1] = g[d1] - f.minIndex[d1]
+                // localX[d2] = g[d2] - f.minIndex[d2]
+                int coord0 = g[d1] - f.minIndex[d1];
+                int coord1 = g[d2] - f.minIndex[d2];
+
+                // Mark it
+                f.SetFlag(coord0, coord1, true);
+            }
+        }
     }
-
-    std::vector<GRID_FACETS> grid_facets = {facet_xmax, facet_xmin, facet_ymax, facet_ymin, facet_zmax, facet_zmin};
 
     activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);

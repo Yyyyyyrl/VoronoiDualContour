@@ -38,60 +38,42 @@ void ScalarGrid::load_from_source(const std::vector<std::vector<std::vector<floa
     }
 }
 
-GRID_FACETS::GRID_FACETS(int OrthDir, int Side, int Nx, int Ny, int Nz)
-    : orth_dir(OrthDir), side(Side)
+GRID_FACETS::GRID_FACETS(int d, int s, const int minIdx[DIM3], const int maxIdx[DIM3])
+    : orth_dir(d), side(s)
 {
-    axis_size[0] = Nx;
-    axis_size[1] = Ny;
-    axis_size[2] = Nz;
-
-    int dim_x, dim_y;
-    // Determine the 2D slice dimensions based on orth_dir:
-    if (orth_dir == 0) {
-        // x-facets: the slice is defined in y and z directions
-        dim_x = axis_size[1]; // Ny
-        dim_y = axis_size[2]; // Nz
-    } else if (orth_dir == 1) {
-        // y-facets: the slice is defined in x and z directions
-        dim_x = axis_size[0]; // Nx
-        dim_y = axis_size[2]; // Nz
-    } else {
-        // z-facets: the slice is defined in x and y directions
-        dim_x = axis_size[0]; // Nx
-        dim_y = axis_size[1]; // Ny
+    // Store minIndex[] and maxIndex[], compute localSize[]
+    for (int i = 0; i < DIM3; i++) {
+        minIndex[i] = minIdx[i];
+        maxIndex[i] = maxIdx[i];
+        localSize[i] = (maxIndex[i] - minIndex[i] + 1);
     }
 
-    // Resize the vector to hold dim_x * dim_y booleans and initialize to false
-    cube_flag.resize(dim_x * dim_y, false);
+    // Determine the 2D slice axes
+    axis_dir[0] = (orth_dir + 1) % DIM3; 
+    axis_dir[1] = (orth_dir + 2) % DIM3;
+
+    // axis_size[0] = localSize[ axis_dir[0] ]
+    // axis_size[1] = localSize[ axis_dir[1] ]
+    axis_size[0] = localSize[ axis_dir[0] ];
+    axis_size[1] = localSize[ axis_dir[1] ];
+
+    // Allocate flags for axis_size[0] * axis_size[1]
+    cube_flag.resize(axis_size[0] * axis_size[1], false);
 }
 
-void GRID_FACETS::SetFlag(int x, int y, bool flag)
+void GRID_FACETS::SetFlag(int coord0, int coord1, bool flag)
 {
-    cube_flag[index(x,y)] = flag;
+    cube_flag[index(coord0, coord1)] = flag;
 }
 
-bool GRID_FACETS::CubeFlag(int x, int y) const
+bool GRID_FACETS::CubeFlag(int coord0, int coord1) const
 {
-    return cube_flag[index(x,y)];
+    return cube_flag[index(coord0, coord1)];
 }
 
-int GRID_FACETS::index(int x, int y) const
+int GRID_FACETS::index(int coord0, int coord1) const
 {
-    int dim_x, dim_y;
-    if (orth_dir == 0) {
-        // x-facets: slice dimension in y,z
-        dim_x = axis_size[1]; // Ny
-        dim_y = axis_size[2]; // Nz
-    } else if (orth_dir == 1) {
-        // y-facets: slice dimension in x,z
-        dim_x = axis_size[0]; // Nx
-        dim_y = axis_size[2]; // Nz
-    } else {
-        // z-facets: slice dimension in x,y
-        dim_x = axis_size[0]; // Nx
-        dim_y = axis_size[1]; // Ny
-    }
-    return y * dim_x + x;
+    return coord1 * axis_size[0] + coord0;
 }
 
 

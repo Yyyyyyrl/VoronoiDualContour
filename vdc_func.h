@@ -36,7 +36,7 @@ void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGr
 /*
 Setting up the delaunay triangulation
 */
-void construct_delaunay_triangulation(Grid &grid, const std::vector<GRID_FACETS> &gridfacets);
+void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets);
 std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &grid);
 /*
 Functions that relates to building the voronoi diagram

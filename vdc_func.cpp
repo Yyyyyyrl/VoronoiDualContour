@@ -365,7 +365,6 @@ void computeDualTrianglesMulti(
                             int cellIndex2 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh2];
                             int cellIndex3 = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh3];
 
-
                             VoronoiCell &vc1 = voronoiDiagram.voronoiCells[cellIndex1];
                             VoronoiCell &vc2 = voronoiDiagram.voronoiCells[cellIndex2];
                             VoronoiCell &vc3 = voronoiDiagram.voronoiCells[cellIndex3];
@@ -651,95 +650,80 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
             voronoiDiagram.isosurfaceVertices.push_back(cycle.isovertex);
         }
 
-        if (debug) {
+        if (debug)
+        {
             std::cout << vc << std::endl;
         }
-
-        
     }
-    
-    if (debug) {
+
+    if (debug)
+    {
         for (size_t i = 0; i < voronoiDiagram.isosurfaceVertices.size(); ++i)
         {
             std::cout << "  Index " << i << ": " << voronoiDiagram.isosurfaceVertices[i] << "\n";
         }
     }
-
 }
 
-std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &grid) {
+std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &data_grid)
+{
     std::vector<Point> points;
-    
-    int Nx = facet.axis_size[0];
-    int Ny = facet.axis_size[1];
-    int Nz = facet.axis_size[2];
 
-    int dim_x, dim_y;
-    // Determine the "width" and "height" of this facet slice depending on orth_dir
-    if (facet.orth_dir == 0) {
-        // orth_dir=0 (x): slice spans Ny by Nz
-        dim_x = Ny;
-        dim_y = Nz;
-    } else if (facet.orth_dir == 1) {
-        // orth_dir=1 (y): slice spans Nx by Nz
-        dim_x = Nx;
-        dim_y = Nz;
-    } else {
-        // orth_dir=2 (z): slice spans Nx by Ny
-        dim_x = Nx;
-        dim_y = Ny;
-    }
+    // 2D slice dimension
+    int dim0 = facet.axis_size[0]; 
+    int dim1 = facet.axis_size[1];
 
-    for (int y = 0; y < dim_y; y++) {
-        for (int x = 0; x < dim_x; x++) {
-            if (facet.CubeFlag(x, y)) {
-                int i, j, k;
-                // Map (x,y) back to (i,j,k) cube indices
-                if (facet.orth_dir == 0) {
-                    // x-facet: (x,y) = (j,k), i fixed by side
-                    j = x; 
-                    k = y;
-                    i = (facet.side == 0) ? 0 : Nx - 1;
-                } else if (facet.orth_dir == 1) {
-                    // y-facet: (x,y) = (i,k), j fixed by side
-                    i = x; 
-                    k = y;
-                    j = (facet.side == 0) ? 0 : Ny - 1;
-                } else {
-                    // z-facet: (x,y) = (i,j), k fixed by side
-                    i = x; 
-                    j = y;
-                    k = (facet.side == 0) ? 0 : Nz - 1;
-                }
+    // For convenience
+    int d  = facet.orth_dir;
+    int d1 = facet.axis_dir[0];
+    int d2 = facet.axis_dir[1];
 
-                // Calculate the center of the cube
-                double cx = (i + 0.5) * grid.dx;
-                double cy = (j + 0.5) * grid.dy;
-                double cz = (k + 0.5) * grid.dz;
+    // We have bounding-box in facet.minIndex[], facet.maxIndex[], 
+    // and localSize[] = (maxIndex[i] - minIndex[i] + 1)
+    // The grid spacing in each dimension
+    double dx[3] = { data_grid.dx, data_grid.dy, data_grid.dz };
 
-                // Determine offset direction based on facet orientation and side
-                double dx = 0.0, dy = 0.0, dz = 0.0;
-                if (facet.orth_dir == 0) {
-                    dx = (facet.side == 0) ? -grid.dx : grid.dx;
-                } else if (facet.orth_dir == 1) {
-                    dy = (facet.side == 0) ? -grid.dy : grid.dy;
-                } else {
-                    dz = (facet.side == 0) ? -grid.dz : grid.dz;
-                }
+    // Loop over the 2D slice
+    for (int coord1 = 0; coord1 < dim1; coord1++)
+    {
+        for (int coord0 = 0; coord0 < dim0; coord0++)
+        {
+            if (!facet.CubeFlag(coord0, coord1)) 
+                continue;
 
-                // Create the dummy point just outside the grid boundary in the appropriate direction
-                Point dummy(cx + dx, cy + dy, cz + dz);
-                points.push_back(dummy);
+            // localX[d1] = coord0, localX[d2] = coord1
+            int localX[3] = {0,0,0};
+            localX[d1] = coord0;
+            localX[d2] = coord1;
+
+            // side=0 => localX[d] = 0, side=1 => localX[d] = localSize[d]-1
+            localX[d] = (facet.side == 0) ? 0 : (facet.localSize[d] - 1);
+
+            // Convert localX -> global indices
+            int g[3];
+            for (int i = 0; i < 3; i++) {
+                g[i] = localX[i] + facet.minIndex[i];
             }
+
+            // Compute center in real-world coordinates
+            double cx = (g[0] + 0.5) * dx[0];
+            double cy = (g[1] + 0.5) * dx[1];
+            double cz = (g[2] + 0.5) * dx[2];
+
+            // Offset by +/- dx[d]
+            double offset = (facet.side == 0) ? -dx[d] : dx[d];
+            if      (d == 0) cx += offset;
+            else if (d == 1) cy += offset;
+            else             cz += offset;
+
+            points.emplace_back(cx, cy, cz);
         }
     }
 
     return points;
 }
 
-
-
-void construct_delaunay_triangulation(Grid &grid, const std::vector<GRID_FACETS> &gridfacets)
+void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets)
 {
     if (multi_isov)
     {
@@ -752,9 +736,9 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<GRID_FACETS>
         double ymax = delaunayBbox.ymax();
         double zmin = delaunayBbox.zmin();
         double zmax = delaunayBbox.zmax();
-        int nx = ( xmax - xmin ) / grid.dx;
-        int ny = ( ymax - ymin ) / grid.dy;
-        int nz = ( zmax - zmin ) / grid.dz;
+        int nx = (xmax - xmin) / grid.dx;
+        int ny = (ymax - ymin) / grid.dy;
+        int nz = (zmax - zmin) / grid.dz;
         std::cout << "Bounding box for active Cube Centers: " << std::endl;
         std::cout << "xmin : " << xmin << " xmax : " << xmax << std::endl;
         std::cout << "ymin : " << ymin << " ymax : " << ymax << std::endl;
@@ -778,42 +762,69 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<GRID_FACETS>
         std::vector<Point> dummy_points;
 
         // refers to the grid facets
-        for (auto f: gridfacets) {
-            auto pointsf = add_dummy_from_facet(f, grid);
-            dummy_points.insert(dummy_points.end(), pointsf.begin(), pointsf.end());
-        }
-
-/*      // brute-forcely adding dummy points on all 6 faces corresponding to grid spacing
-
-        // Face x = xmin-dx and xmax+dx
-        for ( int i = 0; i <= ny; ++i) {
-            double y = ymin + i * grid.dy;
-            for (int j = 0; j <= nz; ++j) {
-                double z = zmin + j * grid.dz;
-                dummy_points.push_back(Point( xmin - grid.dx, y, z));
-                dummy_points.push_back(Point( xmax + grid.dx, y, z));
+        for (int d = 0; d < 3; d++)
+        {
+            for (const auto &f : grid_facets[d])
+            {
+                std::vector<Point> pointsf = add_dummy_from_facet(f, grid);
+                dummy_points.insert(dummy_points.end(), pointsf.begin(), pointsf.end());
             }
         }
 
-        // Face y = ymin-dy and ymax+dy
-        for ( int i = 0; i <= nx; ++i) {
-            double x = xmin + i * grid.dx;
-            for (int j = 0; j <= nz; ++j) {
-                double z = zmin + j * grid.dz;
-                dummy_points.push_back(Point( x, ymin - grid.dy, z));
-                dummy_points.push_back(Point( x, ymax + grid.dy, z));
-            }
-        }
+        /*      // brute-forcely adding dummy points on all 6 faces corresponding to grid spacing
 
-        // Face z = zmin-dz and zmax+dz
-        for ( int i = 0; i <= nx; ++i) {
-            double x = xmin + i * grid.dx;
-            for (int j = 0; j <= ny; ++j) {
-                double y = ymin + j * grid.dy;
-                dummy_points.push_back(Point( x, y, zmin - grid.dz));
-                dummy_points.push_back(Point( x, y, zmax + grid.dz));
+                // Face x = xmin-dx and xmax+dx
+                for ( int i = 0; i <= ny; ++i) {
+                    double y = ymin + i * grid.dy;
+                    for (int j = 0; j <= nz; ++j) {
+                        double z = zmin + j * grid.dz;
+                        dummy_points.push_back(Point( xmin - grid.dx, y, z));
+                        dummy_points.push_back(Point( xmax + grid.dx, y, z));
+                    }
+                }
+
+                // Face y = ymin-dy and ymax+dy
+                for ( int i = 0; i <= nx; ++i) {
+                    double x = xmin + i * grid.dx;
+                    for (int j = 0; j <= nz; ++j) {
+                        double z = zmin + j * grid.dz;
+                        dummy_points.push_back(Point( x, ymin - grid.dy, z));
+                        dummy_points.push_back(Point( x, ymax + grid.dy, z));
+                    }
+                }
+
+                // Face z = zmin-dz and zmax+dz
+                for ( int i = 0; i <= nx; ++i) {
+                    double x = xmin + i * grid.dx;
+                    for (int j = 0; j <= ny; ++j) {
+                        double y = ymin + j * grid.dy;
+                        dummy_points.push_back(Point( x, y, zmin - grid.dz));
+                        dummy_points.push_back(Point( x, y, zmax + grid.dz));
+                    }
+                } */
+
+        /*
+         Temp method of writing dummypoints to a csv file for debug
+        */
+        if (true)
+        {
+            std::ofstream ofs("dummy_points.csv");
+
+            ofs << grid.nx << ","
+                << grid.ny << ","
+                << grid.nz << ","
+                << grid.dx << ","
+                << grid.dy << ","
+                << grid.dz << "\n";
+            ofs << "x,y,z\n";
+
+            for (const auto &p : dummy_points)
+            {
+                ofs << p.x() << "," << p.y() << "," << p.z() << "\n";
             }
-        } */
+
+            ofs.close();
+        }
 
         int count = 0;
         for (const auto &dp : dummy_points)
@@ -823,7 +834,6 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<GRID_FACETS>
         }
 
         std::cout << "Number of Dummy Points added: " << count << std::endl;
-
 
         for (const auto &lp : all_points)
         {
@@ -904,7 +914,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
     {
         if (vh->info())
         {
-            //std::cout << "Dummy Point excluded: " << vh->point() << std::endl;
+            // std::cout << "Dummy Point excluded: " << vh->point() << std::endl;
             continue;
         }
         VoronoiCell vc(vh);

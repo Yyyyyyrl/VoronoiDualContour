@@ -4,6 +4,9 @@
 #include "vdc_cube.h"
 #include "vdc_type.h"
 
+// DIM = 3 for a 3D grid
+static const int DIM3 = 3;
+
 struct Grid
 {
     std::vector<float> data;
@@ -38,28 +41,54 @@ struct ScalarGrid
 
 };
 
-#include <vector>
 
-struct GRID_FACETS {
-    int orth_dir;      // Which axis: 0=x, 1=y, 2=z
-    int side;          // Which side: 0=lower(min), 1=upper(max)
-    int axis_size[3];  // Number of cubes along each dimension: {Nx, Ny, Nz}
-    std::vector<bool> cube_flag; // Use vector<bool> to store flags
+/**
+ * @brief A structure representing a 2D "facet" of a 3D grid,
+ *        orthogonal to one axis (orth_dir).
+ *
+ * For example, if orth_dir = 0 (the x-axis), then this facet stores
+ * data along the y- and z-axes.  axis_dir[0] = 1, axis_dir[1] = 2.
+ */
+struct GRID_FACETS 
+{
+    int orth_dir;     // Orthogonal direction: 0=x, 1=y, 2=z
+    int side;         // Which side: 0=lower(min), 1=upper(max)
 
-    // Constructor
-    GRID_FACETS(int OrthDir, int Side, int Nx, int Ny, int Nz);
+    // Which two axes define this facet? (d+1) % 3 and (d+2) % 3
+    int axis_dir[2];      
 
-    // Default destructor
-    ~GRID_FACETS() = default; // no need for custom destructor
+    // Size of this facet along those two axes
+    // axis_size[0] = size along axis_dir[0], axis_size[1] = size along axis_dir[1]
+    int axis_size[2];    
 
-    // Set flag for a particular (x,y) on the facet slice
-    void SetFlag(int x, int y, bool flag);
+    //The local bounding-box offset (min/max Index) for each dimension, used for mapping local <-> global
+    int minIndex[DIM3];
+    int maxIndex[DIM3];
+    int localSize[DIM3];
 
-    // Get flag for a particular (x,y) on the facet slice
-    bool CubeFlag(int x, int y) const;
+    // Boolean flags for each (coord0, coord1) in the facet
+    std::vector<bool> cube_flag;
+
+    /**
+     * @param d        Orthogonal direction
+     * @param s        Side (0 or 1)
+     * @param minIdx   Global bounding-box min for this block of cubes
+     * @param maxIdx   Global bounding-box max for this block of cubes
+     */
+    GRID_FACETS(int d, int s, const int minIdx[DIM3], const int maxIdx[DIM3]);
+
+    // Default destructor is fine since we use std::vector<bool>
+    ~GRID_FACETS() = default;
+
+    // Set the flag for a particular (coord0, coord1) in this facet
+    void SetFlag(int coord0, int coord1, bool flag);
+
+    // Get the flag for a particular (coord0, coord1) in this facet
+    bool CubeFlag(int coord0, int coord1) const;
 
 private:
-    int index(int x, int y) const;
+    // Convert (coord0, coord1) to linear index
+    int index(int coord0, int coord1) const;
 };
 
 
