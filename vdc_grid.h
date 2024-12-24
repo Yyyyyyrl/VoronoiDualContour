@@ -54,7 +54,7 @@ struct GRID_FACETS
     int orth_dir;     // Orthogonal direction: 0=x, 1=y, 2=z
     int side;         // Which side: 0=lower(min), 1=upper(max)
 
-    // Which two axes define this facet? (d+1) % 3 and (d+2) % 3
+    // two axes define this facet (d+1) % 3 and (d+2) % 3
     int axis_dir[2];      
 
     // Size of this facet along those two axes

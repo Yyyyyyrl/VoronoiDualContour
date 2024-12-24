@@ -81,8 +81,7 @@ int main(int argc, char *argv[])
                 GRID_FACETS &f = grid_facets[d][side];
 
                 // Convert to local indices
-                // localX[d1] = g[d1] - f.minIndex[d1]
-                // localX[d2] = g[d2] - f.minIndex[d2]
+                // localCoord = g - minIndex
                 int coord0 = g[d1] - f.minIndex[d1];
                 int coord1 = g[d2] - f.minIndex[d2];
 
