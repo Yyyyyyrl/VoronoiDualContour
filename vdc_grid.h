@@ -16,6 +16,10 @@ struct Grid
     void print_grid();
 };
 
+//! @brief The Scalar Grid Data structure used in the algorithm
+/*
+ * 
+ */
 struct ScalarGrid
 {
     std::vector<std::vector<std::vector<float>>> data; // 3D vector to store scalar values
@@ -42,10 +46,8 @@ struct ScalarGrid
 };
 
 
-/**
- * @brief A structure representing a 2D "facet" of a 3D grid,
- *        orthogonal to one axis (orth_dir).
- *
+//! @brief A structure representing a 2D "facet" of a 3D grid, orthogonal to one axis (orth_dir).
+/*!
  * For example, if orth_dir = 0 (the x-axis), then this facet stores
  * data along the y- and z-axes.  axis_dir[0] = 1, axis_dir[1] = 2.
  */
