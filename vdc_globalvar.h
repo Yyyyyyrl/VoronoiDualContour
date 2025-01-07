@@ -24,7 +24,7 @@ extern std::vector<Point> isosurfaceVertices;
 
 extern K::Iso_cuboid_3 delaunayBbox;
 
-extern std::vector<LabeledPoint> all_points;
+extern std::vector<DelaunayVertex> delaunay_vertices;
 extern std::vector<std::pair<Point, bool>> points_with_info;
 
 extern std::map<Point, int> point_index_map;

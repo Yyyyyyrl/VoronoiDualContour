@@ -70,13 +70,18 @@ struct VoronoiDiagram {
 };
 
 
+struct IsoSurface {
+    std::vector<Point> isosurfaceVertices;
+    std::vector<std::tuple<int, int, int>> isosurfaceTriangles;
+};
+
 // Define a structure to hold the midpoint and associated information
 struct EdgeMidpoint {
     Point midpoint;
     int facet_index; // Index of the facet this edge belongs to
 };
 
-struct LabeledPoint {
+struct DelaunayVertex {
     Point point;
     bool is_dummy;
 };

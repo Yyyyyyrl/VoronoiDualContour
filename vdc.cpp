@@ -21,75 +21,14 @@ int main(int argc, char *argv[])
     // Put data from the nrrd file into the grid
     initialize_scalar_grid(grid, data_grid);
 
-    std::vector<Cube> activeCubes = find_active_cubes(data_grid, isovalue);
+    std::vector<Cube> activeCubes;
+    find_active_cubes(data_grid, isovalue, activeCubes);
     if (sep_isov)
     {
         activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
     }
 
-
-    int minIdx[3];
-    int maxIdx[3];
-
-    minIdx[0] = minIdx[1] = minIdx[2] = INT_MAX;
-    maxIdx[0] = maxIdx[1] = maxIdx[2] = INT_MIN;
-
-    for (auto &cube : activeCubes)
-    {
-        if (cube.i < minIdx[0])
-            minIdx[0] = cube.i;
-        if (cube.i > maxIdx[0])
-            maxIdx[0] = cube.i;
-
-        if (cube.j < minIdx[1])
-            minIdx[1] = cube.j;
-        if (cube.j > maxIdx[1])
-            maxIdx[1] = cube.j;
-
-        if (cube.k < minIdx[2])
-            minIdx[2] = cube.k;
-        if (cube.k > maxIdx[2])
-            maxIdx[2] = cube.k;
-    }
-
-
-    // Initialize your 6 facets in a 2D array form: grid_facets[d][side]
-    std::vector<std::vector<GRID_FACETS>> grid_facets(3, std::vector<GRID_FACETS>(2,
-                                                                                  GRID_FACETS(0, 0, minIdx, maxIdx)));
-    // Now we must re-construct them properly with the correct (d, side):
-    for (int d = 0; d < 3; d++)
-    {
-        for (int side = 0; side < 2; side++)
-        {
-            grid_facets[d][side] = GRID_FACETS(d, side, minIdx, maxIdx);
-        }
-    }
-
-    // Populate them
-    for (auto &cube : activeCubes)
-    {
-        // Global index
-        int g[3] = {cube.i, cube.j, cube.k};
-
-        for (int d = 0; d < 3; d++)
-        {
-            int d1 = (d + 1) % 3;
-            int d2 = (d + 2) % 3;
-
-            for (int side = 0; side < 2; side++)
-            {
-                GRID_FACETS &f = grid_facets[d][side];
-
-                // Convert to local indices
-                // localCoord = g - minIndex
-                int coord0 = g[d1] - f.minIndex[d1];
-                int coord1 = g[d2] - f.minIndex[d2];
-
-                // Mark it
-                f.SetFlag(coord0, coord1, true);
-            }
-        }
-    }
+    std::vector<std::vector<GRID_FACETS>> grid_facets = create_grid_facets(activeCubes);
 
     activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> gridPoints = load_grid_points(data_grid);
@@ -101,6 +40,8 @@ int main(int argc, char *argv[])
         std::cout << "Loaded data and Calculating Bounding box" << std::endl;
     }
 
+    Point p_min(0,0,0);
+    Point p_max(data_grid.nx-1, data_grid.ny-1, data_grid.nz-1);
     K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
 
     if (debug)
@@ -152,10 +93,6 @@ int main(int argc, char *argv[])
     */
     if (multi_isov)
     {
-        /*
-        Construct Voronoi Cells
-        */
-
         construct_voronoi_cells(vd);
 
         Compute_Isosurface_Vertices_Multi(vd, isovalue);

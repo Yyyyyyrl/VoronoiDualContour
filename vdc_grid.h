@@ -105,7 +105,7 @@ Grid load_nrrd_data(const std::string &file_path);
 Grid supersample_grid(const Grid &grid, int n);
 
 bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue);
-std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue);
+void find_active_cubes(const Grid &grid, float isovalue, std::vector<Cube> &cubes);
 
 std::vector<Point> load_grid_points(const Grid &grid);
 
@@ -115,4 +115,5 @@ Point interpolate(const Point &p1, const Point &p2, float val1, float val2, floa
 float trilinear_interpolate(const Point &p, const ScalarGrid &grid);
 float trilinear_interpolate(const Point &p, const Grid &grid);
 
+std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube> &activeCubes);
 #endif

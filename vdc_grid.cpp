@@ -270,50 +270,46 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
 
 bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue)
 {
-    // Define edges and check for bipolar characteristics
-    std::vector<std::pair<int, int>> edges = {
-        {0, 1}, {1, 2}, {2, 3}, {3, 0}, // Bottom face edges
-        {4, 5},
-        {5, 6},
-        {6, 7},
-        {7, 4}, // Top face edges
-        {0, 4},
-        {1, 5},
-        {2, 6},
-        {3, 7} // Vertical edges
+    // Offsets for each of the 8 cube vertices
+    static const std::vector<std::tuple<int,int,int>> vertex_offsets = {
+        {0, 0, 0},  // Vertex 0
+        {1, 0, 0},  // Vertex 1
+        {1, 1, 0},  // Vertex 2
+        {0, 1, 0},  // Vertex 3
+        {0, 0, 1},  // Vertex 4
+        {1, 0, 1},  // Vertex 5
+        {1, 1, 1},  // Vertex 6
+        {0, 1, 1}   // Vertex 7
     };
 
-    // Edge-to-vertex mapping for cube
-    std::vector<std::tuple<int, int, int>> vertex_offsets = {
-        {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, // Bottom face
-        {0, 0, 1},
-        {1, 0, 1},
-        {1, 1, 1},
-        {0, 1, 1} // Top face
+    // Helper lambda to quickly retrieve the scalar value at a given offset
+    auto get_value = [&](int dx, int dy, int dz) -> float {
+        // We assume x+dx, y+dy, z+dz are valid indices here.
+        int idx = (x + dx) + (y + dy) * grid.nx + (z + dz) * grid.nx * grid.ny;
+        return grid.data[idx];
     };
 
-    for (const auto &edge : edges)
-    {
-        auto [v1x, v1y, v1z] = vertex_offsets[edge.first];
-        auto [v2x, v2y, v2z] = vertex_offsets[edge.second];
+    // Check the sign (negative vs. positive) of the first vertex
+    float val0 = get_value(0, 0, 0);
+    bool is_val0_negative = (val0 < isovalue);
 
-        int idx1 = (x + v1x) + (y + v1y) * grid.nx + (z + v1z) * grid.nx * grid.ny;
-        int idx2 = (x + v2x) + (y + v2y) * grid.nx + (z + v2z) * grid.nx * grid.ny;
+    // Compare remaining vertices against the first vertex's sign
+    for (int i = 1; i < 8; i++) {
+        auto [dx, dy, dz] = vertex_offsets[i];
+        float vali = get_value(dx, dy, dz);
+        bool is_vali_negative = (vali < isovalue);
 
-        if (idx1 < grid.data.size() && idx2 < grid.data.size())
-        { // Check to ensure indices are within bounds
-            float val1 = grid.data[idx1];
-            float val2 = grid.data[idx2];
-
-            if ((val1 < isovalue && val2 > isovalue) || (val1 > isovalue && val2 < isovalue))
-            {
-                return true;
-            }
+        // If the sign of vali differs from val0, the cube is active.
+        if (is_vali_negative != is_val0_negative) {
+            return true;
         }
     }
 
+    // If all vertices have the same sign (all negative or all positive),
+    // then the cube is not active.
     return false;
 }
+
 
 Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const Point &v1, const Point &v2)
 {
@@ -355,9 +351,9 @@ Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const 
     return p;
 }
 
-std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue)
-{
-    std::vector<Cube> activeCubes;
+
+void find_active_cubes(const Grid &grid, float isovalue, std::vector<Cube> &cubes) {
+    cubes.clear();
     // (nx-1, ny-1, nz-1) cubes total
     for (int i = 0; i < grid.nx - 1; ++i)
     {
@@ -369,13 +365,14 @@ std::vector<Cube> find_active_cubes(const Grid &grid, float isovalue)
                 {
                     Point repVertex(i * grid.dx, j * grid.dy, k * grid.dz);
                     Point center((i+0.5f)*grid.dx, (j+0.5f)*grid.dy, (k+0.5f)*grid.dz);
-                    activeCubes.push_back(Cube(repVertex, center, 1, i, j, k));
+                    cubes.push_back(Cube(repVertex, center, 1, i, j, k));
                 }
             }
         }
     }
-    return activeCubes;
 }
+
+
 std::vector<Point> load_grid_points(const Grid &grid)
 {
     std::vector<Point> points;
@@ -501,4 +498,71 @@ float trilinear_interpolate(const Point &p, const Grid &grid)
     float c = c0 * (1 - xd) + c1 * xd;
 
     return c;
+}
+
+
+std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube> &activeCubes) {
+
+    int minIdx[3];
+    int maxIdx[3];
+
+    minIdx[0] = minIdx[1] = minIdx[2] = INT_MAX;
+    maxIdx[0] = maxIdx[1] = maxIdx[2] = INT_MIN;
+
+    for (auto &cube : activeCubes)
+    {
+        if (cube.i < minIdx[0])
+            minIdx[0] = cube.i;
+        if (cube.i > maxIdx[0])
+            maxIdx[0] = cube.i;
+
+        if (cube.j < minIdx[1])
+            minIdx[1] = cube.j;
+        if (cube.j > maxIdx[1])
+            maxIdx[1] = cube.j;
+
+        if (cube.k < minIdx[2])
+            minIdx[2] = cube.k;
+        if (cube.k > maxIdx[2])
+            maxIdx[2] = cube.k;
+    }
+    std::vector<std::vector<GRID_FACETS>> grid_facets(3, std::vector<GRID_FACETS>(2,
+                                                                                  GRID_FACETS(0, 0, minIdx, maxIdx)));
+
+    // re-construct them properly with the correct (d, side):
+    for (int d = 0; d < 3; d++)
+    {
+        for (int side = 0; side < 2; side++)
+        {
+            grid_facets[d][side] = GRID_FACETS(d, side, minIdx, maxIdx);
+        }
+    }
+
+    // Populate them
+    for (auto &cube : activeCubes)
+    {
+        // Global index
+        int g[3] = {cube.i, cube.j, cube.k};
+
+        for (int d = 0; d < 3; d++)
+        {
+            int d1 = (d + 1) % 3;
+            int d2 = (d + 2) % 3;
+
+            for (int side = 0; side < 2; side++)
+            {
+                GRID_FACETS &f = grid_facets[d][side];
+
+                // Convert to local indices
+                // localCoord = g - minIndex
+                int coord0 = g[d1] - f.minIndex[d1];
+                int coord1 = g[d2] - f.minIndex[d2];
+
+                // Mark it
+                f.SetFlag(coord0, coord1, true);
+            }
+        }
+    }
+
+    return grid_facets;
 }

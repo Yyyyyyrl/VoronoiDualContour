@@ -730,7 +730,7 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
         // Add original points
         for (const auto &p : activeCubeCenters)
         {
-            all_points.push_back({p, false});
+            delaunay_vertices.push_back({p, false});
         }
 
         // Add dummy points to the form of triangulation to bound the voronoi diagram
@@ -804,13 +804,13 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
         int count = 0;
         for (const auto &dp : dummy_points)
         {
-            all_points.push_back({dp, true});
+            delaunay_vertices.push_back({dp, true});
             count++;
         }
 
         std::cout << "Number of Dummy Points added: " << count << std::endl;
 
-        for (const auto &lp : all_points)
+        for (const auto &lp : delaunay_vertices)
         {
             points_with_info.emplace_back(lp.point, lp.is_dummy);
         }

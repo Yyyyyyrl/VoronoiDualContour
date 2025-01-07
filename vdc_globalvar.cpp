@@ -16,7 +16,7 @@ std::vector<Point> activeCubeCenters;
 std::vector<Object> bipolar_voronoi_edges;
 std::vector<Point> isosurfaceVertices;
 
-std::vector<LabeledPoint> all_points;
+std::vector<DelaunayVertex> delaunay_vertices;
 std::vector<std::pair<Point, bool>> points_with_info;
 
 K::Iso_cuboid_3 delaunayBbox;
