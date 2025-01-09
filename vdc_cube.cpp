@@ -1,5 +1,6 @@
 #include "vdc_cube.h"
 
+//! @brief Checks if two cubes are adjacent.
 bool is_adjacent(const Cube &cubeA, const Cube &cubeB)
 {
     return (std::abs(cubeA.repVertex.x() - cubeB.repVertex.x()) <= 1 &&
@@ -7,12 +8,12 @@ bool is_adjacent(const Cube &cubeA, const Cube &cubeB)
             std::abs(cubeA.repVertex.z() - cubeB.repVertex.z()) <= 1);
 }
 
-// Function to calculate the unique index of a cube
+//! @brief Calculates the unique index of a cube in a 3D grid.
 int get_cube_index(const Point &repVertex, int nx, int ny) {
     return repVertex.z() * nx * ny + repVertex.y() * nx + repVertex.x();
 }
 
-// Function to find the neighboring indices of a cube
+//! @brief Finds the indices of neighboring cubes in a 3D grid.
 std::vector<int> find_neighbor_indices(const Point3& repVertex, int nx, int ny) {
     std::vector<int> neighbors;
     for (int dx = -1; dx <= 1; ++dx) {
@@ -28,6 +29,7 @@ std::vector<int> find_neighbor_indices(const Point3& repVertex, int nx, int ny) 
     return neighbors;
 }
 
+//! @brief Retrieves the centers of a list of cubes.
 std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes)
 {
     std::vector<Point> centers;
@@ -38,6 +40,7 @@ std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes)
     return centers;
 }
 
+//! @brief Separates active cubes using a greedy approach.
 std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube>& activeCubes, int nx, int ny, int nz) {
     std::unordered_map<int, Cube> indexToCubeMap;
     std::vector<Cube> separatedCubes;
@@ -66,6 +69,8 @@ std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube>& activeCubes, i
     return separatedCubes;
 }
 
+
+//! @brief Separates active cubes using a graph-based approach.
 std::vector<Cube> separate_active_cubes_graph(std::vector<Cube> &activeCubes) {
 
     std::vector<Cube> separatedCubes;

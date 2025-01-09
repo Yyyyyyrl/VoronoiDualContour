@@ -1,21 +1,26 @@
 #include "vdc_grid.h"
 
 
+//! Constructor for the ScalarGrid.
 ScalarGrid::ScalarGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z)
     : nx(nx), ny(ny), nz(nz), dx(dx), dy(dy), dz(dz), min_x(min_x), min_y(min_y), min_z(min_z)
 {
+    //! Initialize the 3D data vector with default values of 0.
     data.resize(nx, std::vector<std::vector<float>>(ny, std::vector<float>(nz, 0.0)));
 }
 
+//! Retrieve a scalar value from the grid.
 float ScalarGrid::get_value(int x, int y, int z) const
 {
     if (x < 0 || x >= nx || y < 0 || y >= ny || z < 0 || z >= nz)
     {
+        //! Return 0 if indices are out of bounds.
         return 0;
     }
     return data[x][y][z];
 }
 
+//! Set a scalar value in the grid.
 void ScalarGrid::set_value(int x, int y, int z, float value)
 {
     if (x >= 0 && x < nx && y >= 0 && y < ny && z >= 0 && z < nz)
@@ -24,6 +29,7 @@ void ScalarGrid::set_value(int x, int y, int z, float value)
     }
 }
 
+//! Load scalar values into the grid from an external 3D vector source.
 void ScalarGrid::load_from_source(const std::vector<std::vector<std::vector<float>>> &source)
 {
     for (int i = 0; i < nx && i < source.size(); ++i)
@@ -38,53 +44,56 @@ void ScalarGrid::load_from_source(const std::vector<std::vector<std::vector<floa
     }
 }
 
+//! @brief Constructor for the GRID_FACETS structure.
 GRID_FACETS::GRID_FACETS(int d, int s, const int minIdx[DIM3], const int maxIdx[DIM3])
     : orth_dir(d), side(s)
 {
-    // Store minIndex[] and maxIndex[], compute localSize[]
+    //! Store `minIndex[]` and `maxIndex[]`, and compute `localSize[]`.
     for (int i = 0; i < DIM3; i++) {
         minIndex[i] = minIdx[i];
         maxIndex[i] = maxIdx[i];
         localSize[i] = (maxIndex[i] - minIndex[i] + 1);
     }
 
-    // Determine the 2D slice axes
-    axis_dir[0] = (orth_dir + 1) % DIM3; 
+    //! Determine the 2D slice axes.
+    axis_dir[0] = (orth_dir + 1) % DIM3;
     axis_dir[1] = (orth_dir + 2) % DIM3;
 
-    // axis_size[0] = localSize[ axis_dir[0] ]
-    // axis_size[1] = localSize[ axis_dir[1] ]
-    axis_size[0] = localSize[ axis_dir[0] ];
-    axis_size[1] = localSize[ axis_dir[1] ];
+    //! Compute the size of the facet along the two axes.
+    axis_size[0] = localSize[axis_dir[0]];
+    axis_size[1] = localSize[axis_dir[1]];
 
-    // Allocate flags for axis_size[0] * axis_size[1]
+    //! Allocate flags for the facet, initialized to `false`.
     cube_flag.resize(axis_size[0] * axis_size[1], false);
 }
 
+//! @brief Set the flag for a particular `(coord0, coord1)` in the facet.
 void GRID_FACETS::SetFlag(int coord0, int coord1, bool flag)
 {
     cube_flag[index(coord0, coord1)] = flag;
 }
 
+//! @brief Get the flag for a particular `(coord0, coord1)` in the facet.
 bool GRID_FACETS::CubeFlag(int coord0, int coord1) const
 {
     return cube_flag[index(coord0, coord1)];
 }
 
+//! @brief Convert a 2D coordinate `(coord0, coord1)` to a linear index.
 int GRID_FACETS::index(int coord0, int coord1) const
 {
     return coord1 * axis_size[0] + coord0;
 }
 
-
+//! @brief Print the grid's metadata and data in a human-readable format.
 void Grid::print_grid()
 {
-    // Print metadata (dimensions and spacing)
+    //! Print metadata (dimensions and spacing).
     std::cout << "NRRD Grid Information:\n";
     std::cout << "Dimensions: " << nx << " " << ny << " " << nz << "\n";
     std::cout << "Spacing: " << dx << " " << dy << " " << dz << "\n\n";
 
-    // Print the data in a structured format
+    //! Print the grid's data in a structured format.
     std::cout << "Data:\n";
 
     for (int z = 0; z < nz; ++z)
@@ -94,6 +103,7 @@ void Grid::print_grid()
         {
             for (int x = 0; x < nx; ++x)
             {
+                //! Compute the linear index for the current x, y, z coordinate.
                 std::cout << std::setw(8) << data[z * nx * ny + y * nx + x] << " ";
             }
             std::cout << "\n";
@@ -116,6 +126,14 @@ float ScalarGrid::get_scalar_value_at_point(const Point &point)
     return get_value(x, y, z);
 }
 
+
+//! @brief Converts raw data of type `T` into a float vector.
+/*!
+ * @tparam T The type of the input data.
+ * @param data_ptr Pointer to the input data.
+ * @param total_size Total number of elements in the input data.
+ * @return A `std::vector<float>` containing the converted data.
+ */
 template <typename T>
 std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
 {
@@ -127,6 +145,7 @@ std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
     return data;
 }
 
+//! @brief Loads NRRD data into a `Grid` structure.
 Grid load_nrrd_data(const std::string &file_path)
 {
     Nrrd *nrrd = nrrdNew();
@@ -187,6 +206,7 @@ Grid load_nrrd_data(const std::string &file_path)
     return {data, nx, ny, nz, dx, dy, dz};
 }
 
+//! @brief Adjusts a point outside the bounds of the scalar grid.
 Grid supersample_grid(const Grid &grid, int n)
 {
     int nx2 = grid.nx * n - (n - 1);
@@ -220,6 +240,7 @@ Grid supersample_grid(const Grid &grid, int n)
     return {data2, nx2, ny2, nz2, dx2, dy2, dz2};
 }
 
+//! @brief Inidialize the ScalarGrid instance with a Grid instance consisting the data read from a nrrd file
 void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
 {
     // Use the dimensions from the loaded nrrdGrid
@@ -268,6 +289,7 @@ void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid)
     }
 }
 
+//! @brief Checks if a cube is active based on scalar values.
 bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue)
 {
     // Offsets for each of the 8 cube vertices
@@ -310,7 +332,7 @@ bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue)
     return false;
 }
 
-
+//! @brief Adjusts a point outside the bounds of the scalar grid.
 Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const Point &v1, const Point &v2)
 {
     // Convert the point to grid space
@@ -500,7 +522,7 @@ float trilinear_interpolate(const Point &p, const Grid &grid)
     return c;
 }
 
-
+//! @brief Creates grid facets for active cubes.
 std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube> &activeCubes) {
 
     int minIdx[3];

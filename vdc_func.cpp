@@ -1,6 +1,10 @@
+//! @file vdc_func.cpp
+//! @brief Implementation of functions for Voronoi Diagram and Isosurface computation.
+
 #include "vdc_func.h"
 
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid)
+//! @brief Computes the dual triangles for the final mesh in single iso vertex case.
+std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator>  voronoi_edge_to_delaunay_facet_map, Delaunay &dt, ScalarGrid &grid)
 {
 
     std::vector<DelaunayTriangle> dualTriangles;
@@ -45,7 +49,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                     positive = v2;
                 }
 
-                for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
                 {
                     int iFacet = facet.second;
                     Cell_handle c = facet.first;
@@ -121,7 +125,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                     bipolar_voronoi_edges.push_back(edge);
 
-                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                    for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
                     {
 
                         Facet mirror_f = dt.mirror_facet(facet);
@@ -203,7 +207,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                     // TODO: Find the Delaunay Triangle dual to the edge
 
-                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                    for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
                     {
                         int iFacet = facet.second;
                         Cell_handle c = facet.first;
@@ -247,10 +251,11 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
     return dualTriangles;
 }
 
+//! @brief Computes the dual triangles for the final mesh in the multi iso vertex case.
 void computeDualTrianglesMulti(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator>  voronoi_edge_to_delaunay_facet_map,
     ScalarGrid &grid,
     float isovalue)
 {
@@ -275,8 +280,8 @@ void computeDualTrianglesMulti(
             if (is_bipolar(val1, val2, isovalue))
             {
                 // TODO: Rename to edge->facet map
-                auto it = delaunay_facet_to_voronoi_edge_map.find(edge);
-                if (it != delaunay_facet_to_voronoi_edge_map.end())
+                auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+                if (it != voronoi_edge_to_delaunay_facet_map.end())
                 {
                     const std::vector<Facet> &facets = it->second;
                     for (const auto &facet : facets)
@@ -340,8 +345,8 @@ void computeDualTrianglesMulti(
 
                 if (is_bipolar(val1, val2, isovalue))
                 {
-                    auto it = delaunay_facet_to_voronoi_edge_map.find(edge);
-                    if (it != delaunay_facet_to_voronoi_edge_map.end())
+                    auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+                    if (it != voronoi_edge_to_delaunay_facet_map.end())
                     {
                         const std::vector<Facet> &facets = it->second;
                         for (const auto &facet : facets)
@@ -405,8 +410,8 @@ void computeDualTrianglesMulti(
 
                 if (is_bipolar(val1, val2, isovalue))
                 {
-                    auto it = delaunay_facet_to_voronoi_edge_map.find(edge);
-                    if (it != delaunay_facet_to_voronoi_edge_map.end())
+                    auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+                    if (it != voronoi_edge_to_delaunay_facet_map.end())
                     {
                         const std::vector<Facet> &facets = it->second;
                         for (const auto &facet : facets)
@@ -458,6 +463,7 @@ void computeDualTrianglesMulti(
     }
 }
 
+//! @brief Computes isosurface vertices for the single-isovertex case.
 void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid)
 {
     const int cubeVertices[8][3] = {
@@ -516,6 +522,7 @@ void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGr
     }
 }
 
+//! @brief Computes isosurface vertices for the multi-isovertex case.
 void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float isovalue)
 {
     for (auto &vc : voronoiDiagram.voronoiCells)
@@ -665,6 +672,7 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
     }
 }
 
+//! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &data_grid)
 {
     std::vector<Point> points;
@@ -727,6 +735,7 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
     return points;
 }
 
+//! @brief Constructs a Delaunay triangulation from a grid and grid facets.
 void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets)
 {
     if (multi_isov && add_bounding_cells)
@@ -805,6 +814,7 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
     }
 }
 
+//! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
 void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram)
 {
     voronoiDiagram.voronoiVertices.clear();
@@ -827,6 +837,7 @@ void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram)
     }
 }
 
+//! @brief Computes Voronoi Vertex values using scalar grid interpolation
 void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid)
 {
     voronoiDiagram.voronoiVertexValues.resize(voronoiDiagram.voronoiVertices.size());
@@ -839,6 +850,7 @@ void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid)
     }
 }
 
+//! @brief Constructs Voronoi cells from the Delaunay triangulation.
 void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
 {
     int index = 0;
@@ -916,9 +928,10 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
     }
 }
 
+//! @brief Constructs Voronoi edges from Delaunay facets.
 void construct_voronoi_edges(
     VoronoiDiagram &voronoiDiagram,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map)
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator>  voronoi_edge_to_delaunay_facet_map)
 {
     std::set<std::string> seen_edges; // Used to check for duplicate edges
 
@@ -936,7 +949,7 @@ void construct_voronoi_edges(
 
         std::string edgeRep = objectToString(vEdge);
 
-        delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
+     voronoi_edge_to_delaunay_facet_map[vEdge].push_back(facet);
 
         if (seen_edges.find(edgeRep) == seen_edges.end())
         {
@@ -946,6 +959,7 @@ void construct_voronoi_edges(
     }
 }
 
+//! @brief Handles output mesh generation.
 int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd)
 {
     retFlag = true;

@@ -2,99 +2,99 @@
 
 int main(int argc, char *argv[])
 {
-    VoronoiDiagram vd;
-    //  Read data points and find centers of active cubes
+    VoronoiDiagram vd; // Initialize an empty Voronoi diagram.
+
+    // Parse command-line arguments to set program options and parameters.
     parse_arguments(argc, argv);
 
+    // Load the NRRD data file into a grid structure.
     data_grid = load_nrrd_data(file_path);
 
+    // Apply supersampling if requested.
     if (supersample)
     {
         data_grid = supersample_grid(data_grid, supersample_r);
-        if (debug)
+        if (debug) // Print the supersampled grid if debugging is enabled.
         {
             data_grid.print_grid();
         }
     }
 
+    // Initialize a ScalarGrid using the dimensions and spacing from the data grid.
     ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
-    // Put data from the nrrd file into the grid
-    initialize_scalar_grid(grid, data_grid);
+    initialize_scalar_grid(grid, data_grid); // Populate the scalar grid with data.
 
+    // Identify active cubes in the grid based on the given isovalue.
     std::vector<Cube> activeCubes;
     find_active_cubes(data_grid, isovalue, activeCubes);
+
+    // Separate active cubes to ensure non-adjacency if requested.
     if (sep_isov)
     {
         activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
     }
 
+    // Create grid facets from the active cubes for further processing.
     std::vector<std::vector<GRID_FACETS>> grid_facets = create_grid_facets(activeCubes);
 
+    // Extract the centers of the active cubes.
     activeCubeCenters = get_cube_centers(activeCubes);
+
+    // Load all grid points into a vector for later use.
     std::vector<Point> gridPoints = load_grid_points(data_grid);
 
-    // cropAndWriteToCSV(activeCubeCenters, 48, 26, 27, 52, 30 ,30 , "../temps/fuel_cropN.csv", true);
+    // Optional: Crop and write active cube centers to a CSV file (currently commented out).
+    // cropAndWriteToCSV(activeCubeCenters, 48, 26, 27, 52, 30, 30, "../temps/fuel_cropN.csv", true);
 
     if (indicator)
     {
         std::cout << "Loaded data and Calculating Bounding box" << std::endl;
     }
 
-    Point p_min(0,0,0);
-    Point p_max(data_grid.nx-1, data_grid.ny-1, data_grid.nz-1);
+    // Define the bounding box of the grid.
+    Point p_min(0, 0, 0);
+    Point p_max(data_grid.nx - 1, data_grid.ny - 1, data_grid.nz - 1);
     K::Iso_cuboid_3 bbox(p_min, p_max);
 
-    if (debug)
+    if (debug) // Print the bounding box dimensions if debugging is enabled.
     {
         std::cout << "Bounding box: ("
                   << bbox.min() << ") to ("
                   << bbox.max() << ")" << std::endl;
     }
 
-    float cubeSideLength = data_grid.dx;
+    float cubeSideLength = data_grid.dx; // Store the cube side length (equal to grid spacing).
 
-    // Construct Delaunay Triangulation
+    // Construct the Delaunay triangulation using the grid facets.
     if (indicator)
     {
         std::cout << "Constructing Delaunay triangulation..." << std::endl;
     }
-
     construct_delaunay_triangulation(data_grid, grid_facets);
 
-    /*
-    Construct Voronoi Diagram and getting the vertices, edges and cells correspondingly
-    */
-    // Construct Voronoi Diagram
+    // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
     {
         std::cout << "Constructing Voronoi diagram..." << std::endl;
     }
     construct_voronoi_vertices(vd);
 
-    /*
-    Iterate through each facets in the DT and then calculate Voronoi Edges
-    */
+    // Iterate through each facet in the Delaunay triangulation and calculate Voronoi edges.
     std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
     construct_voronoi_edges(vd, delaunay_facet_to_voronoi_edge_map);
 
-    /*
-    Compute Scalar Values at Voronoi Vertices
-    */
+    // Compute scalar values at Voronoi vertices by interpolating from the scalar grid.
     if (indicator)
     {
         std::cout << "Computing scalar values at Voronoi vertices..." << std::endl;
     }
-    std::vector<float> voronoi_vertex_values;
-
     compute_voronoi_values(vd, grid);
 
-    /*
-    Compute Isosurface Vertices
-    */
+    // Compute isosurface vertices based on whether multiple or single isovalues are used.
     if (multi_isov)
     {
+        // Construct Voronoi cells for the diagram.
         construct_voronoi_cells(vd);
-
         Compute_Isosurface_Vertices_Multi(vd, isovalue);
     }
     else
@@ -102,12 +102,9 @@ int main(int argc, char *argv[])
         Compute_Isosurface_Vertices_Single(vd, grid);
     }
 
-    /*
-    For each bipolar edge in the Voronoi diagram, add Delaunay triangle dual to bipolar edge.
-    */
-
+    // If debugging is enabled, log information about the Voronoi diagram.
     std::ofstream log("vd_info.txt");
-    log << vd;
+    log << vd; // Write the Voronoi diagram's details to the log file.
     log.close();
 
     if (debug)
@@ -118,6 +115,7 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Compute dual triangles for the Voronoi diagram.
     if (multi_isov)
     {
         computeDualTrianglesMulti(vd, bbox, delaunay_facet_to_voronoi_edge_map, grid, isovalue);
@@ -127,6 +125,7 @@ int main(int argc, char *argv[])
         dualTriangles = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid);
     }
 
+    // If debugging is enabled, log information about the isosurface triangles.
     if (debug)
     {
         for (const auto &triangle : isoTriangles)
@@ -136,12 +135,14 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Export the Voronoi diagram to a CSV file if requested.
     if (out_csv)
     {
-        std::cout << "Export voronoi Diagram" << std::endl;
+        std::cout << "Export Voronoi Diagram" << std::endl;
         export_voronoi_to_csv(vd, out_csv_name);
     }
 
+    // Handle the output mesh generation and return the appropriate status.
     bool retFlag;
     int retVal = handle_output_mesh(retFlag, vd);
     if (retFlag)
