@@ -1,1 +1,0 @@
-#include "vdc_delaunay.h"
