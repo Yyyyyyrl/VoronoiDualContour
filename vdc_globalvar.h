@@ -16,6 +16,7 @@ extern bool out_csv;
 extern bool sep_isov;
 extern bool multi_isov;
 extern bool supersample;
+extern bool add_bounding_cells;
 extern int supersample_r;
 extern std::map<Point, float> vertexValueMap;
 extern std::vector<Point> activeCubeCenters;

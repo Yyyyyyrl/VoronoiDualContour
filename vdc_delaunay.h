@@ -3,6 +3,13 @@
 
 #include "vdc_type.h"
 
+
+struct DelaunayVertexInfo {
+    bool is_dummy;
+    //could add index or other flags if needed
+};
+
+
 struct DelaunayTriangle
 {
     Point vertex1, vertex2, vertex3;

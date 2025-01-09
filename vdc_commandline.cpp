@@ -68,6 +68,10 @@ void parse_arguments(int argc, char *argv[])
             print_help();
             exit(EXIT_SUCCESS);
         }
+        else if (arg == "--bound_cells") 
+        {
+            add_bounding_cells = true;
+        }
         else
         {
             std::cerr << "Unknown option: " << arg << std::endl;

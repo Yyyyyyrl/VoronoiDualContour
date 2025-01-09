@@ -17,8 +17,6 @@ struct PointApproxEqual
     }
 };
 
-
-
 /*
 Functions for both single/multi isov that computes the vertices and faces of the final mesh
 */

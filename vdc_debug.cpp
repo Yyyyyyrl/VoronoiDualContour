@@ -36,3 +36,30 @@ void print_facet(Facet f)
 }
 
 
+void write_dummy_points(Grid &grid, std::vector<Point> dummy_points)
+{
+
+        /*
+         Temp method of writing dummypoints to a csv file for debug
+        */
+        if (true)
+        {
+            std::ofstream ofs("dummy_points.csv");
+
+            ofs << grid.nx << ","
+                << grid.ny << ","
+                << grid.nz << ","
+                << grid.dx << ","
+                << grid.dy << ","
+                << grid.dz << "\n";
+            ofs << "x,y,z\n";
+
+            for (const auto &p : dummy_points)
+            {
+                ofs << p.x() << "," << p.y() << "," << p.z() << "\n";
+            }
+
+            ofs.close();
+        }
+
+}

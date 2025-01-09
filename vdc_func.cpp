@@ -245,7 +245,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
         }
     }
     return dualTriangles;
-} // TODO: Clean up the code, and solve the orientation issue
+}
 
 void computeDualTrianglesMulti(
     VoronoiDiagram &voronoiDiagram,
@@ -670,29 +670,29 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
     std::vector<Point> points;
 
     // 2D slice dimension
-    int dim0 = facet.axis_size[0]; 
+    int dim0 = facet.axis_size[0];
     int dim1 = facet.axis_size[1];
 
     // For convenience
-    int d  = facet.orth_dir;
+    int d = facet.orth_dir;
     int d1 = facet.axis_dir[0];
     int d2 = facet.axis_dir[1];
 
-    // We have bounding-box in facet.minIndex[], facet.maxIndex[], 
+    // We have bounding-box in facet.minIndex[], facet.maxIndex[],
     // and localSize[] = (maxIndex[i] - minIndex[i] + 1)
     // The grid spacing in each dimension
-    double dx[3] = { data_grid.dx, data_grid.dy, data_grid.dz };
+    double dx[3] = {data_grid.dx, data_grid.dy, data_grid.dz};
 
     // Loop over the 2D slice
     for (int coord1 = 0; coord1 < dim1; coord1++)
     {
         for (int coord0 = 0; coord0 < dim0; coord0++)
         {
-            if (!facet.CubeFlag(coord0, coord1)) 
+            if (!facet.CubeFlag(coord0, coord1))
                 continue;
 
             // localX[d1] = coord0, localX[d2] = coord1
-            int localX[3] = {0,0,0};
+            int localX[3] = {0, 0, 0};
             localX[d1] = coord0;
             localX[d2] = coord1;
 
@@ -701,7 +701,8 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
 
             // Convert localX -> global indices
             int g[3];
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 3; i++)
+            {
                 g[i] = localX[i] + facet.minIndex[i];
             }
 
@@ -712,9 +713,12 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
 
             // Offset by +/- dx[d]
             double offset = (facet.side == 0) ? -dx[d] : dx[d];
-            if      (d == 0) cx += offset;
-            else if (d == 1) cy += offset;
-            else             cz += offset;
+            if (d == 0)
+                cx += offset;
+            else if (d == 1)
+                cy += offset;
+            else
+                cz += offset;
 
             points.emplace_back(cx, cy, cz);
         }
@@ -725,7 +729,7 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
 
 void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets)
 {
-    if (multi_isov)
+    if (multi_isov && add_bounding_cells)
     {
         // Add original points
         for (const auto &p : activeCubeCenters)
@@ -746,59 +750,12 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
             }
         }
 
-        /*      // brute-forcely adding dummy points on all 6 faces corresponding to grid spacing
-
-                // Face x = xmin-dx and xmax+dx
-                for ( int i = 0; i <= ny; ++i) {
-                    double y = ymin + i * grid.dy;
-                    for (int j = 0; j <= nz; ++j) {
-                        double z = zmin + j * grid.dz;
-                        dummy_points.push_back(Point( xmin - grid.dx, y, z));
-                        dummy_points.push_back(Point( xmax + grid.dx, y, z));
-                    }
-                }
-
-                // Face y = ymin-dy and ymax+dy
-                for ( int i = 0; i <= nx; ++i) {
-                    double x = xmin + i * grid.dx;
-                    for (int j = 0; j <= nz; ++j) {
-                        double z = zmin + j * grid.dz;
-                        dummy_points.push_back(Point( x, ymin - grid.dy, z));
-                        dummy_points.push_back(Point( x, ymax + grid.dy, z));
-                    }
-                }
-
-                // Face z = zmin-dz and zmax+dz
-                for ( int i = 0; i <= nx; ++i) {
-                    double x = xmin + i * grid.dx;
-                    for (int j = 0; j <= ny; ++j) {
-                        double y = ymin + j * grid.dy;
-                        dummy_points.push_back(Point( x, y, zmin - grid.dz));
-                        dummy_points.push_back(Point( x, y, zmax + grid.dz));
-                    }
-                } */
-
         /*
          Temp method of writing dummypoints to a csv file for debug
         */
-        if (true)
+        if (debug)
         {
-            std::ofstream ofs("dummy_points.csv");
-
-            ofs << grid.nx << ","
-                << grid.ny << ","
-                << grid.nz << ","
-                << grid.dx << ","
-                << grid.dy << ","
-                << grid.dz << "\n";
-            ofs << "x,y,z\n";
-
-            for (const auto &p : dummy_points)
-            {
-                ofs << p.x() << "," << p.y() << "," << p.z() << "\n";
-            }
-
-            ofs.close();
+            write_dummy_points(grid, dummy_points);
         }
 
         int count = 0;

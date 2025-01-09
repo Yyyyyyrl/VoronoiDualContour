@@ -9,6 +9,7 @@ bool out_csv = false;
 bool sep_isov = false;
 bool supersample = false;
 bool multi_isov = true;
+bool add_bounding_cells = false;
 int supersample_r;
 
 std::map<Point, float> vertexValueMap;

@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 
     Point p_min(0,0,0);
     Point p_max(data_grid.nx-1, data_grid.ny-1, data_grid.nz-1);
-    K::Iso_cuboid_3 bbox = CGAL::bounding_box(gridPoints.begin(), gridPoints.end());
+    K::Iso_cuboid_3 bbox(p_min, p_max);
 
     if (debug)
     {
