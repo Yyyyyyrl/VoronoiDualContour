@@ -1,23 +1,23 @@
 //! @file vdc_func.h
 //! @brief Header file for Voronoi Diagram and Isosurface computation functions.
-
 #ifndef VDC_FUNC_H
 #define VDC_FUNC_H
 
-#include "vdc_type.h"       // Type definitions for Delaunay and Voronoi structures.
-#include "vdc_utilities.h"  // Utility functions for various geometric computations.
-#include "vdc_io.h"         // Input/output functions for grids and mesh data.
-#include "vdc_globalvar.h"  // Global variables for controlling debug and program settings.
+#include "vdc_type.h"
+#include "vdc_utilities.h"
+#include "vdc_io.h"
+#include "vdc_globalvar.h"
 
-/* Struct Definitions */
+/*Struct*/
 
 //! @brief Structure for comparing points for approximate equality.
 /*!
- * This structure provides a custom comparator for points, allowing comparison
- * within a small tolerance (epsilon) to account for floating-point inaccuracies.
+ * This structure defines a custom comparator for points, allowing comparison
+ * with a small epsilon tolerance.
  */
 struct PointApproxEqual
 {
+
     //! @brief Compares two points for approximate equality.
     /*!
      * @param p1 First point.
@@ -26,12 +26,14 @@ struct PointApproxEqual
      */
     bool operator()(const Point &p1, const Point &p2) const
     {
-        const double EPSILON = 1e-6; // Tolerance for approximate equality.
+        const double EPSILON = 1e-6;
         return (CGAL::squared_distance(p1, p2) < EPSILON * EPSILON);
     }
 };
 
-/* Functions for Single/Multi Isosurface Vertex Cases */
+/*
+Functions for both single/multi isov that computes the vertices and faces of the final mesh
+*/
 
 //! @brief Computes the dual triangles for the final mesh in the single isovertex case.
 /*!
@@ -46,13 +48,7 @@ struct PointApproxEqual
  * @param grid Scalar grid containing scalar values.
  * @return A vector of Delaunay triangles representing the mesh.
  */
-std::vector<DelaunayTriangle> computeDualTriangles(
-    std::vector<CGAL::Object> &voronoi_edges,
-    std::map<Point, float> &vertexValueMap,
-    CGAL::Epick::Iso_cuboid_3 &bbox,
-    std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
-    Delaunay &dt,
-    ScalarGrid &grid);
+std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid);
 
 //! @brief Computes the dual triangles for the final mesh in the multi-isovertex case.
 /*!
@@ -86,7 +82,9 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
  */
 void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid);
 
-/* Functions for Setting Up the Delaunay Triangulation */
+/*
+Setting up the delaunay triangulation
+*/
 
 //! @brief Constructs a Delaunay triangulation from a grid and grid facets.
 /*!
@@ -109,7 +107,10 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
  */
 std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &grid);
 
-/* Functions for Building the Voronoi Diagram */
+
+/*
+Functions that relates to building the voronoi diagram
+*/
 
 //! @brief Constructs Voronoi vertices for the given diagram.
 /*!
@@ -136,6 +137,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram);
  */
 void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid);
 
+
 //! @brief Constructs Voronoi edges from Delaunay facets.
 /*!
  * Derives the edges of the Voronoi diagram by processing the facets of the Delaunay triangulation.
@@ -159,4 +161,4 @@ void construct_voronoi_edges(
  */
 int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd);
 
-#endif // VDC_FUNC_H
+#endif

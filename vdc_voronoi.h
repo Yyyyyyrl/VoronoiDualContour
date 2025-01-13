@@ -43,6 +43,7 @@ struct Cycle {
     Point isovertex;                          //!< Geometric centroid of the cycle, representing the isovertex.
     int voronoi_cell_index;                   //!< Index of the Voronoi cell this cycle belongs to.
 
+    //TODO: record it using the indices of the voronoi edges instead of the midpoints
     //! @brief Computes the centroid of the cycle.
     /*!
      * The centroid (isovertex) is calculated using the CGAL `centroid` function
@@ -85,6 +86,7 @@ struct VoronoiCell {
     int isoVertexStartIndex;                //!< Starting index of isosurface vertices associated with this cell.
     int numIsoVertices;                     //!< Number of isosurface vertices in this cell.
 
+    //TODO: Add a vector of the edge indices
     //! @brief Constructor to initialize a Voronoi cell.
     /*!
      * @param vh Handle to the corresponding Delaunay vertex.
