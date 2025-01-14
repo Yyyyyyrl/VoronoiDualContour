@@ -1,6 +1,6 @@
 #include "vdc_globalvar.h"
 
-std::string file_path;
+/* std::string file_path;
 float isovalue;
 std::string output_format;
 std::string output_filename;
@@ -10,7 +10,7 @@ bool sep_isov = false;
 bool supersample = false;
 bool multi_isov = true;
 bool add_bounding_cells = false;
-int supersample_r;
+int supersample_r; */
 
 std::map<Point, float> vertexValueMap;
 std::vector<Point> activeCubeCenters;

@@ -1,5 +1,6 @@
 #include "vdc_commandline.h"
 
+//! Prints the help message for the program.
 void print_help()
 {
     std::cout << "Usage: dmr [OPTIONS] <isovalue> <(nhdr/nrrd) raw data file path>\n\n";
@@ -15,15 +16,17 @@ void print_help()
     std::cout << "  --help                      : Print this help message.\n";
 }
 
-void parse_arguments(int argc, char *argv[])
+//! Parses command-line arguments and configures program settings.
+void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
 {
+    // Print help and exit if there are insufficient arguments.
     if (argc < 3)
     {
         print_help();
         exit(EXIT_FAILURE);
     }
 
-    // Parse options
+    // Parse optional arguments (those starting with '-').
     int i = 1;
     while (i < argc && argv[i][0] == '-')
     {
@@ -31,49 +34,50 @@ void parse_arguments(int argc, char *argv[])
 
         if (arg == "-o" && i + 1 < argc)
         {
-            output_filename = argv[++i];
+            vp.output_filename = argv[++i]; // Set custom output filename.
         }
         else if (arg == "-off")
         {
-            output_format = "off";
+            vp.output_format = "off"; // Set output format to .off.
         }
         else if (arg == "-ply")
         {
-            output_format = "ply";
+            vp.output_format = "ply"; // Set output format to .ply.
         }
         else if (arg == "-out_csv" && i + 1 < argc)
         {
-            out_csv = true;
-            out_csv_name = argv[++i];
+            vp.out_csv = true;                // Enable CSV output.
+            vp.out_csv_name = argv[++i];      // Set CSV output filename
         }
         else if (arg == "-sep_isov")
         {
-            sep_isov = true;
+            vp.sep_isov = true; // Enable separation of non-adjacent active cubes.
         }
         else if (arg == "-supersample" && i + 1 < argc)
         {
-            supersample = true;
-            supersample_r = std::atoi(argv[++i]);
+            vp.supersample = true;                     // Enable supersampling.
+            vp.supersample_r = std::atoi(argv[++i]);   // Set supersampling factor.
         }
         else if (arg == "-multi_isov")
         {
-            multi_isov = true;
+            vp.multi_isov = true; // Enable multi-isovertex mode.
         }
         else if (arg == "-single_isov")
         {
-            multi_isov = false;
+            vp.multi_isov = false; // Enable single-isovertex mode.
         }
         else if (arg == "--help")
         {
             print_help();
             exit(EXIT_SUCCESS);
         }
-        else if (arg == "--bound_cells") 
+        else if (arg == "--bound_cells")
         {
-            add_bounding_cells = true;
+            vp.add_bounding_cells = true; // Add bounding cells to the Voronoi diagram.
         }
         else
         {
+            // Handle unknown options.
             std::cerr << "Unknown option: " << arg << std::endl;
             print_help();
             exit(EXIT_FAILURE);
@@ -81,7 +85,7 @@ void parse_arguments(int argc, char *argv[])
         ++i;
     }
 
-    // Parse required arguments
+    // Parse required arguments: isovalue and file path.
     if (i + 2 > argc)
     {
         std::cerr << "Error: Missing required arguments.\n";
@@ -89,30 +93,37 @@ void parse_arguments(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    isovalue = std::atof(argv[i++]);
-    file_path = argv[i++];
+    vp.isovalue = std::atof(argv[i++]); // Parse isovalue as a floating-point number.
+    vp.file_path = argv[i++];           // Parse the raw data file path.
 
-    // Default output filename if not specified
-    if (output_filename.empty())
+    // Generate default output filename if not specified.
+    if (vp.output_filename.empty())
     {
-        std::string base_name = file_path.substr(0, file_path.find_last_of('.'));
-        output_filename = base_name;
+        // Extract base name from the file path (without extension).
+        std::string base_name = vp.file_path.substr(0, vp.file_path.find_last_of('.'));
+        vp.output_filename = base_name;
 
-        if (multi_isov) {
-            output_filename += "_multi-isov";
-        } else {
-            output_filename += "_single-isov";
+        // Append processing details to the filename.
+        if (vp.multi_isov)
+        {
+            vp.output_filename += "_multi-isov";
+        }
+        else
+        {
+            vp.output_filename += "_single-isov";
         }
 
-        if (supersample) {
-            output_filename += "_sup-" + std::to_string(supersample_r);
-        }
-        
-        if (sep_isov) {
-            output_filename += "_sep-isov";
+        if (vp.supersample)
+        {
+            vp.output_filename += "_sup-" + std::to_string(vp.supersample_r);
         }
 
-        output_filename += "." + output_format;
+        if (vp.sep_isov)
+        {
+            vp.output_filename += "_sep-isov";
+        }
 
+        // Add file format extension.
+        vp.output_filename += "." + vp.output_format;
     }
 }
