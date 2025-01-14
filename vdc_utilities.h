@@ -11,6 +11,7 @@
 #include "vdc_voronoi.h"
 #include "vdc_delaunay.h"
 #include "vdc_globalvar.h"
+#include "vdc_commandline.h"
 
 //! @brief Converts a CGAL::Object into a string representation.
 /*!
@@ -72,9 +73,10 @@ bool is_degenerate(Delaunay::Cell_handle cell);
 //! @brief Checks if a value is positive or zero.
 /*!
  * @param value The scalar value to check.
+ * @param isovalue The isovalue
  * @return `true` if the value is positive or zero, otherwise `false`.
  */
-bool isPositive(double value);
+bool isPositive(double value, float isovalue);
 
 /* General Helper Functions */
 

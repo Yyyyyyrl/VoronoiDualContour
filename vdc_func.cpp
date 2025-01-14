@@ -4,7 +4,7 @@
 #include "vdc_func.h"
 
 //! @brief Computes the dual triangles for the final mesh in single iso vertex case.
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid)
+std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue)
 {
 
     std::vector<DelaunayTriangle> dualTriangles;
@@ -464,7 +464,7 @@ void computeDualTrianglesMulti(
 }
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
-void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid)
+void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, float isovalue)
 {
     const int cubeVertices[8][3] = {
         {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
@@ -736,9 +736,9 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
 }
 
 //! @brief Constructs a Delaunay triangulation from a grid and grid facets.
-void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets)
+void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vp)
 {
-    if (multi_isov && add_bounding_cells)
+    if (vp.multi_isov && vp.add_bounding_cells)
     {
         // Add original points
         for (const auto &p : activeCubeCenters)
@@ -791,7 +791,7 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
     int index = 0;
 
     int i = 0;
-    if (multi_isov)
+    if (vp.multi_isov)
     {
         for (auto vh = dt.finite_vertices_begin(); vh != dt.finite_vertices_end(); ++vh)
         {
@@ -960,39 +960,39 @@ void construct_voronoi_edges(
 }
 
 //! @brief Handles output mesh generation.
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd)
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vp)
 {
     retFlag = true;
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
-    if (multi_isov)
+    if (vp.multi_isov)
     {
-        if (output_format == "off")
+        if (vp.output_format == "off")
         {
-            writeOFFMulti(output_filename, vd, isoTriangles);
+            writeOFFMulti(vp.output_filename, vd, isoTriangles);
         }
-        else if (output_format == "ply")
+        else if (vp.output_format == "ply")
         {
-            writePLYMulti(output_filename, vd, isoTriangles);
+            writePLYMulti(vp.output_filename, vd, isoTriangles);
         }
         else
         {
-            std::cerr << "Unsupported output format: " << output_format << std::endl;
+            std::cerr << "Unsupported output format: " << vp.output_format << std::endl;
             return EXIT_FAILURE;
         }
     }
     else
     {
-        if (output_format == "off")
+        if (vp.output_format == "off")
         {
-            writeOFFSingle(output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
+            writeOFFSingle(vp.output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
         }
-        else if (output_format == "ply")
+        else if (vp.output_format == "ply")
         {
-            writePLYSingle(output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
+            writePLYSingle(vp.output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
         }
         else
         {
-            std::cerr << "Unsupported output format: " << output_format << std::endl;
+            std::cerr << "Unsupported output format: " << vp.output_format << std::endl;
             return EXIT_FAILURE;
         }
     }

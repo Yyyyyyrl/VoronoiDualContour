@@ -114,7 +114,7 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
 }
 
 //! Checks if a scalar value is positive or zero.
-bool isPositive(double value)
+bool isPositive(double value, float isovalue)
 {
     return value >= isovalue; // Compare to global isovalue.
 }

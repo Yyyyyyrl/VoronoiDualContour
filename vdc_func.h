@@ -7,6 +7,7 @@
 #include "vdc_utilities.h"
 #include "vdc_io.h"
 #include "vdc_globalvar.h"
+#include "vdc_commandline.h"
 
 /*Struct*/
 
@@ -46,9 +47,10 @@ Functions for both single/multi isov that computes the vertices and faces of the
  * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
  * @param dt Delaunay triangulation structure.
  * @param grid Scalar grid containing scalar values.
+ * @param isovalue the isovalue used for computing
  * @return A vector of Delaunay triangles representing the mesh.
  */
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid);
+std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue);
 
 //! @brief Computes the dual triangles for the final mesh in the multi-isovertex case.
 /*!
@@ -79,8 +81,9 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
 /*!
  * @param voronoiDiagram The Voronoi diagram to compute vertices for.
  * @param grid The scalar grid containing scalar values.
+ * @param isovalue The iso value to use for calculation
  */
-void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid);
+void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, float isovalue);
 
 /*
 Setting up the delaunay triangulation
@@ -93,8 +96,9 @@ Setting up the delaunay triangulation
  * 
  * @param grid The grid containing scalar values.
  * @param grid_facets The grid facets to use in constructing the triangulation.
+ * @param vp The VDC_PARAM instance that holds the commandline options the user input
  */
-void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets);
+void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vp);
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 /*!
@@ -157,8 +161,9 @@ void construct_voronoi_edges(
  * 
  * @param retFlag Reference to a flag indicating success or failure.
  * @param vd The Voronoi diagram containing mesh data.
+ * @param vp The VDC_PARAM instance that contains the user input options
  * @return An integer representing the exit status.
  */
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd);
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vp);
 
 #endif

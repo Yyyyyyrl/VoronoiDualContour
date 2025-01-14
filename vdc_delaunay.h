@@ -1,23 +1,55 @@
+//! @file vdc_delaunay.h
+//! @brief Header file defining structures and functions related to Delaunay triangulations and isosurface triangles.
+
 #ifndef VDC_DELAUNAY_H
 #define VDC_DELAUNAY_H
 
 #include "vdc_type.h"
 
-
+//! @brief Structure to store additional information about Delaunay vertices.
+/*!
+ * This structure can be extended to include other metadata, such as indices
+ * or flags for specific purposes.
+ */
 struct DelaunayVertexInfo {
-    bool is_dummy;
-    //could add index or other flags if needed
+    bool is_dummy; //!< Flag indicating if the vertex is a dummy point (used for bounding).
+    // Additional fields can be added here if needed, e.g., index or status flags.
 };
 
+//! @brief Represents a triangle in the Delaunay triangulation.
+/*!
+ * This structure is used to store the geometric representation of a triangle,
+ * defined by three vertices.
+ */
+struct DelaunayTriangle {
+    Point vertex1; //!< First vertex of the triangle.
+    Point vertex2; //!< Second vertex of the triangle.
+    Point vertex3; //!< Third vertex of the triangle.
 
-struct DelaunayTriangle
-{
-    Point vertex1, vertex2, vertex3;
-    DelaunayTriangle(Point v1, Point v2, Point v3) : vertex1(v1), vertex2(v2), vertex3(v3) {}
+    //! @brief Constructor to initialize a DelaunayTriangle.
+    /*!
+     * @param v1 Coordinates of the first vertex.
+     * @param v2 Coordinates of the second vertex.
+     * @param v3 Coordinates of the third vertex.
+     */
+    DelaunayTriangle(Point v1, Point v2, Point v3) 
+        : vertex1(v1), vertex2(v2), vertex3(v3) {}
 };
 
+//! @brief Represents a triangle on an isosurface.
+/*!
+ * An isosurface triangle is defined by the indices of its three vertices,
+ * which refer to positions in the isosurfaceVertices vector.
+ */
 struct IsoTriangle {
-    int vertex_indices[3]; // Indices into isosurfaceVertices vector
+    int vertex_indices[3]; //!< Indices into the isosurfaceVertices vector.
+
+    //! @brief Constructor to initialize an IsoTriangle.
+    /*!
+     * @param idx1 Index of the first vertex in the isosurfaceVertices vector.
+     * @param idx2 Index of the second vertex in the isosurfaceVertices vector.
+     * @param idx3 Index of the third vertex in the isosurfaceVertices vector.
+     */
     IsoTriangle(int idx1, int idx2, int idx3) {
         vertex_indices[0] = idx1;
         vertex_indices[1] = idx2;
@@ -25,6 +57,16 @@ struct IsoTriangle {
     }
 };
 
+//! @brief Overloaded output operator for IsoTriangle.
+/*!
+ * Provides a formatted string representation of an IsoTriangle for debugging
+ * and logging purposes.
+ *
+ * @tparam OSTREAM_TYPE The type of the output stream (e.g., `std::ostream`).
+ * @param os The output stream to write to.
+ * @param it The IsoTriangle to output.
+ * @return A reference to the output stream.
+ */
 template <typename OSTREAM_TYPE>
 OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const IsoTriangle& it)
 {
@@ -35,6 +77,4 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const IsoTriangle& it)
     return os;
 }
 
-
-
-#endif
+#endif // VDC_DELAUNAY_H
