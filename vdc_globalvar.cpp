@@ -1,16 +1,5 @@
 #include "vdc_globalvar.h"
 
-/* std::string file_path;
-float isovalue;
-std::string output_format;
-std::string output_filename;
-std::string out_csv_name;
-bool out_csv = false;
-bool sep_isov = false;
-bool supersample = false;
-bool multi_isov = true;
-bool add_bounding_cells = false;
-int supersample_r; */
 
 std::map<Point, float> vertexValueMap;
 std::vector<Point> activeCubeCenters;
