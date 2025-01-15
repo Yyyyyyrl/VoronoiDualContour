@@ -736,9 +736,9 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
 }
 
 //! @brief Constructs a Delaunay triangulation from a grid and grid facets.
-void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vp)
+void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param)
 {
-    if (vp.multi_isov && vp.add_bounding_cells)
+    if (vdc_param.multi_isov && vdc_param.add_bounding_cells)
     {
         // Add original points
         for (const auto &p : activeCubeCenters)
@@ -791,7 +791,7 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
     int index = 0;
 
     int i = 0;
-    if (vp.multi_isov)
+    if (vdc_param.multi_isov)
     {
         for (auto vh = dt.finite_vertices_begin(); vh != dt.finite_vertices_end(); ++vh)
         {
@@ -960,39 +960,39 @@ void construct_voronoi_edges(
 }
 
 //! @brief Handles output mesh generation.
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vp)
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param)
 {
     retFlag = true;
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
-    if (vp.multi_isov)
+    if (vdc_param.multi_isov)
     {
-        if (vp.output_format == "off")
+        if (vdc_param.output_format == "off")
         {
-            writeOFFMulti(vp.output_filename, vd, isoTriangles);
+            writeOFFMulti(vdc_param.output_filename, vd, isoTriangles);
         }
-        else if (vp.output_format == "ply")
+        else if (vdc_param.output_format == "ply")
         {
-            writePLYMulti(vp.output_filename, vd, isoTriangles);
+            writePLYMulti(vdc_param.output_filename, vd, isoTriangles);
         }
         else
         {
-            std::cerr << "Unsupported output format: " << vp.output_format << std::endl;
+            std::cerr << "Unsupported output format: " << vdc_param.output_format << std::endl;
             return EXIT_FAILURE;
         }
     }
     else
     {
-        if (vp.output_format == "off")
+        if (vdc_param.output_format == "off")
         {
-            writeOFFSingle(vp.output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
+            writeOFFSingle(vdc_param.output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
         }
-        else if (vp.output_format == "ply")
+        else if (vdc_param.output_format == "ply")
         {
-            writePLYSingle(vp.output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
+            writePLYSingle(vdc_param.output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
         }
         else
         {
-            std::cerr << "Unsupported output format: " << vp.output_format << std::endl;
+            std::cerr << "Unsupported output format: " << vdc_param.output_format << std::endl;
             return EXIT_FAILURE;
         }
     }

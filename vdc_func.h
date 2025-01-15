@@ -96,9 +96,9 @@ Setting up the delaunay triangulation
  * 
  * @param grid The grid containing scalar values.
  * @param grid_facets The grid facets to use in constructing the triangulation.
- * @param vp The VDC_PARAM instance that holds the commandline options the user input
+ * @param vdc_param The VDC_PARAM instance that holds the commandline options the user input
  */
-void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vp);
+void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param);
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 /*!
@@ -161,9 +161,9 @@ void construct_voronoi_edges(
  * 
  * @param retFlag Reference to a flag indicating success or failure.
  * @param vd The Voronoi diagram containing mesh data.
- * @param vp The VDC_PARAM instance that contains the user input options
+ * @param vdc_param The VDC_PARAM instance that contains the user input options
  * @return An integer representing the exit status.
  */
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vp);
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param);
 
 #endif

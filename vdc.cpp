@@ -3,18 +3,18 @@
 int main(int argc, char *argv[])
 {
     VoronoiDiagram vd; // Initialize an empty Voronoi diagram.
-    VDC_PARAM vp;
+    VDC_PARAM vdc_param;
 
     // Parse command-line arguments to set program options and parameters.
-    parse_arguments(argc, argv, vp);
+    parse_arguments(argc, argv, vdc_param);
 
     // Load the NRRD data file into a grid structure.
-    data_grid = load_nrrd_data(vp.file_path);
+    data_grid = load_nrrd_data(vdc_param.file_path);
 
     // Apply supersampling if requested.
-    if (vp.supersample)
+    if (vdc_param.supersample)
     {
-        data_grid = supersample_grid(data_grid, vp.supersample_r);
+        data_grid = supersample_grid(data_grid, vdc_param.supersample_r);
         if (debug) // Print the supersampled grid if debugging is enabled.
         {
             data_grid.print_grid();
@@ -27,10 +27,10 @@ int main(int argc, char *argv[])
 
     // Identify active cubes in the grid based on the given isovalue.
     std::vector<Cube> activeCubes;
-    find_active_cubes(data_grid, vp.isovalue, activeCubes);
+    find_active_cubes(data_grid, vdc_param.isovalue, activeCubes);
 
     // Separate active cubes to ensure non-adjacency if requested.
-    if (vp.sep_isov)
+    if (vdc_param.sep_isov)
     {
         activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
     }
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Delaunay triangulation..." << std::endl;
     }
-    construct_delaunay_triangulation(data_grid, grid_facets, vp);
+    construct_delaunay_triangulation(data_grid, grid_facets, vdc_param);
 
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
@@ -92,15 +92,15 @@ int main(int argc, char *argv[])
     compute_voronoi_values(vd, grid);
 
     // Compute isosurface vertices based on whether multiple or single isovalues are used.
-    if (vp.multi_isov)
+    if (vdc_param.multi_isov)
     {
         // Construct Voronoi cells for the diagram.
         construct_voronoi_cells(vd);
-        Compute_Isosurface_Vertices_Multi(vd, vp.isovalue);
+        Compute_Isosurface_Vertices_Multi(vd, vdc_param.isovalue);
     }
     else
     {
-        Compute_Isosurface_Vertices_Single(vd, grid, vp.isovalue);
+        Compute_Isosurface_Vertices_Single(vd, grid, vdc_param.isovalue);
     }
 
     // If debugging is enabled, log information about the Voronoi diagram.
@@ -117,13 +117,13 @@ int main(int argc, char *argv[])
     }
 
     // Compute dual triangles for the Voronoi diagram.
-    if (vp.multi_isov)
+    if (vdc_param.multi_isov)
     {
-        computeDualTrianglesMulti(vd, bbox, delaunay_facet_to_voronoi_edge_map, grid, vp.isovalue);
+        computeDualTrianglesMulti(vd, bbox, delaunay_facet_to_voronoi_edge_map, grid, vdc_param.isovalue);
     }
     else
     {
-        dualTriangles = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid, vp.isovalue);
+        dualTriangles = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid, vdc_param.isovalue);
     }
 
     // If debugging is enabled, log information about the isosurface triangles.
@@ -137,15 +137,15 @@ int main(int argc, char *argv[])
     }
 
     // Export the Voronoi diagram to a CSV file if requested.
-    if (vp.out_csv)
+    if (vdc_param.out_csv)
     {
         std::cout << "Export Voronoi Diagram" << std::endl;
-        export_voronoi_to_csv(vd, vp.out_csv_name);
+        export_voronoi_to_csv(vd, vdc_param.out_csv_name);
     }
 
     // Handle the output mesh generation and return the appropriate status.
     bool retFlag;
-    int retVal = handle_output_mesh(retFlag, vd, vp);
+    int retVal = handle_output_mesh(retFlag, vd, vdc_param);
     if (retFlag)
         return retVal;
 
