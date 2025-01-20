@@ -1,6 +1,6 @@
 #include "vdc_io.h"
 
-
+//! Writes a single-isovalue isosurface mesh in OFF format.
 void writeOFFSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
     std::ofstream out(filename);
@@ -29,6 +29,7 @@ void writeOFFSingle(const std::string &filename, const std::vector<Point> &verti
     out.close();
 }
 
+//! Writes a multi-isovalue isosurface mesh in OFF format.
 void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles)
 {
     std::ofstream out(filename);
@@ -60,7 +61,7 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
     out.close();
 }
 
-
+//! Writes a single-isovalue isosurface mesh in PLY format.
 void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
 {
     std::ofstream out(filename);
@@ -96,6 +97,7 @@ void writePLYSingle(const std::string &filename, const std::vector<Point> &verti
     out.close();
 }
 
+//! Writes a multi-isovalue isosurface mesh in PLY format.
 void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles)
 {
     std::ofstream out(filename);
@@ -135,6 +137,7 @@ void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
 }
 
 
+//! Exports Voronoi diagram data to a CSV file for visualization and debugging
 void export_voronoi_to_csv(const VoronoiDiagram &voronoiDiagram, const std::string &filename)
 {
     std::ofstream file(filename);
