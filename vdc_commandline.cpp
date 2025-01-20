@@ -11,8 +11,8 @@ void print_help()
     std::cout << "  -out_csv {output_csv_name}  : Write the Voronoi diagram to a CSV file.\n";
     std::cout << "  -sep_isov                   : Pick a subset of non-adjacent active cubes of the input data before constructing triangulation.\n";
     std::cout << "  -supersample {factor}       : Supersample the input data by the given factor.\n";
-    std::cout << "  -multi_isov                 : Use multi iso-vertices mode (default).\n";
-    std::cout << "  -single_isov                : Use single iso-vertices mode.\n";
+    std::cout << "  -multi_isov                 : Use multi iso-vertices mode.\n";
+    std::cout << "  -single_isov                : Use single iso-vertices mode (default).\n";
     std::cout << "  --help                      : Print this help message.\n";
 }
 

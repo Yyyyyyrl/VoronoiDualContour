@@ -31,7 +31,7 @@ struct VDC_PARAM {
         : file_path(""),
           isovalue(0.0f),
           output_format("off"),
-          output_filename("output.off"),
+          output_filename(""),
           out_csv_name("voronoi.csv"),
           out_csv(false),
           sep_isov(false),

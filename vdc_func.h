@@ -8,6 +8,7 @@
 #include "vdc_io.h"
 #include "vdc_globalvar.h"
 #include "vdc_commandline.h"
+#include "vdc_voronoi.h"
 
 /*Struct*/
 
@@ -47,10 +48,11 @@ Functions for both single/multi isov that computes the vertices and faces of the
  * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
  * @param dt Delaunay triangulation structure.
  * @param grid Scalar grid containing scalar values.
- * @param isovalue the isovalue used for computing
+ * @param isovalue the isovalue used for computing.
+ * @param point_index_map the map between the points in the delaunay triangulation to its index
  * @return A vector of Delaunay triangles representing the mesh.
  */
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue);
+std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map);
 
 //! @brief Computes the dual triangles for the final mesh in the multi-isovertex case.
 /*!
@@ -62,28 +64,33 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
  * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
  * @param grid Scalar grid containing scalar values.
  * @param isovalue The isovalue for mesh computation.
+ * @param iso_surface Instance of IsoSurface contains the isosurface vertices and faces
  */
 void computeDualTrianglesMulti(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
     ScalarGrid &grid,
-    float isovalue);
+    float isovalue,
+    IsoSurface &iso_surface);
 
 //! @brief Computes isosurface vertices for the multi-isovertex case.
 /*!
  * @param voronoiDiagram The Voronoi diagram to compute vertices for.
  * @param isovalue The isovalue to use for vertex computation.
+ * @param iso_surface Instance of IsoSurface contains the isosurface vertices and faces
  */
-void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float isovalue);
+void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface);
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
 /*!
- * @param voronoiDiagram The Voronoi diagram to compute vertices for.
  * @param grid The scalar grid containing scalar values.
  * @param isovalue The iso value to use for calculation
+ * @param iso_surface Instance of IsoSurface contains the isosurface vertices and faces
+ * @param data_grid The grid containing input data
+ * @param activeCubeCenters The list of center points of active cubes
  */
-void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, float isovalue);
+void Compute_Isosurface_Vertices_Single(ScalarGrid &grid, float isovalue, IsoSurface &iso_surface, Grid &data_grid, std::vector<Point> &activeCubeCenters);
 
 /*
 Setting up the delaunay triangulation
@@ -97,8 +104,10 @@ Setting up the delaunay triangulation
  * @param grid The grid containing scalar values.
  * @param grid_facets The grid facets to use in constructing the triangulation.
  * @param vdc_param The VDC_PARAM instance that holds the commandline options the user input
+ * @param activeCubeCenters The list of center points of active cubes
+ * @param point_index_map the map between the points in the delaunay triangulation to its index (Used in Single Iso-V Case ONLY)
  */
-void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param);
+void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters, std::map<Point, int> &point_index_map);
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 /*!
@@ -138,8 +147,9 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram);
  * 
  * @param voronoiDiagram The Voronoi diagram to compute values for.
  * @param grid The scalar grid containing data.
+ * @param VertexValueMap The map between vertices in the voronoi diagram to its scalar values
  */
-void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid);
+void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, std::map<Point, float> &vertexValueMap);
 
 
 //! @brief Constructs Voronoi edges from Delaunay facets.
@@ -162,8 +172,10 @@ void construct_voronoi_edges(
  * @param retFlag Reference to a flag indicating success or failure.
  * @param vd The Voronoi diagram containing mesh data.
  * @param vdc_param The VDC_PARAM instance that contains the user input options
+ * @param iso_surface The Instance of IsoSurface containing the vertices and faces of the isosurface
+ * @param point_index_map the map between the points in the delaunay triangulation to its index (Used in Single Iso-V Case ONLY)
  * @return An integer representing the exit status.
  */
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param);
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, std::map<Point, int> &point_index_map);
 
 #endif

@@ -4,7 +4,7 @@
 #include "vdc_func.h"
 
 //! @brief Computes the dual triangles for the final mesh in single iso vertex case.
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue)
+std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map)
 {
 
     std::vector<DelaunayTriangle> dualTriangles;
@@ -257,7 +257,8 @@ void computeDualTrianglesMulti(
     CGAL::Epick::Iso_cuboid_3 &bbox,
     std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
     ScalarGrid &grid,
-    float isovalue)
+    float isovalue,
+    IsoSurface &iso_surface)
 {
     for (const auto &edge : voronoiDiagram.voronoiEdges)
     {
@@ -316,7 +317,7 @@ void computeDualTrianglesMulti(
 
                         if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                         {
-                            isoTriangles.emplace_back(idx1, idx2, idx3);
+                            iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
                         }
                         else
                         {
@@ -381,7 +382,7 @@ void computeDualTrianglesMulti(
 
                             if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                             {
-                                isoTriangles.emplace_back(idx1, idx2, idx3);
+                                iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
                             }
                             else
                             {
@@ -446,7 +447,7 @@ void computeDualTrianglesMulti(
 
                             if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                             {
-                                isoTriangles.emplace_back(idx1, idx2, idx3);
+                                iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
                             }
                             else
                             {
@@ -464,7 +465,7 @@ void computeDualTrianglesMulti(
 }
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
-void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, float isovalue)
+void Compute_Isosurface_Vertices_Single(ScalarGrid &grid, float isovalue, IsoSurface &iso_surface, Grid &data_grid, std::vector<Point> &activeCubeCenters)
 {
     const int cubeVertices[8][3] = {
         {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
@@ -517,13 +518,13 @@ void Compute_Isosurface_Vertices_Single(VoronoiDiagram &voronoiDiagram, ScalarGr
         if (!intersectionPoints.empty())
         {
             Point centroid = compute_centroid(intersectionPoints);
-            voronoiDiagram.isosurfaceVertices.push_back(centroid);
+            iso_surface.isosurfaceVertices.push_back(centroid);
         }
     }
 }
 
 //! @brief Computes isosurface vertices for the multi-isovertex case.
-void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float isovalue)
+void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface)
 {
     for (auto &vc : voronoiDiagram.voronoiCells)
     {
@@ -633,7 +634,7 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
         }
 
         // For each cycle, compute the centroid and store isoVertices
-        vc.isoVertexStartIndex = voronoiDiagram.isosurfaceVertices.size();
+        vc.isoVertexStartIndex = iso_surface.isosurfaceVertices.size();
         vc.numIsoVertices = cycles_indices.size();
 
         for (const auto &cycle_indices : cycles_indices)
@@ -654,7 +655,7 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
             cycle.compute_centroid(midpoints);
 
             vc.cycles.push_back(cycle);
-            voronoiDiagram.isosurfaceVertices.push_back(cycle.isovertex);
+            iso_surface.isosurfaceVertices.push_back(cycle.isovertex);
         }
 
         if (debug)
@@ -665,9 +666,9 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
 
     if (debug)
     {
-        for (size_t i = 0; i < voronoiDiagram.isosurfaceVertices.size(); ++i)
+        for (size_t i = 0; i < iso_surface.isosurfaceVertices.size(); ++i)
         {
-            std::cout << "  Index " << i << ": " << voronoiDiagram.isosurfaceVertices[i] << "\n";
+            std::cout << "  Index " << i << ": " << iso_surface.isosurfaceVertices[i] << "\n";
         }
     }
 }
@@ -736,10 +737,12 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
 }
 
 //! @brief Constructs a Delaunay triangulation from a grid and grid facets.
-void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param)
+void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters, std::map<Point, int> &point_index_map)
 {
     if (vdc_param.multi_isov && vdc_param.add_bounding_cells)
     {
+        std::vector<std::pair<Point, bool>> points_with_info;
+        std::vector<DelaunayVertex> delaunay_vertices;
         // Add original points
         for (const auto &p : activeCubeCenters)
         {
@@ -838,7 +841,7 @@ void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram)
 }
 
 //! @brief Computes Voronoi Vertex values using scalar grid interpolation
-void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid)
+void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, std::map<Point, float> &vertexValueMap)
 {
     voronoiDiagram.voronoiVertexValues.resize(voronoiDiagram.voronoiVertices.size());
     for (size_t i = 0; i < voronoiDiagram.voronoiVertices.size(); ++i)
@@ -866,8 +869,6 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
 
         std::vector<Cell_handle> incident_cells;
         dt.finite_incident_cells(vh, std::back_inserter(incident_cells));
-
-        CGAL::Bbox_3 domain_bbox = delaunayBbox.bbox();
 
         // Collect vertex indices, ensuring uniqueness
         std::set<int> unique_vertex_indices_set;
@@ -960,19 +961,21 @@ void construct_voronoi_edges(
 }
 
 //! @brief Handles output mesh generation.
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param)
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, std::map<Point, int> &point_index_map)
 {
     retFlag = true;
+
+    std::cout << "Result file at: " << vdc_param.output_filename << std::endl;
     // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
     if (vdc_param.multi_isov)
     {
         if (vdc_param.output_format == "off")
         {
-            writeOFFMulti(vdc_param.output_filename, vd, isoTriangles);
+            writeOFFMulti(vdc_param.output_filename, vd, iso_surface.isosurfaceTrianglesMulti);
         }
         else if (vdc_param.output_format == "ply")
         {
-            writePLYMulti(vdc_param.output_filename, vd, isoTriangles);
+            writePLYMulti(vdc_param.output_filename, vd, iso_surface.isosurfaceTrianglesMulti);
         }
         else
         {
@@ -984,11 +987,11 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param)
     {
         if (vdc_param.output_format == "off")
         {
-            writeOFFSingle(vdc_param.output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
+            writeOFFSingle(vdc_param.output_filename, iso_surface.isosurfaceVertices, iso_surface.isosurfaceTrianglesSingle, point_index_map);
         }
         else if (vdc_param.output_format == "ply")
         {
-            writePLYSingle(vdc_param.output_filename, vd.isosurfaceVertices, dualTriangles, point_index_map);
+            writePLYSingle(vdc_param.output_filename, iso_surface.isosurfaceVertices, iso_surface.isosurfaceTrianglesSingle, point_index_map);
         }
         else
         {

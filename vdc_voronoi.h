@@ -5,6 +5,7 @@
 #define VDC_VORONOI_H
 
 #include "vdc_type.h"
+#include "vdc_delaunay.h"
 
 //! @brief Represents a midpoint of an edge in a Voronoi diagram.
 /*!
@@ -118,7 +119,8 @@ struct VoronoiDiagram {
  */
 struct IsoSurface {
     std::vector<Point> isosurfaceVertices;       //!< Vertices of the isosurface.
-    std::vector<std::tuple<int, int, int>> isosurfaceTriangles; //!< Triangles forming the isosurface.
+    std::vector<std::tuple<int, int, int>> isosurfaceTrianglesMulti; //!< Triangles forming the isosurface.
+    std::vector<DelaunayTriangle> isosurfaceTrianglesSingle;
 };
 
 //! @brief Represents a midpoint on an edge, along with its facet information.
