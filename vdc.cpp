@@ -107,9 +107,12 @@ int main(int argc, char *argv[])
     }
 
     // If debugging is enabled, log information about the Voronoi diagram.
-    std::ofstream log("vd_info.txt");
-    log << vd; // Write the Voronoi diagram's details to the log file.
-    log.close();
+    if (debug)
+    {
+        std::ofstream log("vd_info.txt");
+        log << vd; // Write the Voronoi diagram's details to the log file.
+        log.close();
+    }
 
     if (debug)
     {
@@ -128,7 +131,6 @@ int main(int argc, char *argv[])
     {
         iso_surface.isosurfaceTrianglesSingle = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid, vdc_param.isovalue, point_index_map);
     }
-
 
     // Export the Voronoi diagram to a CSV file if requested.
     if (vdc_param.out_csv)
