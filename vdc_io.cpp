@@ -44,9 +44,9 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
     out << voronoiDiagram.isosurfaceVertices.size() << " " << isoTriangles.size() << " 0\n";
 
     // Write vertex coordinates
-    for (const auto &isovertex : voronoiDiagram.isosurfaceVertices)
+    for (const auto &v : voronoiDiagram.isosurfaceVertices)
     {
-        out << isovertex << "\n";
+        out << v.x() << " " << v.y() << " " << v.z() << "\n";
     }
 
     // Write face indices
