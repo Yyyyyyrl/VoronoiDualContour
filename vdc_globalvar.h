@@ -1,3 +1,5 @@
+//! @file vdc_globalvar.h
+//! @brief Contains the declaration of a globally declared delaunay triangulation instance
 #ifndef VDC_GLOBALVAR_H
 #define VDC_GLOBALVAR_H
 

@@ -1,3 +1,5 @@
+//! @file vdc_grid.h
+//! @brief Header file for the grid structure and methods related
 #ifndef VDC_GRID_H
 #define VDC_GRID_H
 

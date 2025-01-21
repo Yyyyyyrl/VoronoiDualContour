@@ -7,26 +7,27 @@
 #include "vdc_type.h"
 #include "vdc_utilities.h"
 
+//! @brief Structure to hold top-level parameters parsed from command-line arguments.
 /*!
- * @brief Holds top-level parameters (from main or command-line arguments).
- * Encapsulates what used to be global flags and file paths.
+ * This structure consolidates all configurable parameters for the program,
+ * replacing the need for multiple global variables.
  */
 struct VDC_PARAM {
-    std::string file_path;
-    float isovalue;
-    std::string output_format;
-    std::string output_filename;
-    std::string out_csv_name;
+    std::string file_path;         //!< Path to the input raw data file (nhdr/nrrd format).
+    float isovalue;                //!< The isovalue used for isosurface extraction.
+    std::string output_format;     //!< The format of the output file ("off" or "ply").
+    std::string output_filename;   //!< The name of the output file.
+    std::string out_csv_name;      //!< The name of the CSV file for Voronoi diagram export.
+    
+    bool out_csv;                  //!< Flag to enable exporting Voronoi diagram to CSV.
+    bool sep_isov;                 //!< Flag to enable separation of non-adjacent active cubes.
+    bool multi_isov;               //!< Flag to enable multi-isosurface mode.
+    bool supersample;              //!< Flag to enable supersampling of the input data.
+    bool add_bounding_cells;       //!< Flag to include bounding cells in the Voronoi diagram.
 
-    bool out_csv;
-    bool sep_isov;
-    bool multi_isov;
-    bool supersample;
-    bool add_bounding_cells;
+    int supersample_r;             //!< Factor by which the input data is supersampled.
 
-    int supersample_r;
-
-    // Constructor with some defaults
+    //! @brief Constructor to initialize default parameter values.
     VDC_PARAM()
         : file_path(""),
           isovalue(0.0f),
@@ -42,20 +43,21 @@ struct VDC_PARAM {
     {}
 };
 
-//! @brief Prints the help message.
+//! @brief Prints the help message to the console.
 /*!
- * This function outputs the usage information and options available for the program.
- * It includes details about input/output files, processing modes, and available options.
+ * This function outputs usage information and available options for the program,
+ * including details about input/output configurations and processing modes.
  */
 void print_help();
 
-//! @brief Parses the command-line arguments.
+//! @brief Parses the command-line arguments to populate program parameters.
 /*!
  * This function processes command-line arguments to configure the program's behavior.
- * It supports various options such as output format, supersampling, and multi/single isosurface modes.
+ * It sets parameters such as output format, supersampling factor, and mode selection.
  *
  * @param argc Number of command-line arguments.
  * @param argv Array of command-line argument strings.
+ * @param vp A reference to a `VDC_PARAM` object where parsed parameters are stored.
  */
 void parse_arguments(int argc, char *argv[], VDC_PARAM &vp);
 
