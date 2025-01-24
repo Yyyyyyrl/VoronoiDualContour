@@ -18,6 +18,7 @@ struct MidpointNode {
     std::vector<int> connected_to; //!< Indices of midpoints connected to this one, forming graph edges.
     int facet_index;               //!< Index of the facet this midpoint lies on.
     int cycle_index;               //!< Index of the cycle this midpoint belongs to.
+    int global_edge_index;
 };
 
 //! @brief Represents a facet in a Voronoi diagram.
@@ -96,6 +97,14 @@ struct VoronoiCell {
         : delaunay_vertex(vh), isoVertexStartIndex(-1), numIsoVertices(0) {}
 };
 
+struct VoronoiCellEdge {
+    int cellIndex; //!< Index of the VoronoiCell that contains this CellEdge
+    int edgeIndex; //!< Index of this edge in the vector of voronoiEdges in the VoronoiDiagram instance that contains the cell this egde is in
+    std::vector<int> cycleIndices; //!< Indices of cycles in this VoronoiCell that corresponding to this edge
+    int nextCellEdge; //!< Index of next cell edge around the Voronoi Edge ( VoronoiDiagram.voronoiEdges[edgeIndex])
+
+};
+
 //! @brief Represents the overall Voronoi diagram.
 /*!
  * The Voronoi diagram consists of vertices, edges, cells, facets, and isosurface data.
@@ -103,6 +112,7 @@ struct VoronoiCell {
 struct VoronoiDiagram {
     std::vector<VoronoiVertex> voronoiVertices; //!< List of Voronoi vertices in the diagram.
     std::vector<Object> voronoiEdges;           //!< List of edges in the diagram (e.g., line segments).
+    std::vector<VoronoiCellEdge> VoronoiCellEdges; //!< List of Cell Edges in the diagram
     std::vector<float> voronoiVertexValues;     //!< Scalar values at the Voronoi vertices.
     std::vector<VoronoiCell> voronoiCells;      //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiFacet> voronoiFacets;    //!< List of facets in the diagram.
@@ -110,6 +120,9 @@ struct VoronoiDiagram {
     std::map<Cell_handle, int> cell_to_vertex_index; //!< Map from Voronoi cells to vertex indices.
     std::map<Point, int> point_to_vertex_index;      //!< Map from Voronoi vertices to their indices.
     std::map<Vertex_handle, int> delaunayVertex_to_voronoiCell_index; //!< Map from Delaunay vertices to Voronoi cells.
+
+    std::map<std::pair<int,int>, int> cellEdgeLookup;  //!< Maps (cellIndex, edgeIndex) -> index in voronoiCellEdges
+    std::map<std::pair<int,int>, int> segmentVertexPairToEdgeIndex;  //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
 };
 
 //! @brief Represents an isosurface in the domain.
@@ -243,7 +256,7 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
 {
     os << "VoronoiDiagram:\n";
 
-    // Voronoi Vertices
+    // 1. Voronoi Vertices
     os << "\nVoronoiVertices:\n";
     for (size_t i = 0; i < vd.voronoiVertices.size(); ++i)
     {
@@ -251,7 +264,7 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
         os << vd.voronoiVertices[i];
     }
 
-    // Voronoi Edges
+    // 2. Voronoi Edges
     os << "\nVoronoiEdges:\n";
     for (const auto& edge : vd.voronoiEdges)
     {
@@ -278,16 +291,14 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
         }
     }
 
-    // Voronoi Vertex Values
+    // 3. Voronoi Vertex Values
     os << "\nVoronoiVertexValues:\n";
     for (size_t i = 0; i < vd.voronoiVertexValues.size(); ++i)
     {
         os << "  Index " << i << ": " << vd.voronoiVertexValues[i] << "\n";
     }
 
-    
-
-    // Voronoi Facets
+    // 4. Voronoi Facets
     os << "\nVoronoiFacets:\n";
     for (size_t i = 0; i < vd.voronoiFacets.size(); ++i)
     {
@@ -295,14 +306,44 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
         os << vd.voronoiFacets[i];
     }
 
-    // Voronoi Cells
+    // 5. Voronoi Cells
     os << "\nVoronoiCells:\n";
     for (const auto& cell : vd.voronoiCells)
     {
         os << "\n" << cell;
     }
 
-    // Isosurface Vertices
+    // 6. Voronoi CellEdges
+    os << "\nVoronoiCellEdges:\n";
+    for (size_t i = 0; i < vd.VoronoiCellEdges.size(); ++i)
+    {
+        os << "Index " << i << ":\n";
+        os << vd.VoronoiCellEdges[i];
+    }
+
+    // 7. Print the two new maps
+
+    // 7a. cellEdgeLookup
+    os << "\ncellEdgeLookup ( (cellIndex, edgeIndex) -> voronoiCellEdges index ):\n";
+    for (const auto &kv : vd.cellEdgeLookup)
+    {
+        int cellIndex = kv.first.first;
+        int edgeIndex = kv.first.second;
+        int ceIdx = kv.second;
+        os << "  ( " << cellIndex << ", " << edgeIndex << " ) -> " << ceIdx << "\n";
+    }
+
+    // 7b. segmentVertexPairToEdgeIndex
+    os << "\nsegmentVertexPairToEdgeIndex ( (v1, v2) -> edgeIndex ):\n";
+    for (const auto &kv : vd.segmentVertexPairToEdgeIndex)
+    {
+        int v1 = kv.first.first;
+        int v2 = kv.first.second;
+        int edgeIndex = kv.second;
+        os << "  ( " << v1 << ", " << v2 << " ) -> " << edgeIndex << "\n";
+    }
+
+    // 8. Isosurface Vertices
     os << "\nIsosurfaceVertices:\n";
     for (size_t i = 0; i < vd.isosurfaceVertices.size(); ++i)
     {
@@ -312,7 +353,32 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
     return os;
 }
 
-
-
+//! @brief Stream operator for VoronoiCellEdge
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiCellEdge& ce)
+{
+    os << "VoronoiCellEdge:\n"
+       << "  cellIndex:    " << ce.cellIndex << "\n"
+       << "  edgeIndex:    " << ce.edgeIndex << "\n"
+       << "  nextCellEdge: " << ce.nextCellEdge << "\n"
+       << "  cycleIndices: ";
+    
+    if (ce.cycleIndices.empty())
+    {
+        os << "(none)";
+    }
+    else
+    {
+        os << "{ ";
+        for (size_t i = 0; i < ce.cycleIndices.size(); ++i)
+        {
+            os << ce.cycleIndices[i];
+            if (i + 1 < ce.cycleIndices.size()) os << ", ";
+        }
+        os << " }";
+    }
+    os << "\n";
+    return os;
+}
 
 #endif
