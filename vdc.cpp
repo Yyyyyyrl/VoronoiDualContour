@@ -83,8 +83,8 @@ int main(int argc, char *argv[])
     construct_voronoi_vertices(vd);
 
     // Iterate through each facet in the Delaunay triangulation and calculate Voronoi edges.
-    std::map<Object, std::vector<Facet>, ObjectComparator> delaunay_facet_to_voronoi_edge_map;
-    construct_voronoi_edges(vd, delaunay_facet_to_voronoi_edge_map);
+    std::map<Object, std::vector<Facet>, ObjectComparator> voronoi_edge_to_delaunay_facet_map;
+    construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map);
 
     // Compute scalar values at Voronoi vertices by interpolating from the scalar grid.
     if (indicator)
@@ -125,11 +125,11 @@ int main(int argc, char *argv[])
     // Compute dual triangles for the Voronoi diagram.
     if (vdc_param.multi_isov)
     {
-        computeDualTrianglesMulti(vd, bbox, delaunay_facet_to_voronoi_edge_map, grid, vdc_param.isovalue, iso_surface);
+        computeDualTrianglesMulti(vd, bbox, voronoi_edge_to_delaunay_facet_map, grid, vdc_param.isovalue, iso_surface);
     }
     else
     {
-        iso_surface.isosurfaceTrianglesSingle = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, delaunay_facet_to_voronoi_edge_map, dt, grid, vdc_param.isovalue, point_index_map);
+        iso_surface.isosurfaceTrianglesSingle = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, voronoi_edge_to_delaunay_facet_map, dt, grid, vdc_param.isovalue, point_index_map);
     }
 
     // Export the Voronoi diagram to a CSV file if requested.

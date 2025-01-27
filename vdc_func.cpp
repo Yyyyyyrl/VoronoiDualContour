@@ -297,6 +297,8 @@ void computeDualTrianglesMulti(
                         Vertex_handle vh2 = c->vertex(d2);
                         Vertex_handle vh3 = c->vertex(d3);
 
+                        int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
+
                         if (vh1->info() || vh2->info() || vh3->info())
                         {
                             continue;
@@ -317,7 +319,14 @@ void computeDualTrianglesMulti(
 
                         if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                         {
-                            iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+                            if (iOrient < 0)
+                            {
+                                iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+                            }
+                            else
+                            {
+                                iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
+                            }
                         }
                         else
                         {
@@ -362,6 +371,8 @@ void computeDualTrianglesMulti(
                             Vertex_handle vh2 = c->vertex(d2);
                             Vertex_handle vh3 = c->vertex(d3);
 
+                            int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
+
                             if (vh1->info() || vh2->info() || vh3->info())
                             {
                                 continue;
@@ -382,7 +393,14 @@ void computeDualTrianglesMulti(
 
                             if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                             {
-                                iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+                                if (iOrient < 0)
+                                {
+                                    iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+                                }
+                                else
+                                {
+                                    iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
+                                }
                             }
                             else
                             {
@@ -427,6 +445,8 @@ void computeDualTrianglesMulti(
                             Vertex_handle vh2 = c->vertex(d2);
                             Vertex_handle vh3 = c->vertex(d3);
 
+                            int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
+
                             if (vh1->info() || vh2->info() || vh3->info())
                             {
                                 continue;
@@ -447,7 +467,14 @@ void computeDualTrianglesMulti(
 
                             if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                             {
-                                iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+                                if (iOrient < 0)
+                                {
+                                    iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+                                }
+                                else
+                                {
+                                    iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
+                                }
                             }
                             else
                             {
@@ -739,7 +766,7 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
 //! @brief Constructs a Delaunay triangulation from a grid and grid facets.
 void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters, std::map<Point, int> &point_index_map)
 {
-    if (vdc_param.multi_isov && vdc_param.add_bounding_cells)
+    if (vdc_param.multi_isov)
     {
         std::vector<std::pair<Point, bool>> points_with_info;
         std::vector<DelaunayVertex> delaunay_vertices;
@@ -876,6 +903,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
         {
             if (dt.is_infinite(ch))
             {
+                // Through an error, should not be happening after checking dummy vertices
                 continue; // Skip infinite cells
             }
             Point voronoi_vertex = dt.dual(ch);
@@ -932,7 +960,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
 //! @brief Constructs Voronoi edges from Delaunay facets.
 void construct_voronoi_edges(
     VoronoiDiagram &voronoiDiagram,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator>  &delaunay_facet_to_voronoi_edge_map)
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map)
 {
     std::set<std::string> seen_edges; // Used to check for duplicate edges
 
@@ -950,7 +978,7 @@ void construct_voronoi_edges(
 
         std::string edgeRep = objectToString(vEdge);
 
-     delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
+        delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
 
         if (seen_edges.find(edgeRep) == seen_edges.end())
         {
@@ -971,11 +999,11 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
     {
         if (vdc_param.output_format == "off")
         {
-            writeOFFMulti(vdc_param.output_filename, vd, iso_surface.isosurfaceTrianglesMulti);
+            writeOFFMulti(vdc_param.output_filename, vd, iso_surface.isosurfaceTrianglesMulti, iso_surface);
         }
         else if (vdc_param.output_format == "ply")
         {
-            writePLYMulti(vdc_param.output_filename, vd, iso_surface.isosurfaceTrianglesMulti);
+            writePLYMulti(vdc_param.output_filename, vd, iso_surface.isosurfaceTrianglesMulti, iso_surface);
         }
         else
         {

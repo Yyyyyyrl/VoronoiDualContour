@@ -116,7 +116,6 @@ struct VoronoiDiagram {
     std::vector<float> voronoiVertexValues;     //!< Scalar values at the Voronoi vertices.
     std::vector<VoronoiCell> voronoiCells;      //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiFacet> voronoiFacets;    //!< List of facets in the diagram.
-    std::vector<Point> isosurfaceVertices;      //!< List of isosurface vertices.
     std::map<Cell_handle, int> cell_to_vertex_index; //!< Map from Voronoi cells to vertex indices.
     std::map<Point, int> point_to_vertex_index;      //!< Map from Voronoi vertices to their indices.
     std::map<Vertex_handle, int> delaunayVertex_to_voronoiCell_index; //!< Map from Delaunay vertices to Voronoi cells.
@@ -343,13 +342,6 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiDiagram& vd)
         os << "  ( " << v1 << ", " << v2 << " ) -> " << edgeIndex << "\n";
     }
 
-    // 8. Isosurface Vertices
-    os << "\nIsosurfaceVertices:\n";
-    for (size_t i = 0; i < vd.isosurfaceVertices.size(); ++i)
-    {
-        os << "  Index " << i << ": " << vd.isosurfaceVertices[i] << "\n";
-    }
-
     return os;
 }
 
@@ -362,7 +354,7 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const VoronoiCellEdge& ce)
        << "  edgeIndex:    " << ce.edgeIndex << "\n"
        << "  nextCellEdge: " << ce.nextCellEdge << "\n"
        << "  cycleIndices: ";
-    
+
     if (ce.cycleIndices.empty())
     {
         os << "(none)";
