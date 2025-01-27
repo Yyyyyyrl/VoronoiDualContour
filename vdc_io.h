@@ -34,7 +34,7 @@ void writePLYSingle(const std::string &filename, const std::vector<Point> &verti
  * @param isoTriangles The list of isosurface triangles.
  */
 void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram,
-                   const std::vector<std::tuple<int, int, int>> &isoTriangles);
+                   const std::vector<std::tuple<int, int, int>> &isoTriangles, IsoSurface &iso_surface);
 
 //! @brief Writes an isosurface mesh in PLY format (multi-isovalue case).
 /*!
@@ -43,7 +43,7 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
  * @param isoTriangles The list of isosurface triangles.
  */
 void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram,
-                   const std::vector<std::tuple<int, int, int>> &isoTriangles);
+                   const std::vector<std::tuple<int, int, int>> &isoTriangles, IsoSurface &iso_surface);
 
 //! @brief Exports Voronoi diagram data to a CSV file.
 /*!

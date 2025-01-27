@@ -30,7 +30,7 @@ void writeOFFSingle(const std::string &filename, const std::vector<Point> &verti
 }
 
 //! Writes a multi-isovalue isosurface mesh in OFF format.
-void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles)
+void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles, IsoSurface &iso_surface)
 {
     std::ofstream out(filename);
     if (!out)
@@ -41,16 +41,16 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
 
     // Header
     out << "OFF\n";
-    out << voronoiDiagram.isosurfaceVertices.size() << " " << isoTriangles.size() << " 0\n";
+    out << iso_surface.isosurfaceVertices.size() << " " << iso_surface.isosurfaceTrianglesMulti.size() << " 0\n";
 
     // Write vertex coordinates
-    for (const auto &v : voronoiDiagram.isosurfaceVertices)
+    for (const auto &v : iso_surface.isosurfaceVertices)
     {
         out << v.x() << " " << v.y() << " " << v.z() << "\n";
     }
 
     // Write face indices
-    for (const auto &triangle : isoTriangles)
+    for (const auto &triangle : iso_surface.isosurfaceTrianglesMulti)
     {
         int idx1 = std::get<0>(triangle);
         int idx2 = std::get<1>(triangle);
@@ -98,7 +98,7 @@ void writePLYSingle(const std::string &filename, const std::vector<Point> &verti
 }
 
 //! Writes a multi-isovalue isosurface mesh in PLY format.
-void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles)
+void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles, IsoSurface &iso_surface)
 {
     std::ofstream out(filename);
     if (!out)
@@ -110,22 +110,22 @@ void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
     // Write PLY header
     out << "ply\n";
     out << "format ascii 1.0\n";
-    out << "element vertex " << voronoiDiagram.isosurfaceVertices.size() << "\n";
+    out << "element vertex " << iso_surface.isosurfaceVertices.size() << "\n";
     out << "property float x\n";
     out << "property float y\n";
     out << "property float z\n";
-    out << "element face " << isoTriangles.size() << "\n";
+    out << "element face " << iso_surface.isosurfaceTrianglesMulti.size() << "\n";
     out << "property list uchar int vertex_indices\n";
     out << "end_header\n";
 
     // Write vertex coordinates
-    for (const auto &vertex : voronoiDiagram.isosurfaceVertices)
+    for (const auto &vertex : iso_surface.isosurfaceVertices)
     {
         out << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
     }
 
     // Write face indices
-    for (const auto &triangle : isoTriangles)
+    for (const auto &triangle : iso_surface.isosurfaceTrianglesMulti)
     {
         int idx1 = std::get<0>(triangle);
         int idx2 = std::get<1>(triangle);
