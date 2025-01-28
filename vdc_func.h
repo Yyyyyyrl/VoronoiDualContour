@@ -163,6 +163,16 @@ void construct_voronoi_edges(
     VoronoiDiagram &voronoiDiagram,
     std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map);
 
+
+//! @brief Constructs the VoronoiCelledges in the VoronoiDiagram and link them
+/*!
+ *
+ * @param voronoiDiagram The Voronoi diagram to populate with edges.
+ * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
+ */
+void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map);
+    
 /* Output Handling */
 
 //! @brief Handles output mesh generation.
