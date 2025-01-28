@@ -99,6 +99,7 @@ int main(int argc, char *argv[])
     {
         // Construct Voronoi cells for the diagram.
         construct_voronoi_cells(vd);
+        construct_voronoi_cell_edges(vd, voronoi_edge_to_delaunay_facet_map);
         Compute_Isosurface_Vertices_Multi(vd, vdc_param.isovalue, iso_surface);
     }
     else
@@ -121,6 +122,8 @@ int main(int argc, char *argv[])
             std::cout << "Delaunay Vertex: " << pair.first->point() << " -> Voronoi Cell Index: " << pair.second << "\n";
         }
     }
+
+    vd.check();
 
     // Compute dual triangles for the Voronoi diagram.
     if (vdc_param.multi_isov)

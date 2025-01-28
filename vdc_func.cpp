@@ -804,8 +804,6 @@ void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<
             count++;
         }
 
-        std::cout << "Number of Dummy Points added: " << count << std::endl;
-
         for (const auto &lp : delaunay_vertices)
         {
             points_with_info.emplace_back(lp.point, lp.is_dummy);
@@ -985,6 +983,120 @@ void construct_voronoi_edges(
             voronoiDiagram.voronoiEdges.push_back(vEdge);
             seen_edges.insert(edgeRep);
         }
+    }
+}
+
+//! @brief Constructs the VoronoiCellEdges in the VoronoiDiagram and link them properly
+void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map) {
+    // PASS 2: Build VoronoiCellEdges for each unique edge
+    for (int edgeIdx = 0; edgeIdx < voronoiDiagram.voronoiEdges.size(); ++edgeIdx)
+    {
+        const CGAL::Object &edgeObj = voronoiDiagram.voronoiEdges[edgeIdx];
+        auto it = voronoi_edge_to_delaunay_facet_map.find(edgeObj);
+        if (it == voronoi_edge_to_delaunay_facet_map.end())
+            continue;
+
+        const std::vector<Facet> &sharedFacets = it->second;
+        std::set<int> cellIndices;
+
+        // Gather all VoronoiCell indices that share this edge
+        for (const Facet &f : sharedFacets)
+        {
+            Cell_handle c = f.first;
+            // Skip infinite or degenerate
+            if (dt.is_infinite(c)) {
+                continue;
+            }
+
+            for (int corner = 0; corner < 4; ++corner)
+            {
+                Vertex_handle vh = c->vertex(corner);
+                if (vh->info()) {
+                    // skip dummy
+                    continue;
+                }
+                int cellIdx = voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh];
+                cellIndices.insert(cellIdx);
+            }
+        }
+
+        // Create a VoronoiCellEdge for each cell that shares this edge
+        for (int cIdx : cellIndices)
+        {
+            VoronoiCellEdge cellEdge;
+            cellEdge.cellIndex = cIdx;
+            cellEdge.edgeIndex = edgeIdx;
+            cellEdge.cycleIndices = {};   
+            cellEdge.nextCellEdge = -1; 
+            voronoiDiagram.VoronoiCellEdges.push_back(cellEdge);
+        }
+    }
+
+    // link the CellEdges via nextCellEdge
+    std::unordered_map<int, std::vector<int>> edgeIdx_to_cellEdges;
+    for (int ceIdx = 0; ceIdx < (int)voronoiDiagram.VoronoiCellEdges.size(); ++ceIdx)
+    {
+        const VoronoiCellEdge &ce = voronoiDiagram.VoronoiCellEdges[ceIdx];
+        edgeIdx_to_cellEdges[ce.edgeIndex].push_back(ceIdx);
+    }
+
+    // Link each group in a ring
+    for (auto &kv : edgeIdx_to_cellEdges)
+    {
+        auto &cellEdgeIndices = kv.second;
+        int N = (int)cellEdgeIndices.size();
+        // no special ordering, but we can just do a circular link
+        for (int i = 0; i < N; i++)
+        {
+            int ceIdx = cellEdgeIndices[i];
+            int nextIdx = cellEdgeIndices[(i+1) % N];
+            voronoiDiagram.VoronoiCellEdges[ceIdx].nextCellEdge = nextIdx;
+        }
+    }
+
+    // For each edge in voronoiDiagram.voronoiEdges, see if it is a Segment_3:
+    for (int edgeIdx = 0; edgeIdx < (int)voronoiDiagram.voronoiEdges.size(); ++edgeIdx)
+    {
+        const CGAL::Object &edgeObj = voronoiDiagram.voronoiEdges[edgeIdx];
+
+        Segment3 seg;
+        if (CGAL::assign(seg, edgeObj))
+        {
+            // It's a segment
+            Point p1 = seg.source();
+            Point p2 = seg.target();
+
+            // Get their Voronoi vertex indices from your existing point_to_vertex_index
+            auto it1 = voronoiDiagram.point_to_vertex_index.find(p1);
+            auto it2 = voronoiDiagram.point_to_vertex_index.find(p2);
+            if (it1 != voronoiDiagram.point_to_vertex_index.end() &&
+                it2 != voronoiDiagram.point_to_vertex_index.end())
+            {
+                int v1 = it1->second;
+                int v2 = it2->second;
+                if (v1 > v2) std::swap(v1, v2); // ensure ascending
+
+                // Record in the global map
+                // This implies each pair of vertex indices maps to exactly one edgeIdx
+                std::pair<int,int> edgeKey = std::make_pair(v1, v2);
+                voronoiDiagram.segmentVertexPairToEdgeIndex[edgeKey] = edgeIdx;
+            }
+        }
+        else
+        {
+            // For rays or lines, there's no single pair of Voronoi vertices, need treat differently
+        }
+    }
+
+    // Populate the lookup table of CellEdges using (cellindex, edgeindex) that would be used in future step
+    voronoiDiagram.cellEdgeLookup.clear();
+    for (int ceIdx = 0; ceIdx < (int)voronoiDiagram.VoronoiCellEdges.size(); ++ceIdx)
+    {
+        const VoronoiCellEdge &ce = voronoiDiagram.VoronoiCellEdges[ceIdx];
+        // Build key
+        std::pair<int,int> key = std::make_pair(ce.cellIndex, ce.edgeIndex);
+        voronoiDiagram.cellEdgeLookup[key] = ceIdx;
     }
 }
 
