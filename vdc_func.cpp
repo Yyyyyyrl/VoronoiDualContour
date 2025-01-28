@@ -593,8 +593,23 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
 
                     if (edge_to_midpoint_index.find(edge_key) == edge_to_midpoint_index.end())
                     {
+
+                        // Find global index of the edge
+
+                        int globalEdgeIndex;
+
+                        auto iter_glob = voronoiDiagram.segmentVertexPairToEdgeIndex.find(edge_key);
+                        if (iter_glob != voronoiDiagram.segmentVertexPairToEdgeIndex.end()) {
+                            globalEdgeIndex = iter_glob->second;
+                        }
+
+
                         MidpointNode node;
                         node.point = midpoint;
+                        node.facet_index = facet_index;
+                        node.cycle_index = -1; // Initialize as -1, will set later when find its corresponding cycle
+                        node.global_edge_index = globalEdgeIndex; // Store the global index of whioch edge this point belongs to
+
                         midpoints.push_back(node);
                         int midpoint_index = midpoints.size() - 1;
                         edge_to_midpoint_index[edge_key] = midpoint_index;
@@ -664,6 +679,7 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
         vc.isoVertexStartIndex = iso_surface.isosurfaceVertices.size();
         vc.numIsoVertices = cycles_indices.size();
 
+        int cycIdx = 0;
         for (const auto &cycle_indices : cycles_indices)
         {
             Cycle cycle;
@@ -680,6 +696,20 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
 
             // Compute centroid using the midpoints
             cycle.compute_centroid(midpoints);
+
+            for (int ptIdx : cycle_indices) {
+                midpoints[ptIdx].cycle_index = cycIdx;
+
+                int globalEdgeIdx = midpoints[ptIdx].global_edge_index;
+                if (globalEdgeIdx >= 0){
+                    std::pair<int, int> key = std::make_pair(vc.cellIndex, globalEdgeIdx);
+                    auto iter_cEdge = voronoiDiagram.cellEdgeLookup.find(key);
+                    if (iter_cEdge != voronoiDiagram.cellEdgeLookup.end()) {
+                        int cEdgeIdx = iter_cEdge->second;
+                        voronoiDiagram.VoronoiCellEdges[cEdgeIdx].cycleIndices.push_back(cycIdx);
+                    }
+                }
+            }
 
             vc.cycles.push_back(cycle);
             iso_surface.isosurfaceVertices.push_back(cycle.isovertex);
