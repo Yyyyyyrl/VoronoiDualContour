@@ -4,7 +4,7 @@
 #include "vdc_func.h"
 
 //! @brief Computes the dual triangles for the final mesh in single iso vertex case.
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map)
+std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map)
 {
 
     std::vector<DelaunayTriangle> dualTriangles;
@@ -29,7 +29,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
             if (is_bipolar(vertexValueMap[v1], vertexValueMap[v2], isovalue))
             {
 
-                bipolar_voronoi_edges.push_back(edge); // TODO: Find the Delaunay Triangle dual to the edge
+                bipolar_voronoi_edges.push_back(edge);
 
                 intersectObj = CGAL::intersection(bbox, Ray3(seg.source(), v2 - v1));
                 CGAL::assign(iseg, intersectObj);
@@ -49,7 +49,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
                     positive = v2;
                 }
 
-                for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
                 {
                     int iFacet = facet.second;
                     Cell_handle c = facet.first;
@@ -125,7 +125,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                     bipolar_voronoi_edges.push_back(edge);
 
-                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                    for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
                     {
 
                         Facet mirror_f = dt.mirror_facet(facet);
@@ -207,7 +207,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
 
                     // TODO: Find the Delaunay Triangle dual to the edge
 
-                    for (const auto &facet : delaunay_facet_to_voronoi_edge_map[edge])
+                    for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
                     {
                         int iFacet = facet.second;
                         Cell_handle c = facet.first;
@@ -251,11 +251,37 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
     return dualTriangles;
 }
 
+
+static inline int selectIsovertexFromCellEdge(
+    const VoronoiDiagram &voronoiDiagram,
+    int cellIndex, int globalEdgeIndex)
+{
+    // Lookup the VoronoiCellEdge
+    auto it = voronoiDiagram.cellEdgeLookup.find(std::make_pair(cellIndex, globalEdgeIndex));
+    if (it == voronoiDiagram.cellEdgeLookup.end()) {
+        // No such cell-edge found, pass
+        return -1;
+    }
+    int ceIdx = it->second;
+    const VoronoiCellEdge &cellEdge = voronoiDiagram.VoronoiCellEdges[ceIdx];
+
+    // If no cycleIndex was assigned, return -1
+    if (cellEdge.cycleIndices.empty()) {
+        return -1;
+    }
+
+    // The cell in question:
+    const VoronoiCell &vc = voronoiDiagram.voronoiCells[cellIndex];
+    // The final isosurface vertex index in iso_surface.isosurfaceVertices:
+    int isoVtxIndex = vc.isoVertexStartIndex + cellEdge.cycleIndices[0];
+    return isoVtxIndex;
+}
+
 //! @brief Computes the dual triangles for the final mesh in the multi iso vertex case.
 void computeDualTrianglesMulti(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
     ScalarGrid &grid,
     float isovalue,
     IsoSurface &iso_surface)
@@ -280,9 +306,16 @@ void computeDualTrianglesMulti(
 
             if (is_bipolar(val1, val2, isovalue))
             {
-                // TODO: Rename to edge->facet map
-                auto it = delaunay_facet_to_voronoi_edge_map.find(edge);
-                if (it != delaunay_facet_to_voronoi_edge_map.end())
+                // Find globalEdgeIndex
+                if (idx_v1 > idx_v2) std::swap(idx_v1, idx_v2);
+                auto itEdge = voronoiDiagram.segmentVertexPairToEdgeIndex.find(std::make_pair(idx_v1, idx_v2));
+                if (itEdge == voronoiDiagram.segmentVertexPairToEdgeIndex.end()) {
+                    continue; // edge not found in map
+                }
+                int globalEdgeIndex = itEdge->second;
+
+                auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+                if (it != voronoi_edge_to_delaunay_facet_map.end())
                 {
                     const std::vector<Facet> &facets = it->second;
                     for (const auto &facet : facets)
@@ -316,6 +349,10 @@ void computeDualTrianglesMulti(
                         int idx1 = vc1.isoVertexStartIndex;
                         int idx2 = vc2.isoVertexStartIndex;
                         int idx3 = vc3.isoVertexStartIndex;
+                        // int idx1 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex1, globalEdgeIndex);
+                        // int idx2 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex2, globalEdgeIndex);
+                        // int idx3 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex3, globalEdgeIndex);
+                        
 
                         if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
                         {
@@ -355,8 +392,8 @@ void computeDualTrianglesMulti(
 
                 if (is_bipolar(val1, val2, isovalue))
                 {
-                    auto it = delaunay_facet_to_voronoi_edge_map.find(edge);
-                    if (it != delaunay_facet_to_voronoi_edge_map.end())
+                    auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+                    if (it != voronoi_edge_to_delaunay_facet_map.end())
                     {
                         const std::vector<Facet> &facets = it->second;
                         for (const auto &facet : facets)
@@ -429,8 +466,8 @@ void computeDualTrianglesMulti(
 
                 if (is_bipolar(val1, val2, isovalue))
                 {
-                    auto it = delaunay_facet_to_voronoi_edge_map.find(edge);
-                    if (it != delaunay_facet_to_voronoi_edge_map.end())
+                    auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+                    if (it != voronoi_edge_to_delaunay_facet_map.end())
                     {
                         const std::vector<Facet> &facets = it->second;
                         for (const auto &facet : facets)
@@ -988,7 +1025,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
 //! @brief Constructs Voronoi edges from Delaunay facets.
 void construct_voronoi_edges(
     VoronoiDiagram &voronoiDiagram,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map)
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map)
 {
     std::set<std::string> seen_edges; // Used to check for duplicate edges
 
@@ -1006,7 +1043,7 @@ void construct_voronoi_edges(
 
         std::string edgeRep = objectToString(vEdge);
 
-        delaunay_facet_to_voronoi_edge_map[vEdge].push_back(facet);
+        voronoi_edge_to_delaunay_facet_map[vEdge].push_back(facet);
 
         if (seen_edges.find(edgeRep) == seen_edges.end())
         {
