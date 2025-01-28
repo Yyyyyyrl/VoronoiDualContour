@@ -122,6 +122,105 @@ struct VoronoiDiagram {
 
     std::map<std::pair<int,int>, int> cellEdgeLookup;  //!< Maps (cellIndex, edgeIndex) -> index in voronoiCellEdges
     std::map<std::pair<int,int>, int> segmentVertexPairToEdgeIndex;  //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
+
+        //! @brief Checks internal consistency of the VoronoiDiagram.
+    void check() const
+    {
+        checkCellEdgeLookup();
+        checkNextCellEdgeConsistency();
+        checkCellFacets();
+        std::cout << "VoronoiDiagram::check() passed all checks.\n";
+    }
+
+private:
+
+    //! @brief Verifies that `cellEdgeLookup` matches the data in `voronoiCellEdges`.
+    void checkCellEdgeLookup() const
+    {
+        for (const auto &kv : cellEdgeLookup)
+        {
+            // kv.first is (ic, ie)
+            // kv.second is the index in voronoiCellEdges
+            int ic = kv.first.first;   // cellIndex
+            int ie = kv.first.second;  // edgeIndex
+            int cellEdgeIdx = kv.second;
+
+            if (cellEdgeIdx < 0 || cellEdgeIdx >= VoronoiCellEdges.size()) {
+                throw std::runtime_error("cellEdgeLookup points to invalid VoronoiCellEdge index.");
+            }
+
+            const VoronoiCellEdge &ce = VoronoiCellEdges[cellEdgeIdx];
+
+            if (ce.cellIndex != ic || ce.edgeIndex != ie) {
+                std::cerr << "ERROR: cellEdgeLookup mismatch!\n";
+                std::cerr << "  Lookup says (cell=" << ic << ", edge=" << ie
+                          << ") => cellEdgeIdx=" << cellEdgeIdx << "\n";
+                std::cerr << "  But VoronoiCellEdge at cellEdgeIdx has (cellIndex=" 
+                          << ce.cellIndex << ", edgeIndex=" << ce.edgeIndex << ")\n";
+                throw std::runtime_error("Inconsistent cellEdgeLookup data.");
+            }
+        }
+    }
+
+    //! @brief Checks that each cellEdge's `nextCellEdge` points to another edge with the same `edgeIndex`.
+    void checkNextCellEdgeConsistency() const
+    {
+        for (int ceIdx = 0; ceIdx < VoronoiCellEdges.size(); ++ceIdx)
+        {
+            const VoronoiCellEdge &ce = VoronoiCellEdges[ceIdx];
+            int nxt = ce.nextCellEdge;
+            if (nxt < 0)
+            {
+                // It's valid to have -1 or some sentinel if there's no next edge,
+                // so just skip in that case
+                continue;
+            }
+            if (nxt >= VoronoiCellEdges.size()) {
+                throw std::runtime_error("VoronoiCellEdge.nextCellEdge out of range.");
+            }
+            // Check if the next edge has the same edgeIndex
+            const VoronoiCellEdge &ceNext = VoronoiCellEdges[nxt];
+            if (ceNext.edgeIndex != ce.edgeIndex) {
+                std::cerr << "ERROR: nextCellEdge mismatch!\n";
+                std::cerr << "  VoronoiCellEdge[" << ceIdx << "]: edgeIndex=" << ce.edgeIndex
+                          << " => nextCellEdge=" << nxt 
+                          << " but that has edgeIndex=" << ceNext.edgeIndex << "\n";
+                throw std::runtime_error("Inconsistent nextCellEdge data.");
+            }
+        }
+    }
+
+    //! @brief Checks each VoronoiCell's facets to ensure that every facet's vertices are in the cell's vertex set.
+    void checkCellFacets() const
+    {
+        for (int cIdx = 0; cIdx < (int)voronoiCells.size(); ++cIdx)
+        {
+            const VoronoiCell &cell = voronoiCells[cIdx];
+            // Build a set of the cell's vertex indices for quick membership testing
+            std::set<int> cellVertexSet(cell.vertices_indices.begin(), cell.vertices_indices.end());
+
+            for (int fIdx : cell.facet_indices)
+            {
+                if (fIdx < 0 || fIdx >= (int)voronoiFacets.size()) {
+                    std::cerr << "ERROR: cell " << cIdx << " has invalid facet index " << fIdx << "\n";
+                    throw std::runtime_error("Facet index out of range.");
+                }
+
+                const VoronoiFacet &facet = voronoiFacets[fIdx];
+                for (int vIdx : facet.vertices_indices)
+                {
+                    // Check if vIdx is in the cell's vertex set
+                    if (cellVertexSet.find(vIdx) == cellVertexSet.end())
+                    {
+                        std::cerr << "ERROR: VoronoiFacet " << fIdx 
+                                  << " has vertex " << vIdx
+                                  << " not present in cell[" << cIdx << "]'s vertices.\n";
+                        throw std::runtime_error("Inconsistent facet vertex in cell.");
+                    }
+                }
+            }
+        }
+    }
 };
 
 //! @brief Represents an isosurface in the domain.
