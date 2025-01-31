@@ -260,7 +260,7 @@ static inline int selectIsovertexFromCellEdge(
     if (it == voronoiDiagram.cellEdgeLookup.end())
     {
         // No such cell-edge found, pass
-        std::cout << "didn't find cell-edge" << std::endl;
+        std::cout << "didn't find cell-edge for edge " << globalEdgeIndex << std::endl;
         return -1;
     }
     int ceIdx = it->second;
@@ -361,14 +361,14 @@ void computeDualTrianglesMulti(
                         */
 
                         // Simply pick the first vertex within each cell
-                        // int idx1 = vc1.isoVertexStartIndex;
-                        // int idx2 = vc2.isoVertexStartIndex;
-                        // int idx3 = vc3.isoVertexStartIndex;
+                        int idx1 = vc1.isoVertexStartIndex;
+                        int idx2 = vc2.isoVertexStartIndex;
+                        int idx3 = vc3.isoVertexStartIndex;
 
                         //Pick the one from its surrounding CellEgdes
-                        int idx1 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex1, globalEdgeIndex);
-                        int idx2 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex2, globalEdgeIndex);
-                        int idx3 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex3, globalEdgeIndex);
+                        // int idx1 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex1, globalEdgeIndex);
+                        // int idx2 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex2, globalEdgeIndex);
+                        // int idx3 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex3, globalEdgeIndex);
 
                         if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3 && idx1 >= 0 && idx2 >= 0
                          && idx3 >= 0)
@@ -995,10 +995,6 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
         // Copy unique indices to vector
         vc.vertices_indices.assign(unique_vertex_indices_set.begin(), unique_vertex_indices_set.end());
 
-        // 3) Build boundary facets by enumerating all edges from this vertex
-        //    Delaunay::Edge is a triple (Cell_handle, int i, int j)
-        std::vector<Edge> incidentEdges;
-        dt.finite_incident_edges(vh, std::back_inserter(incidentEdges));
 
         // Build convex hull and extract facets
         std::vector<Point> vertex_points;
@@ -1038,6 +1034,147 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram)
         voronoiDiagram.voronoiCells.push_back(vc);
         voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh] = index;
         index++;
+    }
+}
+
+//! @brief (in dev) Construct the voronoi cells routine that doesn't use Convex_Hull_3
+void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram) {
+        // Clear old data in the Voronoi diagram
+    voronoiDiagram.voronoiCells.clear();
+    voronoiDiagram.voronoiFacets.clear();
+    voronoiDiagram.delaunayVertex_to_voronoiCell_index.clear();
+
+    int cellIndex = 0;
+
+    // ----------------------------------------------------------------
+    // 1 Iteration over all finite vertices as Vertex_handle
+    // ----------------------------------------------------------------
+    for (Vertex_handle vh : dt.finite_vertex_handles())
+    {
+        // If you store a dummy-flag in vh->info(), skip it
+        if (vh->info()) {
+            continue;
+        }
+
+        // Create a new VoronoiCell structure
+        VoronoiCell vc(vh);
+        vc.cellIndex = cellIndex;
+
+        // ------------------------------------------------------------
+        // 2 Gather all Delaunay cells incident to this vertex (vh)
+        //    Build a set of Voronoi vertices from them
+        // ------------------------------------------------------------
+        std::vector<Cell_handle> incidentCells;
+        dt.finite_incident_cells(vh, std::back_inserter(incidentCells));
+
+        std::set<int> uniqueVertexIndices;
+        for (Cell_handle c : incidentCells)
+        {
+            if (!dt.is_infinite(c))
+            {
+                // Convert the Delaunay cell to its Voronoi dual (a point)
+                Point dualPt = dt.dual(c);
+                auto itFind = voronoiDiagram.point_to_vertex_index.find(dualPt);
+                if (itFind != voronoiDiagram.point_to_vertex_index.end())
+                {
+                    uniqueVertexIndices.insert(itFind->second);
+                }
+            }
+        }
+        // Store them in the cell
+        vc.vertices_indices.assign(uniqueVertexIndices.begin(), uniqueVertexIndices.end());
+
+        // ----------------------------------------------------------------
+        // 3 For each edge incident to 'vh', gather the ring of cells around it
+        //    and form a boundary facet for the Voronoi cell.
+        // ----------------------------------------------------------------
+        std::vector<Edge> incidentEdges;
+        dt.incident_edges(vh, std::back_inserter(incidentEdges));
+
+        for (const Edge &ed : incidentEdges)
+        {
+            // Edge is a tuple: (Cell_handle c, int i, int j)
+            Cell_handle cEdge = ed.first;
+            if (dt.is_infinite(cEdge)) {
+                // If the cell is infinite, skip
+                continue;
+            }
+
+            // Collect the two vertex handles for this edge
+            int i = ed.second;
+            int j = ed.third;
+            Vertex_handle v1 = cEdge->vertex(i);
+            Vertex_handle v2 = cEdge->vertex(j);
+
+            // Make sure the edge actually has 'vh' as one of its end
+            if (v1 != vh && v2 != vh)
+            {
+                continue;
+            }
+
+            //Retrieve all cells around this edge using a Cell_circulator
+            Delaunay::Cell_circulator cc = dt.incident_cells(ed);
+            if (cc == nullptr) {
+                // Degenrate case as no cells found around that edge
+                continue;
+            }
+
+            std::set<int> facetVertexSet;
+            bool skipFacet = false;
+
+            Delaunay::Cell_circulator start = cc;
+            do {
+                if (dt.is_infinite(cc)) {
+                    // Edge extends to infinity => skip
+                    skipFacet = true;
+                    break;
+                }
+                Point dualPt = dt.dual(cc);
+                auto itFind = voronoiDiagram.point_to_vertex_index.find(dualPt);
+                if (itFind != voronoiDiagram.point_to_vertex_index.end()) {
+                    facetVertexSet.insert(itFind->second);
+                }
+
+                ++cc;
+            } while (cc != start);
+
+            if (skipFacet) {
+                // Means it was unbounded
+                continue;
+            }
+
+            // Check facet validity
+            if (facetVertexSet.size() < 3)
+            {
+                continue;
+            }
+
+            // Convert the set to a vector
+            std::vector<int> facetVertexIndices(facetVertexSet.begin(), facetVertexSet.end());
+
+            //TODO: Probably sort them in the plane for a consistent polygon ordering
+
+            //Build a VoronoiFacet
+            VoronoiFacet vf;
+            vf.vertices_indices = facetVertexIndices;
+            vf.vertex_values.reserve(facetVertexIndices.size());
+            for (int vIdx : facetVertexIndices)
+            {
+                vf.vertex_values.push_back(voronoiDiagram.voronoiVertexValues[vIdx]);
+            }
+
+            // Add to global facet list
+            int facetIndex = (int)voronoiDiagram.voronoiFacets.size();
+            voronoiDiagram.voronoiFacets.push_back(vf);
+
+            // Record this facet in the cell
+            vc.facet_indices.push_back(facetIndex);
+        }
+
+        //Store the cell in the diagram
+        voronoiDiagram.voronoiCells.push_back(vc);
+        voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh] = cellIndex;
+        cellIndex++;
     }
 }
 
@@ -1202,10 +1339,6 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
                     voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
                 }
             }
-            else
-            {
-                // Could be empty (no intersection) or a single point (degenerate). Skip in this case
-            }
         }
         // CASE 3: It's a Line_3
         else if (CGAL::assign(line, edgeObj))
@@ -1233,10 +1366,6 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
                 }
                 // else intersection is partially outside
             }
-        }
-        else
-        {
-            // For rays or lines, there's no single pair of Voronoi vertices, need treat differently
         }
     }
 
