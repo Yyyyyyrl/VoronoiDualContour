@@ -169,9 +169,11 @@ void construct_voronoi_edges(
  *
  * @param voronoiDiagram The Voronoi diagram to populate with edges.
  * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
+ * @param bbox The bounding box used for clipping Ray and Line voronoi Edges
  */
 void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map);
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    CGAL::Epick::Iso_cuboid_3 &bbox);
     
 /* Output Handling */
 

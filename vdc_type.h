@@ -11,11 +11,15 @@
 #include <array>       // STL array container.
 #include <cmath>       // Math functions like abs(), pow(), etc.
 #include <limits>      // To work with numeric limits of data types.
+#include <set>
+#include <stack>
+#include <iterator> // for std::back_inserter
 #include <algorithm>   // Common algorithms like sort(), min(), max().
 #include <cstddef>     // Definitions for size_t, ptrdiff_t, etc.
 #include <cstring>     // C-style string operations.
 #include <teem/nrrd.h> // Teem library for handling NRRD data files.
 #include <iomanip>     // For formatted output (e.g., precision control).
+
 
 // CGAL headers for computational geometry operations.
 #include <CGAL/bounding_box.h>                         // Compute bounding boxes for geometric objects.
