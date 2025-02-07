@@ -141,6 +141,12 @@ void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram);
  */
 void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram);
 
+//! @brief (in dev) Construct the voronoi cells routine that doesn't use Convex_Hull_3
+/*!
+ * Populates the Voronoi diagram with polyhedral cells derived from the Delaunay triangulation without using Convex_Hull_3
+ */
+void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram);
+
 //! @brief Computes Voronoi vertex values using scalar grid interpolation.
 /*!
  * Interpolates scalar values from the grid to each vertex of the Voronoi diagram.
