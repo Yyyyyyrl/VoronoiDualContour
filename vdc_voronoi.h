@@ -121,7 +121,7 @@ struct VoronoiDiagram
     std::vector<float> voronoiVertexValues;                           //!< Scalar values at the Voronoi vertices.
     std::vector<VoronoiCell> voronoiCells;                            //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiFacet> voronoiFacets;                          //!< List of facets in the diagram.
-    std::map<Cell_handle, int> cell_to_vertex_index;                  //!< Map from Voronoi cells to vertex indices.
+    std::map<Cell_handle, int> delaunay_cell_to_voronoi_vertex_index;                  //!< Map from Voronoi cells to vertex indices.
     std::map<Point, int> point_to_vertex_index;                       //!< Map from Voronoi vertices to their indices.
     std::map<Vertex_handle, int> delaunayVertex_to_voronoiCell_index; //!< Map from Delaunay vertices to Voronoi cells.
 
@@ -264,7 +264,7 @@ private:
             throw std::runtime_error("Ring does not include all edges for edgeIndex.");
         }
 
-        // If we get here, we have exactly one ring containing all edges in ceIndices
+        // If get here, we have exactly one ring containing all edges in ceIndices
     }
 }
 
@@ -491,8 +491,7 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
     os << "\nVoronoiCells:\n";
     for (const auto &cell : vd.voronoiCells)
     {
-        os << "\n"
-           << cell;
+        os << "\n" << cell;
     }
 
     // 6. Voronoi CellEdges
@@ -523,6 +522,37 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
         int v2 = kv.first.second;
         int edgeIndex = kv.second;
         os << "  ( " << v1 << ", " << v2 << " ) -> " << edgeIndex << "\n";
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. Print the three maps that were missing:
+    // -------------------------------------------------------------------------
+
+    // 8a. delaunay_cell_to_voronoi_vertex_index
+    os << "\nDelaunayCell -> VoronoiVertexIndex:\n";
+    for (const auto &kv : vd.delaunay_cell_to_voronoi_vertex_index)
+    {
+        // kv.first is a Cell_handle, kv.second is an int
+        // We'll print the address of the cell handle (or any ID we want).
+        os << "  Cell_handle@" << &(*kv.first) << " -> " << kv.second << "\n";
+    }
+
+    // 8b. point_to_vertex_index
+    os << "\nPoint -> VoronoiVertexIndex:\n";
+    for (const auto &kv : vd.point_to_vertex_index)
+    {
+        // kv.first is a Point, kv.second is an int
+        // We can usually print a CGAL::Point_3 directly, or explicitly by coords.
+        os << "  " << kv.first << " -> " << kv.second << "\n";
+    }
+
+    // 8c. delaunayVertex_to_voronoiCell_index
+    os << "\nDelaunayVertex -> VoronoiCellIndex:\n";
+    for (const auto &kv : vd.delaunayVertex_to_voronoiCell_index)
+    {
+        // kv.first is a Vertex_handle, kv.second is an int
+        // Similarly, we just print the handle as a raw pointer or any ID we prefer.
+        os << "  Vertex_handle@" << &(*kv.first) << " -> " << kv.second << "\n";
     }
 
     return os;
