@@ -98,7 +98,14 @@ int main(int argc, char *argv[])
     if (vdc_param.multi_isov)
     {
         // Construct Voronoi cells for the diagram.
-        construct_voronoi_cells(vd);
+        if (vdc_param.convex_hull)
+        {
+            construct_voronoi_cells(vd);
+        }
+        else
+        {
+            construct_voronoi_cells_non_convex_hull(vd);
+        }
         construct_voronoi_cell_edges(vd, voronoi_edge_to_delaunay_facet_map, bbox);
         Compute_Isosurface_Vertices_Multi(vd, vdc_param.isovalue, iso_surface);
     }
@@ -115,7 +122,7 @@ int main(int argc, char *argv[])
         log.close();
     }
 
-    // Run a check for the voronoi Diagram sturcture 
+    // Run a check for the voronoi Diagram sturcture
     vd.check();
 
     // Compute dual triangles for the Voronoi diagram.

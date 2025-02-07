@@ -71,9 +71,13 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
             print_help();
             exit(EXIT_SUCCESS);
         }
-        else if (arg == "--bound_cells")
+        else if (arg == "-bound_cells")
         {
             vp.add_bounding_cells = true; // Add bounding cells to the Voronoi diagram.
+        }
+        else if (arg == "-conv_H")
+        {
+            vp.convex_hull = true;
         }
         else
         {
@@ -121,6 +125,11 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         if (vp.sep_isov)
         {
             vp.output_filename += "_sep-isov";
+        }
+
+        if (vp.convex_hull)
+        {
+            vp.output_filename += "_conv-H";
         }
 
         // Add file format extension.

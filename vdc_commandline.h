@@ -24,6 +24,7 @@ struct VDC_PARAM {
     bool multi_isov;               //!< Flag to enable multi-isosurface mode.
     bool supersample;              //!< Flag to enable supersampling of the input data.
     bool add_bounding_cells;       //!< Flag to include bounding cells in the Voronoi diagram.
+    bool convex_hull;              //!< Flag to enable convex hull computation in building voronoi cells
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
 
@@ -39,6 +40,7 @@ struct VDC_PARAM {
           multi_isov(false),
           supersample(false),
           add_bounding_cells(false),
+          convex_hull(false),
           supersample_r(1)
     {}
 };
