@@ -25,6 +25,7 @@ struct VDC_PARAM {
     bool supersample;              //!< Flag to enable supersampling of the input data.
     bool add_bounding_cells;       //!< Flag to include bounding cells in the Voronoi diagram.
     bool convex_hull;              //!< Flag to enable convex hull computation in building voronoi cells
+    bool test_vor = false;         //!< Flag for testing the Voronoi diagram construction
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
 

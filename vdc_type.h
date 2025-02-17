@@ -27,6 +27,7 @@
 #include <CGAL/Vector_3.h>                            // Represents a vector in 3D space.
 #include <CGAL/Polyhedron_3.h>                        // Represents 3D polyhedral surfaces.
 #include <CGAL/convex_hull_3.h>                       // Compute convex hulls in 3D.
+#include <CGAL/Convex_hull_3/dual/halfspace_intersection_3.h>            // Compute Halfspace Intersections in 3D
 #include <CGAL/centroid.h>                            // Compute centroids of geometric objects.
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h> // Kernel for exact predicates and inexact constructions.
 #include <CGAL/Delaunay_triangulation_3.h>            // Delaunay triangulation in 3D.

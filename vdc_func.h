@@ -42,6 +42,7 @@ Functions for both single/multi isov that computes the vertices and faces of the
  * This function calculates the Delaunay triangles dual to bipolar edges in
  * the Voronoi diagram for a single isovalue.
  * 
+ * @param iso_surface Instance of IsoSurface
  * @param voronoi_edges Vector of Voronoi edges.
  * @param vertexValueMap Map of Voronoi vertices to scalar values.
  * @param bbox Bounding box of the computational domain.
@@ -50,9 +51,8 @@ Functions for both single/multi isov that computes the vertices and faces of the
  * @param grid Scalar grid containing scalar values.
  * @param isovalue the isovalue used for computing.
  * @param point_index_map the map between the points in the delaunay triangulation to its index
- * @return A vector of Delaunay triangles representing the mesh.
  */
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map);
+void computeDualTriangles(IsoSurface &iso_surface, std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map);
 
 //! @brief Computes the dual triangles for the final mesh in the multi-isovertex case.
 /*!
@@ -147,6 +147,12 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram);
  */
 void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram);
 
+//! @brief (in dev) Construct the voronoi cells routine as the intersection of halfspaces.
+/*!
+ *
+ */
+void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram);
+
 //! @brief Computes Voronoi vertex values using scalar grid interpolation.
 /*!
  * Interpolates scalar values from the grid to each vertex of the Voronoi diagram.
@@ -196,4 +202,16 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
  */
 int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, std::map<Point, int> &point_index_map);
 
+
+//! @brief Wrap up function of all process of building the voronoi diagram from the Delaunay Triangulation
+/*!
+ *
+ */
+void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, ScalarGrid &grid, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox);
+
+//! @brief Wrap up function for all process of building the isosurface (vertices and faces) from the Voronoi Diagram / Delaunay Triangulation
+/*!
+ *
+ */
+void construct_iso_surface(VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters,std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &point_index_map);
 #endif

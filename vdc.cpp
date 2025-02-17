@@ -45,14 +45,6 @@ int main(int argc, char *argv[])
     // Load all grid points into a vector for later use.
     std::vector<Point> gridPoints = load_grid_points(data_grid);
 
-    // Optional: Crop and write active cube centers to a CSV file (currently commented out).
-    // cropAndWriteToCSV(activeCubeCenters, 48, 26, 27, 52, 30, 30, "../temps/fuel_cropN.csv", true);
-
-    if (indicator)
-    {
-        std::cout << "Loaded data and Calculating Bounding box" << std::endl;
-    }
-
     // Define the bounding box of the grid.
     Point p_min(0, 0, 0);
     Point p_max(data_grid.nx - 1, data_grid.ny - 1, data_grid.nz - 1);
@@ -65,7 +57,7 @@ int main(int argc, char *argv[])
                   << bbox.max() << ")" << std::endl;
     }
 
-    float cubeSideLength = data_grid.dx; // Store the cube side length (equal to grid spacing).
+    float cubeSideLength = data_grid.dx; // Store the cube side length (equal to grid spacing, assuming regular grid so dx/dy/dz will be equal).
 
     // Construct the Delaunay triangulation using the grid facets.
     if (indicator)
@@ -80,60 +72,21 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Voronoi diagram..." << std::endl;
     }
-    construct_voronoi_vertices(vd);
 
-    // Iterate through each facet in the Delaunay triangulation and calculate Voronoi edges.
     std::map<Object, std::vector<Facet>, ObjectComparator> voronoi_edge_to_delaunay_facet_map;
-    construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map);
+    std::map<Point, float> vertexValueMap;
 
-    // Compute scalar values at Voronoi vertices by interpolating from the scalar grid.
+    construct_voronoi_diagram(vd, vdc_param, voronoi_edge_to_delaunay_facet_map, grid, vertexValueMap, bbox);
+    if (vdc_param.test_vor) {
+        // If test_vor is true means in testing mode for voronoi diagram construction, no need for further move
+        return EXIT_SUCCESS;
+    }
+
     if (indicator)
     {
-        std::cout << "Computing scalar values at Voronoi vertices..." << std::endl;
+        std::cout << "Constructing Iso Surface..." << std::endl;
     }
-    std::map<Point, float> vertexValueMap;
-    compute_voronoi_values(vd, grid, vertexValueMap);
-
-    // Compute isosurface vertices based on whether multiple or single isovalues are used.
-    if (vdc_param.multi_isov)
-    {
-        // Construct Voronoi cells for the diagram.
-        if (vdc_param.convex_hull)
-        {
-            construct_voronoi_cells(vd);
-        }
-        else
-        {
-            construct_voronoi_cells_non_convex_hull(vd);
-        }
-        construct_voronoi_cell_edges(vd, voronoi_edge_to_delaunay_facet_map, bbox);
-        Compute_Isosurface_Vertices_Multi(vd, vdc_param.isovalue, iso_surface);
-    }
-    else
-    {
-        Compute_Isosurface_Vertices_Single(grid, vdc_param.isovalue, iso_surface, data_grid, activeCubeCenters);
-    }
-
-    // If debugging is enabled, log information about the Voronoi diagram.
-    if (debug)
-    {
-        std::ofstream log("vd_info.txt");
-        log << vd; // Write the Voronoi diagram's details to the log file.
-        log.close();
-    }
-
-    // Run a check for the voronoi Diagram sturcture
-    vd.check();
-
-    // Compute dual triangles for the Voronoi diagram.
-    if (vdc_param.multi_isov)
-    {
-        computeDualTrianglesMulti(vd, bbox, voronoi_edge_to_delaunay_facet_map, grid, vdc_param.isovalue, iso_surface);
-    }
-    else
-    {
-        iso_surface.isosurfaceTrianglesSingle = computeDualTriangles(vd.voronoiEdges, vertexValueMap, bbox, voronoi_edge_to_delaunay_facet_map, dt, grid, vdc_param.isovalue, point_index_map);
-    }
+    construct_iso_surface(vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters, voronoi_edge_to_delaunay_facet_map, vertexValueMap, bbox, point_index_map);
 
     // Export the Voronoi diagram to a CSV file if requested.
     if (vdc_param.out_csv)

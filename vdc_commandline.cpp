@@ -3,7 +3,7 @@
 //! Prints the help message for the program.
 void print_help()
 {
-    std::cout << "Usage: dmr [OPTIONS] <isovalue> <(nhdr/nrrd) raw data file path>\n\n";
+    std::cout << "Usage: vdc [OPTIONS] <isovalue> <(nhdr/nrrd) raw data file path>\n\n";
     std::cout << "OPTIONS:\n";
     std::cout << "  -o {output_filename}        : Specify output filename (default: derived from input filename).\n";
     std::cout << "  -off                        : Generate output in .off format (default).\n";
@@ -13,6 +13,7 @@ void print_help()
     std::cout << "  -supersample {factor}       : Supersample the input data by the given factor.\n";
     std::cout << "  -multi_isov                 : Use multi iso-vertices mode.\n";
     std::cout << "  -single_isov                : Use single iso-vertices mode (default).\n";
+    std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  --help                      : Print this help message.\n";
 }
 
@@ -78,6 +79,10 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         else if (arg == "-conv_H")
         {
             vp.convex_hull = true;
+        }
+        else if (arg == "--test_vor")
+        {
+            vp.test_vor = true;
         }
         else
         {

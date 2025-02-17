@@ -4,7 +4,7 @@
 #include "vdc_func.h"
 
 //! @brief Computes the dual triangles for the final mesh in single iso vertex case.
-std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map)
+void computeDualTriangles(IsoSurface &iso_surface, std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map)
 {
 
     std::vector<DelaunayTriangle> dualTriangles;
@@ -248,7 +248,7 @@ std::vector<DelaunayTriangle> computeDualTriangles(std::vector<CGAL::Object> &vo
             }
         }
     }
-    return dualTriangles;
+    iso_surface.isosurfaceTrianglesSingle = dualTriangles;
 }
 
 static inline int selectIsovertexFromCellEdge(
@@ -1099,6 +1099,7 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram)
             if (dt.is_infinite(cEdge))
             {
                 std::cerr << "Infinite Edges" << "\n";
+                throw std::invalid_argument(" infinite edge");
             }
 
             // Collect the two vertex handles for this edge
@@ -1111,6 +1112,7 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram)
             if (v1 != vh && v2 != vh)
             {
                 std::cerr << "Invalid edges" << "\n";
+                throw std::invalid_argument(" invalid edge encountered");
             }
 
             // Retrieve all cells around this edge using a Cell_circulator
@@ -1118,7 +1120,8 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram)
             if (cc == nullptr)
             {
                 // Degenrate case as no cells found around that edge
-                std::cerr << "Degenerate Cell achieved in circulating \n"; 
+                std::cerr << "Degenerate Cell achieved in circulating \n";
+                throw std::invalid_argument(" Degenrated Cell");
             }
 
             std::set<int> facetVertexSet;
@@ -1137,8 +1140,10 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram)
                 if (it != voronoiDiagram.delaunay_cell_to_voronoi_vertex_index.end())
                 {
                     facetVertexSet.insert(it->second);
-                } else {
-                    std::cout << " Voronoi Vertex not found for Delaunay Cell: "<< std::endl;
+                }
+                else
+                {
+                    std::cout << " Voronoi Vertex not found for Delaunay Cell: " << std::endl;
                 }
 
                 // Point dualPt = dt.dual(cc);
@@ -1153,6 +1158,7 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram)
             if (skipFacet)
             {
                 // Means it was unbounded
+                std::cerr << " " << "\n";
                 continue;
             }
 
@@ -1187,6 +1193,85 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram)
         voronoiDiagram.voronoiCells.push_back(vc);
         voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh] = cellIndex;
         cellIndex++;
+    }
+}
+
+//! @brief Constructs Voronoi cells from the Delaunay triangulation without using convex hull computation.
+void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram)
+{
+    int index = 0;
+    // Iterate through all finite Delaunay vertices.
+    for (auto vh = dt.finite_vertices_begin(); vh != dt.finite_vertices_end(); ++vh)
+    {
+        // Exclude dummy points.
+        if (vh->info())
+        {
+            continue;
+        }
+        VoronoiCell vc(vh);
+        vc.cellIndex = index;
+
+        // For each Delaunay vertex, the Voronoi cell is the intersection of
+        // the half-spaces defined by the perpendicular bisectors between vh and each neighbor.
+        std::vector<Vertex_handle> neighbors;
+        dt.finite_adjacent_vertices(vh, std::back_inserter(neighbors));
+
+        std::vector<Plane_3> halfspaces;
+        for (auto neighbor : neighbors)
+        {
+            // Get the two Delaunay points, their midpoint and normal
+            Point p = vh->point();
+            Point q = neighbor->point();
+            Point mid = CGAL::midpoint(p, q);
+            Vector3 normal = q - p;
+            
+            // Construct the bisector plane.
+            // With this construction, vh->point() lies in the negative half-space:
+            //   (q - p) · (vh->point() - mid) < 0,
+            // so the desired half-space is: (q - p) · (x - mid) <= 0.
+            Plane_3 bisector(mid, normal);
+            halfspaces.push_back(bisector);
+        }
+
+        // Use vh->point() as an interior point of the Voronoi cell.
+        Point interior = vh->point();
+        Polyhedron_3 poly;
+        // Compute the intersection of the halfspaces.
+        CGAL::halfspace_intersection_3(halfspaces.begin(), halfspaces.end(),poly,interior );
+        vc.polyhedron = poly;
+
+        // Extract the vertex indices from the computed polyhedron.
+        vc.vertices_indices.clear();
+        for (auto vit = vc.polyhedron.vertices_begin(); vit != vc.polyhedron.vertices_end(); ++vit)
+        {
+            Point p = vit->point();
+            int vertex_index = voronoiDiagram.point_to_vertex_index[p];
+            vc.vertices_indices.push_back(vertex_index);
+        }
+
+        // Extract the facets from the polyhedron. For each facet, record the list of vertex indices (and associated scalar values) that form its boundary.
+        for (auto facet_it = vc.polyhedron.facets_begin(); facet_it != vc.polyhedron.facets_end(); ++facet_it)
+        {
+            VoronoiFacet vf;
+            auto h = facet_it->facet_begin();
+            do
+            {
+                Point p = h->vertex()->point();
+                int vertex_index = voronoiDiagram.point_to_vertex_index[p];
+                vf.vertices_indices.push_back(vertex_index);
+                float value = voronoiDiagram.voronoiVertexValues[vertex_index];
+                vf.vertex_values.push_back(value);
+                ++h;
+            } while (h != facet_it->facet_begin());
+            int facet_index = voronoiDiagram.voronoiFacets.size();
+            voronoiDiagram.voronoiFacets.push_back(vf);
+            vc.facet_indices.push_back(facet_index);
+        }
+
+        // Add the newly constructed cell to the diagram and update the mapping.
+        voronoiDiagram.voronoiCells.push_back(vc);
+        voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh] = index;
+        index++;
     }
 }
 
@@ -1391,6 +1476,59 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
     }
 }
 
+//! @brief Wrap up function of constructing voronoi diagram
+void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, ScalarGrid &grid, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox)
+{
+    construct_voronoi_vertices(vd);
+    construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map);
+    compute_voronoi_values(vd, grid, vertexValueMap);
+
+    if (vdc_param.multi_isov)
+    {
+        // Construct Voronoi cells for the diagram.
+        if (vdc_param.convex_hull)
+        {
+            construct_voronoi_cells(vd);
+        }
+        else
+        {
+            //construct_voronoi_cells_non_convex_hull(vd);
+            construct_voronoi_cells_halfspace(vd);
+        }
+        construct_voronoi_cell_edges(vd, voronoi_edge_to_delaunay_facet_map, bbox);
+    }
+
+    if (vdc_param.test_vor)
+    {
+        vd.check();
+        std::ofstream log("vd_info.txt");
+        log << vd; // Write the Voronoi diagram's details to the log file.
+        log.close();
+    }
+
+    vd.check();
+}
+
+//！@brief Wrap up function for constructing iso surface
+void construct_iso_surface(VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters,std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &point_index_map) {
+    if (vdc_param.multi_isov)
+    {
+        Compute_Isosurface_Vertices_Multi(vd, vdc_param.isovalue, iso_surface);
+    }
+    else
+    {
+        Compute_Isosurface_Vertices_Single(grid, vdc_param.isovalue, iso_surface, data_grid, activeCubeCenters);
+    }
+
+        if (vdc_param.multi_isov)
+    {
+        computeDualTrianglesMulti(vd, bbox, voronoi_edge_to_delaunay_facet_map, grid, vdc_param.isovalue, iso_surface);
+    }
+    else
+    {
+        computeDualTriangles(iso_surface, vd.voronoiEdges, vertexValueMap, bbox, voronoi_edge_to_delaunay_facet_map, dt, grid, vdc_param.isovalue, point_index_map);
+    }
+}
 //! @brief Handles output mesh generation.
 int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, std::map<Point, int> &point_index_map)
 {
