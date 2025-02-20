@@ -7,6 +7,23 @@
 #include "vdc_type.h"
 #include "vdc_delaunay.h"
 
+//! @brief Represents a vertex in a Voronoi diagram.
+/*!
+ * A Voronoi vertex is a point where multiple Voronoi edges meet. Each vertex
+ * may belong to multiple Voronoi cells.
+ */
+struct VoronoiVertex
+{
+    Point vertex;                 //!< Geometric coordinates of the vertex.
+    std::vector<int> cellIndices; //!< Indices of Voronoi cells that contain this vertex.
+
+    //! @brief Constructor to initialize a Voronoi vertex.
+    /*!
+     * @param p Coordinates of the vertex.
+     */
+    VoronoiVertex(Point p) : vertex(p) {}
+};
+
 //! @brief Represents a midpoint of an edge in a Voronoi diagram.
 /*!
  * A midpoint lies on the edge of a Voronoi facet. This structure holds the
@@ -58,24 +75,11 @@ struct Cycle
      *                  associated with this cycle are used in the computation.
      */
     void compute_centroid(const std::vector<MidpointNode> &midpoints);
+        // Compute centroid of the cycle using the positions in voronoiVertices.
+    void compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices);
 };
 
-//! @brief Represents a vertex in a Voronoi diagram.
-/*!
- * A Voronoi vertex is a point where multiple Voronoi edges meet. Each vertex
- * may belong to multiple Voronoi cells.
- */
-struct VoronoiVertex
-{
-    Point vertex;                 //!< Geometric coordinates of the vertex.
-    std::vector<int> cellIndices; //!< Indices of Voronoi cells that contain this vertex.
 
-    //! @brief Constructor to initialize a Voronoi vertex.
-    /*!
-     * @param p Coordinates of the vertex.
-     */
-    VoronoiVertex(Point p) : vertex(p) {}
-};
 
 //! @brief Represents a Voronoi cell (polytope) in the Voronoi diagram.
 /*!

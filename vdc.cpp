@@ -5,6 +5,7 @@ int main(int argc, char *argv[])
     VoronoiDiagram vd; // Initialize an empty Voronoi diagram.
     VDC_PARAM vdc_param;
     IsoSurface iso_surface;
+    Delaunay dt;
 
     // Parse command-line arguments to set program options and parameters.
     parse_arguments(argc, argv, vdc_param);
@@ -65,7 +66,7 @@ int main(int argc, char *argv[])
         std::cout << "Constructing Delaunay triangulation..." << std::endl;
     }
     std::map<Point, int> point_index_map; // Used in Single Iso-V Case ONLY
-    construct_delaunay_triangulation(data_grid, grid_facets, vdc_param, activeCubeCenters, point_index_map);
+    construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters, point_index_map);
 
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
@@ -76,7 +77,7 @@ int main(int argc, char *argv[])
     std::map<Object, std::vector<Facet>, ObjectComparator> voronoi_edge_to_delaunay_facet_map;
     std::map<Point, float> vertexValueMap;
 
-    construct_voronoi_diagram(vd, vdc_param, voronoi_edge_to_delaunay_facet_map, grid, vertexValueMap, bbox);
+    construct_voronoi_diagram(vd, vdc_param, voronoi_edge_to_delaunay_facet_map, grid, vertexValueMap, bbox, dt);
     if (vdc_param.test_vor) {
         // If test_vor is true means in testing mode for voronoi diagram construction, no need for further move
         return EXIT_SUCCESS;
@@ -86,7 +87,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Iso Surface..." << std::endl;
     }
-    construct_iso_surface(vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters, voronoi_edge_to_delaunay_facet_map, vertexValueMap, bbox, point_index_map);
+    construct_iso_surface(dt, vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters, voronoi_edge_to_delaunay_facet_map, vertexValueMap, bbox, point_index_map);
 
     // Export the Voronoi diagram to a CSV file if requested.
     if (vdc_param.out_csv)

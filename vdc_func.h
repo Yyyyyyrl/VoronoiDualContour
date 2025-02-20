@@ -6,7 +6,6 @@
 #include "vdc_type.h"
 #include "vdc_utilities.h"
 #include "vdc_io.h"
-#include "vdc_globalvar.h"
 #include "vdc_commandline.h"
 #include "vdc_voronoi.h"
 
@@ -101,13 +100,14 @@ Setting up the delaunay triangulation
  * This function constructs a 3D Delaunay triangulation using the grid's scalar values
  * and the facets of the active cubes.
  * 
+ * @param dt The Deluanay Triangulation instance
  * @param grid The grid containing scalar values.
  * @param grid_facets The grid facets to use in constructing the triangulation.
  * @param vdc_param The VDC_PARAM instance that holds the commandline options the user input
  * @param activeCubeCenters The list of center points of active cubes
  * @param point_index_map the map between the points in the delaunay triangulation to its index (Used in Single Iso-V Case ONLY)
  */
-void construct_delaunay_triangulation(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters, std::map<Point, int> &point_index_map);
+void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters, std::map<Point, int> &point_index_map);
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 /*!
@@ -130,28 +130,32 @@ Functions that relates to building the voronoi diagram
  * Generates the vertices of the Voronoi diagram based on the Delaunay triangulation.
  * 
  * @param voronoiDiagram The Voronoi diagram to construct vertices for.
+ * @param dt The Deluanay Triangulation corresponding(dual) to the voronoi diagram
  */
-void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram);
+void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
 //! @brief Constructs Voronoi cells from the Delaunay triangulation.
 /*!
  * Populates the Voronoi diagram with polyhedral cells derived from the Delaunay triangulation.
  * 
  * @param voronoiDiagram The Voronoi diagram to populate with cells.
+ * @param dt The Deluanay Triangulation corresponding(dual) to the voronoi diagram
  */
-void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram);
+void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
 //! @brief (in dev) Construct the voronoi cells routine that doesn't use Convex_Hull_3
 /*!
  * Populates the Voronoi diagram with polyhedral cells derived from the Delaunay triangulation without using Convex_Hull_3
+ * @param dt The Deluanay Triangulation corresponding(dual) to the voronoi diagram
  */
-void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram);
+void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
 //! @brief (in dev) Construct the voronoi cells routine as the intersection of halfspaces.
 /*!
  *
+ * @param dt The Deluanay Triangulation corresponding(dual) to the voronoi diagram
  */
-void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram);
+void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
 //! @brief Computes Voronoi vertex values using scalar grid interpolation.
 /*!
@@ -170,10 +174,12 @@ void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, st
  * 
  * @param voronoiDiagram The Voronoi diagram to populate with edges.
  * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
+ * @param dt The Deluanay Triangulation corresponding(dual) to the voronoi diagram
  */
 void construct_voronoi_edges(
     VoronoiDiagram &voronoiDiagram,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map);
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
+    Delaunay &dt);
 
 
 //! @brief Constructs the VoronoiCelledges in the VoronoiDiagram and link them
@@ -182,10 +188,12 @@ void construct_voronoi_edges(
  * @param voronoiDiagram The Voronoi diagram to populate with edges.
  * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
  * @param bbox The bounding box used for clipping Ray and Line voronoi Edges
+ * @param dt The Deluanay Triangulation corresponding(dual) to the voronoi diagram
  */
 void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
     std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
-    CGAL::Epick::Iso_cuboid_3 &bbox);
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    Delaunay &dt);
     
 /* Output Handling */
 
@@ -207,11 +215,11 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
 /*!
  *
  */
-void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, ScalarGrid &grid, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox);
+void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, ScalarGrid &grid, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
 
 //! @brief Wrap up function for all process of building the isosurface (vertices and faces) from the Voronoi Diagram / Delaunay Triangulation
 /*!
  *
  */
-void construct_iso_surface(VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters,std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &point_index_map);
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters,std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &point_index_map);
 #endif

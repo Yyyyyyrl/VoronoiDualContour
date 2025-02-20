@@ -10,7 +10,6 @@
 #include "vdc_grid.h"
 #include "vdc_voronoi.h"
 #include "vdc_delaunay.h"
-#include "vdc_globalvar.h"
 #include "vdc_commandline.h"
 
 //! @brief Converts a CGAL::Object into a string representation.

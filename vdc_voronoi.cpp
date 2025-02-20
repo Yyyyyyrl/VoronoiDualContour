@@ -8,7 +8,7 @@
  *
  * @param midpoints Vector of all midpoints in the Voronoi diagram.
  */
-void Cycle::compute_centroid(const std::vector<MidpointNode>& midpoints)
+void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
 {
     if (midpoint_indices.empty())
     {
@@ -24,6 +24,21 @@ void Cycle::compute_centroid(const std::vector<MidpointNode>& midpoints)
 
     // Compute the centroid using CGAL's centroid function.
     isovertex = CGAL::centroid(points.begin(), points.end());
+}
+
+// Compute centroid of the cycle using the positions in voronoiVertices.
+void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
+{
+    double sumX = 0, sumY = 0, sumZ = 0;
+    for (int idx : midpoint_indices)
+    {
+        const Point &p = voronoiVertices[idx].vertex;
+        sumX += p.x();
+        sumY += p.y();
+        sumZ += p.z();
+    }
+    double n = static_cast<double>(midpoint_indices.size());
+    isovertex = Point(sumX / n, sumY / n, sumZ / n);
 }
 
 //! @brief Checks internal consistency of the VoronoiDiagram.
