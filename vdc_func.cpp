@@ -1026,6 +1026,8 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
             vc.facet_indices.push_back(facet_index);
         }
 
+        std::cout << vc << std::endl;
+
         voronoiDiagram.voronoiCells.push_back(vc);
         voronoiDiagram.delaunayVertex_to_voronoiCell_index[vh] = index;
         index++;
