@@ -1130,6 +1130,7 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Del
         // If you store a dummy-flag in vh->info(), skip it
         if (vh->info())
         {
+            std::cerr << "dummy vertex met in iterating dt\n";
             continue;
         }
 
@@ -1177,7 +1178,7 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Del
             Cell_handle cEdge = ed.first;
             if (dt.is_infinite(cEdge))
             {
-                std::cerr << "Infinite Edges" << "\n";
+                throw std::runtime_error("infinite edge detected");
             }
 
             // Collect the two vertex handles for this edge
@@ -1190,10 +1191,9 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Del
             // Make sure the edge actually has 'vh' as one of its end
             if (v1 != vh && v2 != vh)
             {
-                std::cerr << "Invalid edges" << "\n";
+                throw std::runtime_error("Invalid edges detected");
             }
 
-            std::cerr << "checkpoint: cc\n";
             // Retrieve all cells around this edge using a Cell_circulator
             Delaunay::Cell_circulator cc = dt.incident_cells(ed);
             if (cc == nullptr)
@@ -1204,24 +1204,25 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Del
 
             std::set<int> facetVertexSet;
             bool skipFacet = false;
+            int ii = 0;
 
-            std::cerr << "checkpoint: cc2\n";
             Delaunay::Cell_circulator start = cc;
-            std::cerr << "checkpoint: cc3\n";
             do
             {
+                std::cout << "Iteration " << ii << std::endl;
                 if (dt.is_infinite(cc))
                 {
                     // Edge extends to infinity => skip
                     skipFacet = true;
                     break;
                 }
+                std::cout << "checkpoint: find cell" << std::endl;
                 auto it = voronoiDiagram.delaunay_cell_to_voronoi_vertex_index.find(cc);
                 if (it != voronoiDiagram.delaunay_cell_to_voronoi_vertex_index.end())
                 {
                     facetVertexSet.insert(it->second);
                 } else {
-                    std::cout << " Voronoi Vertex not found for Delaunay Cell: "<< std::endl;
+                    std::cerr << " Voronoi Vertex not found for Delaunay Cell\n";
                 }
 
                 // Point dualPt = dt.dual(cc);
@@ -1231,7 +1232,10 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Del
                 // }
 
                 ++cc;
+                ++ii;
             } while (cc != start);
+
+            std::cerr << "checkpoint: cc_circ\n";
 
             
             if (skipFacet)
@@ -1243,7 +1247,7 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Del
             // Check facet validity
             if (facetVertexSet.size() < 3)
             {
-                std::cerr << "Invalid Facet\n";
+                throw std::runtime_error("Invalid Facet");
             }
 
             // Convert the set to a vector
