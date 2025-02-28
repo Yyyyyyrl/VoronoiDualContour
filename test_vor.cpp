@@ -120,6 +120,14 @@ void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
         file << "\n" << cell;
     }
 
+    // 4. Voronoi Facets
+    file << "\nVoronoiFacets:\n";
+    for (size_t i = 0; i < vd.voronoiFacets.size(); ++i)
+    {
+        file << "Index " << i << ":\n";
+        file << vd.voronoiFacets[i];
+    }
+
     file.close();
     std::cout << "voronoi diagram saved to voronoiDiagram.txt\n";
 }
@@ -166,10 +174,10 @@ int main(int argc, char *argv[])
     std::cout << "Checkpoint 1" << std::endl;
     construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map, dt);
     std::cout << "Checkpoint 2" << std::endl;
-    construct_voronoi_cells(vd,dt);
+    //construct_voronoi_cells(vd,dt);
+    construct_voronoi_cells_non_convex_hull(vd,dt);
     std::cout << "Checkpoint 3" << std::endl;
 
-    std::cout << vd << std::endl;
     write_voronoiDiagram(vd, output_filename);
 
 
