@@ -150,7 +150,7 @@ void export_voronoi_to_csv(const VoronoiDiagram &voronoiDiagram, const std::stri
 
     // Export vertices
     file << "vertices\n";
-    for (const auto &vVertex : voronoiDiagram.voronoiVertices)
+    for (const auto &vVertex : voronoiDiagram.vertices)
     {
         Point vertex = vVertex.vertex;
         file << vertex.x() << "," << vertex.y() << "," << vertex.z() << "\n";
@@ -158,7 +158,7 @@ void export_voronoi_to_csv(const VoronoiDiagram &voronoiDiagram, const std::stri
 
     // Export edges
     file << "edges\n";
-    for (const auto &edge : voronoiDiagram.voronoiEdges)
+    for (const auto &edge : voronoiDiagram.edges)
     {
         Segment3 segment;
         Line3 line;

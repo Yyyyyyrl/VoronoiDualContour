@@ -32,6 +32,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h> // Kernel for exact predicates and inexact constructions.
 #include <CGAL/Delaunay_triangulation_3.h>            // Delaunay triangulation in 3D.
 #include <CGAL/Triangulation_vertex_base_with_info_3.h> // Vertex base with additional user data.
+#include <CGAL/Triangulation_cell_base_with_info_3.h>
 #include <CGAL/Delaunay_triangulation_cell_base_with_circumcenter_3.h> // Cell base with circumcenter support.
 
 //! @brief CGAL Kernel.
@@ -41,18 +42,30 @@
  */
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 
+struct VERTEX_INFO {
+    bool is_dummy;
+    int voronoiCellIndex;
+};
+
+struct CELL_INFO {
+    int dualVoronoiVertexIndex;
+};
+
 //! @brief Vertex base for triangulations with additional information.
 /*!
  * The boolean value in the vertex base can be used to store metadata
  * (e.g., whether a vertex is marked or visited).
  */
-typedef CGAL::Triangulation_vertex_base_with_info_3<bool, K> Vb;
+typedef CGAL::Triangulation_vertex_base_with_info_3<VERTEX_INFO, K> Vb;
+
 
 //! @brief Cell base for Delaunay triangulations.
 /*!
- * This base provides support for calculating circumcenters of cells.
- */
-typedef CGAL::Delaunay_triangulation_cell_base_3<K> Cb;
+* This base provides support for calculating circumcenters of cells.
+*/
+typedef CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K> Cb2;
+ 
+typedef CGAL::Triangulation_cell_base_with_info_3<CELL_INFO,K,Cb2> Cb;
 
 //! @brief Data structure for triangulations.
 /*!

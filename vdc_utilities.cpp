@@ -20,6 +20,9 @@ std::string objectToString(const Object &obj)
     {
         stream << "Line: " << line;
     }
+    else {
+        stream << "unkown edge type";
+    }
     return stream.str();
 }
 

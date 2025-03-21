@@ -50,22 +50,22 @@ void VoronoiDiagram::check() const
     std::cout << "VoronoiDiagram::check() passed all checks.\n";
 }
 
-//! @brief Verifies that `cellEdgeLookup` matches the data in `VoronoiCellEdges`.
+//! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
 void VoronoiDiagram::checkCellEdgeLookup() const
 {
     for (const auto &kv : cellEdgeLookup)
     {
-        // kv.first is (ic, ie) and kv.second is the index in VoronoiCellEdges.
+        // kv.first is (ic, ie) and kv.second is the index in cellEdges.
         int ic = kv.first.first;  // cellIndex
         int ie = kv.first.second; // edgeIndex
         int cellEdgeIdx = kv.second;
 
-        if (cellEdgeIdx < 0 || cellEdgeIdx >= static_cast<int>(VoronoiCellEdges.size()))
+        if (cellEdgeIdx < 0 || cellEdgeIdx >= static_cast<int>(cellEdges.size()))
         {
             throw std::runtime_error("cellEdgeLookup points to invalid VoronoiCellEdge index.");
         }
 
-        const VoronoiCellEdge &ce = VoronoiCellEdges[cellEdgeIdx];
+        const VoronoiCellEdge &ce = cellEdges[cellEdgeIdx];
 
         if (ce.cellIndex != ic || ce.edgeIndex != ie)
         {
@@ -83,22 +83,22 @@ void VoronoiDiagram::checkCellEdgeLookup() const
 void VoronoiDiagram::checkNextCellEdgeConsistency() const
 {
     // 1. Check that each nextCellEdge is valid and has the same edgeIndex.
-    for (int ceIdx = 0; ceIdx < static_cast<int>(VoronoiCellEdges.size()); ++ceIdx)
+    for (int ceIdx = 0; ceIdx < static_cast<int>(cellEdges.size()); ++ceIdx)
     {
-        const VoronoiCellEdge &ce = VoronoiCellEdges[ceIdx];
+        const VoronoiCellEdge &ce = cellEdges[ceIdx];
         int nxt = ce.nextCellEdge;
         if (nxt < 0)
         {
             // -1 might be allowed for boundary conditions or partial references.
             continue;
         }
-        if (nxt >= static_cast<int>(VoronoiCellEdges.size()))
+        if (nxt >= static_cast<int>(cellEdges.size()))
         {
             std::cerr << "ERROR: VoronoiCellEdge[" << ceIdx << "].nextCellEdge=" << nxt
                       << " is out of range.\n";
             throw std::runtime_error("Invalid nextCellEdge index.");
         }
-        const VoronoiCellEdge &ceNext = VoronoiCellEdges[nxt];
+        const VoronoiCellEdge &ceNext = cellEdges[nxt];
         if (ceNext.edgeIndex != ce.edgeIndex)
         {
             std::cerr << "ERROR: VoronoiCellEdge[" << ceIdx << "] -> edgeIndex="
@@ -110,9 +110,9 @@ void VoronoiDiagram::checkNextCellEdgeConsistency() const
 
     // 2. Extended check: each set of cell edges with the same edgeIndex forms a single closed cycle.
     std::unordered_map<int, std::vector<int>> edgeIndexToCellEdges;
-    for (int ceIdx = 0; ceIdx < static_cast<int>(VoronoiCellEdges.size()); ++ceIdx)
+    for (int ceIdx = 0; ceIdx < static_cast<int>(cellEdges.size()); ++ceIdx)
     {
-        int eIdx = VoronoiCellEdges[ceIdx].edgeIndex;
+        int eIdx = cellEdges[ceIdx].edgeIndex;
         edgeIndexToCellEdges[eIdx].push_back(ceIdx);
     }
 
@@ -127,7 +127,7 @@ void VoronoiDiagram::checkNextCellEdgeConsistency() const
         std::set<int> visited;
         visited.insert(start);
 
-        int current = VoronoiCellEdges[start].nextCellEdge;
+        int current = cellEdges[start].nextCellEdge;
         while (current != start)
         {
             if (current < 0)
@@ -144,7 +144,7 @@ void VoronoiDiagram::checkNextCellEdgeConsistency() const
                 throw std::runtime_error("Multiple loops or early cycle detected.");
             }
             visited.insert(current);
-            const VoronoiCellEdge &ceNext = VoronoiCellEdges[current];
+            const VoronoiCellEdge &ceNext = cellEdges[current];
             current = ceNext.nextCellEdge;
         }
 
@@ -162,21 +162,21 @@ void VoronoiDiagram::checkNextCellEdgeConsistency() const
 //! @brief Checks each VoronoiCell's facets to ensure that every facet's vertices are in the cell's vertex set.
 void VoronoiDiagram::checkCellFacets() const
 {
-    for (int cIdx = 0; cIdx < static_cast<int>(voronoiCells.size()); ++cIdx)
+    for (int cIdx = 0; cIdx < static_cast<int>(cells.size()); ++cIdx)
     {
-        const VoronoiCell &cell = voronoiCells[cIdx];
+        const VoronoiCell &cell = cells[cIdx];
         // Build a set of the cell's vertex indices for quick membership testing.
         std::set<int> cellVertexSet(cell.vertices_indices.begin(), cell.vertices_indices.end());
 
         for (int fIdx : cell.facet_indices)
         {
-            if (fIdx < 0 || fIdx >= static_cast<int>(voronoiFacets.size()))
+            if (fIdx < 0 || fIdx >= static_cast<int>(facets.size()))
             {
                 std::cerr << "ERROR: cell " << cIdx << " has invalid facet index " << fIdx << "\n";
                 throw std::runtime_error("Facet index out of range.");
             }
 
-            const VoronoiFacet &facet = voronoiFacets[fIdx];
+            const VoronoiFacet &facet = facets[fIdx];
             for (int vIdx : facet.vertices_indices)
             {
                 if (cellVertexSet.find(vIdx) == cellVertexSet.end())

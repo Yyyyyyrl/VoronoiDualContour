@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Delaunay triangulation..." << std::endl;
     }
-    std::map<Point, int> point_index_map; // Used in Single Iso-V Case ONLY
-    construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters, point_index_map);
+    std::map<Point, int> pointToIndexMap; // Used in Single Iso-V Case ONLY
+    construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters, pointToIndexMap);
 
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Iso Surface..." << std::endl;
     }
-    construct_iso_surface(dt, vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters, voronoi_edge_to_delaunay_facet_map, vertexValueMap, bbox, point_index_map);
+    construct_iso_surface(dt, vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters, voronoi_edge_to_delaunay_facet_map, vertexValueMap, bbox, pointToIndexMap);
 
     // Export the Voronoi diagram to a CSV file if requested.
     if (vdc_param.out_csv)
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 
     // Handle the output mesh generation and return the appropriate status.
     bool retFlag;
-    int retVal = handle_output_mesh(retFlag, vd, vdc_param, iso_surface, point_index_map);
+    int retVal = handle_output_mesh(retFlag, vd, vdc_param, iso_surface, pointToIndexMap);
     if (retFlag)
         return retVal;
 

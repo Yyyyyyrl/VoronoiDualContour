@@ -15,6 +15,7 @@
 struct VoronoiVertex
 {
     Point vertex;                 //!< Geometric coordinates of the vertex.
+    int index;                    //!<
     std::vector<int> cellIndices; //!< Indices of Voronoi cells that contain this vertex.
 
     //! @brief Constructor to initialize a Voronoi vertex.
@@ -23,6 +24,20 @@ struct VoronoiVertex
      */
     VoronoiVertex(Point p) : vertex(p) {}
 };
+
+
+struct VoronoiEdge 
+{
+    CGAL::Object edgeObject;
+    int type;                    //!< 0 for segment, 1 for ray and 2 for lines; -1 for unknown
+
+    //! @brief constructor
+    /*!
+     * @param obj instance of the edge in CGAL::Object
+     */
+    VoronoiEdge(CGAL::Object obj) : edgeObject(obj) {}
+};
+
 
 //! @brief Represents a midpoint of an edge in a Voronoi diagram.
 /*!
@@ -47,7 +62,9 @@ struct MidpointNode
 struct VoronoiFacet
 {
     std::vector<int> vertices_indices; //!< Indices of vertices forming this facet, ordered.
+    //TODO: Remove this, replace with array of indices
     std::vector<float> vertex_values;  //!< Scalar values at the facet's vertices.
+    std::vector<int> vertex_values_indices; //!< The locations in voronoiDiagram.vertexValues for vertices in the facet
 
     //! @brief Default constructor.
     VoronoiFacet() = default;
@@ -75,8 +92,8 @@ struct Cycle
      *                  associated with this cycle are used in the computation.
      */
     void compute_centroid(const std::vector<MidpointNode> &midpoints);
-        // Compute centroid of the cycle using the positions in voronoiVertices.
-    void compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices);
+        // Compute centroid of the cycle using the positions in vertices.
+    void compute_centroid(const std::vector<VoronoiVertex> &vertices);
 };
 
 
@@ -108,9 +125,9 @@ struct VoronoiCell
 struct VoronoiCellEdge
 {
     int cellIndex;                 //!< Index of the VoronoiCell that contains this CellEdge
-    int edgeIndex;                 //!< Index of this edge in the vector of voronoiEdges in the VoronoiDiagram instance that contains the cell this egde is in
+    int edgeIndex;                 //!< Index of this edge in the vector of edges in the VoronoiDiagram instance that contains the cell this egde is in
     std::vector<int> cycleIndices; //!< Indices of cycles in this VoronoiCell that corresponding to this edge
-    int nextCellEdge;              //!< Index of next cell edge around the Voronoi Edge ( VoronoiDiagram.voronoiEdges[edgeIndex])
+    int nextCellEdge;              //!< Index of next cell edge around the Voronoi Edge ( VoronoiDiagram.edges[edgeIndex])
 };
 
 //! @brief Represents the overall Voronoi diagram.
@@ -119,24 +136,22 @@ struct VoronoiCellEdge
  */
 struct VoronoiDiagram
 {
-    std::vector<VoronoiVertex> voronoiVertices;                       //!< List of Voronoi vertices in the diagram.
-    std::vector<Object> voronoiEdges;                                 //!< List of edges in the diagram (e.g., line segments).
-    std::vector<VoronoiCellEdge> VoronoiCellEdges;                    //!< List of Cell Edges in the diagram
+    std::vector<VoronoiVertex> vertices;                       //!< List of Voronoi vertices in the diagram.
+    std::vector<Object> edges;                                 //!< List of edges in the diagram (e.g., line segments).
+    std::vector<VoronoiCellEdge> cellEdges;                    //!< List of Cell Edges in the diagram
     std::vector<float> voronoiVertexValues;                           //!< Scalar values at the Voronoi vertices.
-    std::vector<VoronoiCell> voronoiCells;                            //!< List of Voronoi cells in the diagram.
-    std::vector<VoronoiFacet> voronoiFacets;                          //!< List of facets in the diagram.
-    std::map<Cell_handle, int> delaunay_cell_to_voronoi_vertex_index; //!< Map from Voronoi cells to vertex indices.
-    std::map<Point, int> point_to_vertex_index;                       //!< Map from Voronoi vertices to their indices.
-    std::map<Vertex_handle, int> delaunayVertex_to_voronoiCell_index; //!< Map from Delaunay vertices to Voronoi cells.
+    std::vector<VoronoiCell> cells;                            //!< List of Voronoi cells in the diagram.
+    std::vector<VoronoiFacet> facets;                          //!< List of facets in the diagram.
 
-    std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in VoronoiCellEdges
+
+    std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
     std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
 
     //! @brief Checks internal consistency of the VoronoiDiagram.
     void check() const;
 
 private:
-    //! @brief Verifies that `cellEdgeLookup` matches the data in `VoronoiCellEdges`.
+    //! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
     void checkCellEdgeLookup() const;
 
     //! @brief Checks that each cellEdge's `nextCellEdge` points to another edge with the same `edgeIndex`.
@@ -282,16 +297,16 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
     os << "VoronoiDiagram:\n";
 
     // 1. Voronoi Vertices
-    os << "\nVoronoiVertices:\n";
-    for (size_t i = 0; i < vd.voronoiVertices.size(); ++i)
+    os << "\nvertices:\n";
+    for (size_t i = 0; i < vd.vertices.size(); ++i)
     {
         os << "Index " << i << ":\n";
-        os << vd.voronoiVertices[i];
+        os << vd.vertices[i];
     }
 
     // 2. Voronoi Edges
     os << "\nVoronoiEdges:\n";
-    for (const auto &edge : vd.voronoiEdges)
+    for (const auto &edge : vd.edges)
     {
         os << "  Edge: ";
         Segment3 segment;
@@ -325,31 +340,31 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
 
     // 4. Voronoi Facets
     os << "\nVoronoiFacets:\n";
-    for (size_t i = 0; i < vd.voronoiFacets.size(); ++i)
+    for (size_t i = 0; i < vd.facets.size(); ++i)
     {
         os << "Index " << i << ":\n";
-        os << vd.voronoiFacets[i];
+        os << vd.facets[i];
     }
 
     // 5. Voronoi Cells
-    os << "\nVoronoiCells:\n";
-    for (const auto &cell : vd.voronoiCells)
+    os << "\ncells:\n";
+    for (const auto &cell : vd.cells)
     {
         os << "\n" << cell;
     }
 
     // 6. Voronoi CellEdges
-    os << "\nVoronoiCellEdges:\n";
-    for (size_t i = 0; i < vd.VoronoiCellEdges.size(); ++i)
+    os << "\ncellEdges:\n";
+    for (size_t i = 0; i < vd.cellEdges.size(); ++i)
     {
         os << "Index " << i << ":\n";
-        os << vd.VoronoiCellEdges[i];
+        os << vd.cellEdges[i];
     }
 
     // 7. Print the two new maps
 
     // 7a. cellEdgeLookup
-    os << "\ncellEdgeLookup ( (cellIndex, edgeIndex) -> VoronoiCellEdges index ):\n";
+    os << "\ncellEdgeLookup ( (cellIndex, edgeIndex) -> cellEdges index ):\n";
     for (const auto &kv : vd.cellEdgeLookup)
     {
         int cellIndex = kv.first.first;
@@ -368,36 +383,6 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
         os << "  ( " << v1 << ", " << v2 << " ) -> " << edgeIndex << "\n";
     }
 
-    // -------------------------------------------------------------------------
-    // 8. Print the three maps that were missing:
-    // -------------------------------------------------------------------------
-
-    // 8a. delaunay_cell_to_voronoi_vertex_index
-    os << "\nDelaunayCell -> VoronoiVertexIndex:\n";
-    for (const auto &kv : vd.delaunay_cell_to_voronoi_vertex_index)
-    {
-        // kv.first is a Cell_handle, kv.second is an int
-        // We'll print the address of the cell handle (or any ID we want).
-        os << "  Cell_handle@" << &(*kv.first) << " -> " << kv.second << "\n";
-    }
-
-    // 8b. point_to_vertex_index
-    os << "\nPoint -> VoronoiVertexIndex:\n";
-    for (const auto &kv : vd.point_to_vertex_index)
-    {
-        // kv.first is a Point, kv.second is an int
-        // We can usually print a CGAL::Point_3 directly, or explicitly by coords.
-        os << "  " << kv.first << " -> " << kv.second << "\n";
-    }
-
-    // 8c. delaunayVertex_to_voronoiCell_index
-    os << "\nDelaunayVertex -> VoronoiCellIndex:\n";
-    for (const auto &kv : vd.delaunayVertex_to_voronoiCell_index)
-    {
-        // kv.first is a Vertex_handle, kv.second is an int
-        // Similarly, we just print the handle as a raw pointer or any ID we prefer.
-        os << "  Vertex_handle@" << &(*kv.first) << " -> " << kv.second << "\n";
-    }
 
     return os;
 }
