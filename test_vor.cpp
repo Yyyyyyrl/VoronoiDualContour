@@ -80,15 +80,15 @@ void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
 
     // 1. Voronoi Vertices
     file << "\nVoronoiVertices:\n";
-    for (size_t i = 0; i < vd.voronoiVertices.size(); ++i)
+    for (size_t i = 0; i < vd.vertices.size(); ++i)
     {
         file << "Index " << i << ":\n";
-        file << vd.voronoiVertices[i];
+        file << vd.vertices[i];
     }
 
     // 2. Voronoi Edges
     file << "\nVoronoiEdges:\n";
-    for (const auto &edge : vd.voronoiEdges)
+    for (const auto &edge : vd.edges)
     {
         file << "  Edge: ";
         Segment3 segment;
@@ -115,17 +115,17 @@ void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
 
     // 5. Voronoi Cells
     file << "\nVoronoiCells:\n";
-    for (const auto &cell : vd.voronoiCells)
+    for (const auto &cell : vd.cells)
     {
         file << "\n" << cell;
     }
 
     // 4. Voronoi Facets
     file << "\nVoronoiFacets:\n";
-    for (size_t i = 0; i < vd.voronoiFacets.size(); ++i)
+    for (size_t i = 0; i < vd.facets.size(); ++i)
     {
         file << "Index " << i << ":\n";
-        file << vd.voronoiFacets[i];
+        file << vd.facets[i];
     }
 
     file.close();
@@ -171,9 +171,8 @@ int main(int argc, char *argv[])
     std::map<Object, std::vector<Facet>, ObjectComparator> voronoi_edge_to_delaunay_facet_map;
 
     construct_voronoi_vertices(vd, dt);
-    std::cout << "Checkpoint 1" << std::endl;
     construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map, dt);
-    std::cout << "Checkpoint 2" << std::endl;
+    std::cout << vd <<std::endl;
     //construct_voronoi_cells(vd,dt);
     construct_voronoi_cells_non_convex_hull(vd,dt);
     std::cout << "Checkpoint 3" << std::endl;

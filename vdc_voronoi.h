@@ -139,7 +139,7 @@ struct VoronoiDiagram
     std::vector<VoronoiVertex> vertices;                       //!< List of Voronoi vertices in the diagram.
     std::vector<Object> edges;                                 //!< List of edges in the diagram (e.g., line segments).
     std::vector<VoronoiCellEdge> cellEdges;                    //!< List of Cell Edges in the diagram
-    std::vector<float> voronoiVertexValues;                           //!< Scalar values at the Voronoi vertices.
+    std::vector<float> vertexValues;                           //!< Scalar values at the Voronoi vertices.
     std::vector<VoronoiCell> cells;                            //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiFacet> facets;                          //!< List of facets in the diagram.
 
@@ -332,10 +332,10 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
     }
 
     // 3. Voronoi Vertex Values
-    os << "\nVoronoiVertexValues:\n";
-    for (size_t i = 0; i < vd.voronoiVertexValues.size(); ++i)
+    os << "\nvertexValues:\n";
+    for (size_t i = 0; i < vd.vertexValues.size(); ++i)
     {
-        os << "  Index " << i << ": " << vd.voronoiVertexValues[i] << "\n";
+        os << "  Index " << i << ": " << vd.vertexValues[i] << "\n";
     }
 
     // 4. Voronoi Facets
