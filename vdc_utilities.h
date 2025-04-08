@@ -121,4 +121,10 @@ std::array<Point, 8> get_cube_corners(const Point &center, float side_length);
  */
 int get_orientation(const int iFacet, const Point v1, const Point v2, const float f1, const float f2);
 
+
+bool readPointsFromFile(const std::string &filename, std::vector<Point> &points);
+
+void write_triangulation(Delaunay dt, std::vector<Point> &points, std::string &input_filename);
+
+void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename);
 #endif // VDC_UTILITIES_H

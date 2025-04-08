@@ -121,3 +121,127 @@ bool isPositive(double value, float isovalue)
 {
     return value >= isovalue; // Compare to global isovalue.
 }
+
+bool readPointsFromFile(const std::string &filename, std::vector<Point> &points)
+{
+    std::ifstream file(filename);
+    if (!file)
+    {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(file, line))
+    {
+        std::stringstream ss(line);
+        double x, y, z;
+        char comma1, comma2;
+
+        if (!(ss >> x >> comma1 >> y >> comma2 >> z) || comma1 != ',' || comma2 != ',')
+        {
+            std::cerr << "Warning: Skipping invalid line: " << line << std::endl;
+            continue;
+        }
+
+        points.emplace_back(x, y, z);
+    }
+
+    file.close();
+    return true;
+}
+
+void write_triangulation(Delaunay dt, std::vector<Point> &points, std::string &input_filename)
+{
+    // Save points and edges to file
+    std::ofstream file("triangulation.txt");
+    if (!file)
+    {
+        std::cerr << "Error opening output file.\n";
+        exit(EXIT_FAILURE);
+    }
+
+    // Write points
+    file << "POINTS\n";
+    for (const auto &p : points)
+    {
+        file << p.x() << " " << p.y() << " " << p.z() << "\n";
+    }
+
+    // Write edges
+    file << "EDGES\n";
+    for (auto e = dt.finite_edges_begin(); e != dt.finite_edges_end(); ++e)
+    {
+        auto v1 = e->first->vertex(e->second);
+        auto v2 = e->first->vertex(e->third);
+        file << v1->point().x() << " " << v1->point().y() << " " << v1->point().z() << " ";
+        file << v2->point().x() << " " << v2->point().y() << " " << v2->point().z() << "\n";
+    }
+
+    file.close();
+    std::cout << "Triangulation saved to triangulation.txt\n";
+}
+
+void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
+    std::ofstream file("voronoiDiagram.txt");
+    if (!file) {
+        std::cerr << "Error opening output file.\n";
+        exit(EXIT_FAILURE);
+    }
+
+    //Write points
+    file << "VoronoiDiagram:\n";
+
+    // 1. Voronoi Vertices
+    file << "\nVoronoiVertices:\n";
+    for (size_t i = 0; i < vd.vertices.size(); ++i)
+    {
+        file << "Index " << i << ":\n";
+        file << vd.vertices[i];
+    }
+
+    // 2. Voronoi Edges
+    file << "\nVoronoiEdges:\n";
+    for (const auto &edge : vd.edges)
+    {
+        file << "  Edge: ";
+        Segment3 segment;
+        Line3 line;
+        Ray3 ray;
+
+        if (CGAL::assign(segment, edge))
+        {
+            file << "Segment(" << segment.source() << " - " << segment.target() << ")\n";
+        }
+        else if (CGAL::assign(line, edge))
+        {
+            file << "Line(" << line.point(0) << " - " << line.point(1) << ")\n";
+        }
+        else if (CGAL::assign(ray, edge))
+        {
+            file << "Ray(" << ray.source() << ", direction: " << ray.direction() << ")\n";
+        }
+        else
+        {
+            file << "Unknown edge type.\n";
+        }
+    }
+
+    // 5. Voronoi Cells
+    file << "\nVoronoiCells:\n";
+    for (const auto &cell : vd.cells)
+    {
+        file << "\n" << cell;
+    }
+
+    // 4. Voronoi Facets
+    file << "\nVoronoiFacets:\n";
+    for (size_t i = 0; i < vd.facets.size(); ++i)
+    {
+        file << "Index " << i << ":\n";
+        file << vd.facets[i];
+    }
+
+    file.close();
+    std::cout << "voronoi diagram saved to voronoiDiagram.txt\n";
+}
