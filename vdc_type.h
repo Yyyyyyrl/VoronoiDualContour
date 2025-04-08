@@ -43,12 +43,14 @@
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 
 struct VERTEX_INFO {
-    bool is_dummy;
-    int voronoiCellIndex;
+    bool is_dummy;                          // indicator of whether this delaunay vertex is added for bounding ( dummy )
+    int voronoiCellIndex;                   // Index of the voronoi Cell that is dual to the vertex
+    int index;                              // Index of the delaunay vertex in the triangulation
 };
 
 struct CELL_INFO {
-    int dualVoronoiVertexIndex;
+    int dualVoronoiVertexIndex;             // Index of the voronoi vertex that is dual to this cell
+    int index;                              // Index of this delaunay cell in the triangulation
 };
 
 //! @brief Vertex base for triangulations with additional information.
@@ -148,5 +150,218 @@ typedef K::Vector_3 Vector3;
  * A plane is defined by a point and a normal vector or by three non-collinear points.
  */
 typedef K::Plane_3 Plane_3;
+
+
+//
+// Custom Output << Operators
+//
+
+//! @brief Output operator for Cell_handle
+/*! 
+ * This operator allows printing of Cell_handle objects to output streams.
+ * It displays the cell's vertices, circumcenter, and additional info.
+ *
+ * @param os The output stream to write to
+ * @param ch The Cell_handle to output
+ * @return Reference to the output stream
+ */
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Cell_handle& ch) {
+    if (ch == nullptr) {
+        os << "Cell_handle(nullptr)";
+        return os;
+    }
+
+    // Print cell info
+    os << "Cell_handle[" << &(*ch) << "]:\n";
+    os << "  Info: { index: " << ch->info().index
+       << ", dualVoronoiVertexIndex: " << ch->info().dualVoronoiVertexIndex << " }\n";
+    
+    // Print vertices
+    os << "  Vertices:\n";
+    for (int i = 0; i < 4; ++i) {
+        Vertex_handle vh = ch->vertex(i);
+        os << "    [" << i << "]: (" 
+           << vh->point().x() << ", " 
+           << vh->point().y() << ", " 
+           << vh->point().z() << ")";
+        
+        if (vh->info().is_dummy) {
+            os << " (dummy)";
+        }
+        os << " index: " << vh->info().index;
+        os << "\n";
+    }
+    
+    // Print circumcenter
+    try {
+        Point cc = ch->circumcenter();
+        os << "  Circumcenter: (" 
+           << cc.x() << ", " 
+           << cc.y() << ", " 
+           << cc.z() << ")\n";
+    } catch (...) {
+        os << "  Circumcenter: (calculation failed)\n";
+    }
+    
+    return os;
+}
+
+//! @brief Output operator for Cell_circulator
+/*!
+ * This operator allows printing of Cell_circulator objects to output streams.
+ * It displays the current cell the circulator points to.
+ *
+ * @param os The output stream to write to
+ * @param cc The Cell_circulator to output
+ * @return Reference to the output stream
+ */
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Cell_circulator& cc) {
+    if (cc == Cell_circulator()) {
+        os << "Cell_circulator(default)";
+        return os;
+    }
+    
+    // Get the current cell and output it
+    Cell_handle ch = cc;
+    os << "Cell_circulator -> " << ch;
+    
+    return os;
+}
+
+//! @brief Output operator for Delaunay triangulation
+/*!
+ * This operator allows printing of Delaunay triangulation objects to output streams.
+ * It displays basic statistics about the triangulation including:
+ * - Number of vertices
+ * - Number of finite cells
+ * - Number of infinite cells
+ * - Dimension of the triangulation
+ *
+ * @param os The output stream to write to
+ * @param dt The Delaunay triangulation to output
+ * @return Reference to the output stream
+ */
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Delaunay& dt) {
+    // Basic statistics
+    os << "Delaunay Triangulation Statistics:\n"
+       << "  Dimension: " << dt.dimension() << "\n"
+       << "  Is valid: " << (dt.is_valid() ? "yes" : "no") << "\n\n";
+    
+    // Vertex statistics
+    int total_vertices = dt.number_of_vertices();
+    int dummy_vertices = 0;
+    int regular_vertices = 0;
+    
+    for(auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
+        if(vit->info().is_dummy) {
+            dummy_vertices++;
+        } else {
+            regular_vertices++;
+        }
+    }
+    
+    os << "Vertex Statistics:\n"
+       << "  Total vertices: " << total_vertices << "\n"
+       << "  Regular vertices: " << regular_vertices << "\n"
+       << "  Dummy vertices: " << dummy_vertices << "\n";
+    
+    // Cell statistics
+    int finite_cells = dt.number_of_finite_cells();
+    int infinite_cells = dt.number_of_cells() - finite_cells;
+    
+    os << "\nCell Statistics:\n"
+       << "  Total cells: " << dt.number_of_cells() << "\n"
+       << "  Finite cells: " << finite_cells << "\n"
+       << "  Infinite cells: " << infinite_cells << "\n";
+       
+    // Output detailed information for finite cells
+    os << "\nCell Details (limited to first 5 finite cells):\n";
+    int cell_count = 0;
+    for(auto cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit) {
+        Cell_handle ch = cit;
+        os << ch; 
+        
+        // Limit the number of cells to display to avoid excessive output
+        if(++cell_count >= 5) {
+            os << "... and " << (finite_cells - 5) << " more finite cells\n";
+            break;
+        }
+        
+        // Add a separator line
+        os << "  -----------------------------------------\n";
+    }
+    
+    // Vertex degree distribution (number of adjacent cells per vertex)
+    std::map<int, int> degree_distribution;
+    for(auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
+        int degree = dt.degree(vit);
+        degree_distribution[degree]++;
+    }
+    
+    os << "\nVertex Degree Distribution:\n"
+       << "  (degree: number of vertices)\n";
+    for(const auto& pair : degree_distribution) {
+        os << "  " << pair.first << " cells: " << pair.second << " vertices\n";
+    }
+    
+    // Vertex detailed information
+    os << "\nVertex Details:\n";
+    int vertex_count = 0;
+    for(auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
+        os << "  [" << vit->info().index << "] ("
+           << std::fixed << std::setprecision(3)
+           << vit->point().x() << ", "
+           << vit->point().y() << ", "
+           << vit->point().z() << ")"
+           << (vit->info().is_dummy ? " (dummy)" : "")
+           << " voronoi_cell: " << vit->info().voronoiCellIndex
+           << " degree: " << dt.degree(vit)
+           << "\n";
+        
+        // Limit the number of vertices to display to avoid excessive output
+        if(++vertex_count >= 10) {
+            os << "  ... and " << (total_vertices - 10) << " more vertices\n";
+            break;
+        }
+    }
+    
+    return os;
+}
+
+//! @brief Helper function to print all cells in a Cell_circulator
+/*!
+ * This function iterates through all cells in a Cell_circulator and prints them.
+ * It's useful for debugging purposes to see all cells around a vertex.
+ *
+ * @param os The output stream to write to
+ * @param start The Cell_circulator to start from
+ * @param vertex_index The index of the vertex being circulated around (for information)
+ */
+template <typename OSTREAM_TYPE>
+void print_cell_circuit(OSTREAM_TYPE& os, Cell_circulator start, int vertex_index) {
+    if (start == Cell_circulator()) {
+        os << "Empty Cell_circulator\n";
+        return;
+    }
+    
+    os << "Cells around vertex " << vertex_index << ":\n";
+    
+    Cell_circulator current = start;
+    int count = 0;
+    do {
+        os << "Cell " << count << ":\n" << current << "\n";
+        ++current;
+        ++count;
+    } while (current != start && count < 100); // Safety limit to prevent infinite loops
+    
+    if (count >= 100) {
+        os << "Warning: Circuit may be infinite, stopped after 100 cells\n";
+    }
+    
+    os << "Total: " << count << " cells\n";
+}
 
 #endif // VDC_TYPE_H
