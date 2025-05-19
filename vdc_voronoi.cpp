@@ -36,111 +36,170 @@ void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
     isovertex = CGAL::centroid(points.begin(), points.end());
 }
 
-void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3& bbox) {
+void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbox)
+{
     std::cout << "[DEBUG] Starting collapseSmallEdges with D = " << D << "\n";
     std::cout << "[DEBUG] Initial vertex count: " << vertices.size() << ", edge count: " << edges.size() << "\n";
 
     std::vector<int> mapto(vertices.size());
-    for (size_t i = 0; i < mapto.size(); ++i) {
+    for (size_t i = 0; i < mapto.size(); ++i)
+    {
         mapto[i] = i;
     }
 
     std::set<std::pair<int, int>> processedPairs;
 
-    for (size_t edgeIdx = 0; edgeIdx < edges.size(); ++edgeIdx) {
-        const Object& edgeObj = edges[edgeIdx];
+    for (size_t edgeIdx = 0; edgeIdx < edges.size(); ++edgeIdx)
+    {
+        const Object &edgeObj = edges[edgeIdx];
         Point p1, p2;
         bool isFinite = false;
 
-        if (const Segment3* seg = CGAL::object_cast<Segment3>(&edgeObj)) {
+        if (const Segment3 *seg = CGAL::object_cast<Segment3>(&edgeObj))
+        {
             p1 = seg->source();
             p2 = seg->target();
             isFinite = true;
-        } else if (const Ray3* ray = CGAL::object_cast<Ray3>(&edgeObj)) {
+        }
+        else if (const Ray3 *ray = CGAL::object_cast<Ray3>(&edgeObj))
+        {
             p1 = ray->source();
             auto result = CGAL::intersection(*ray, bbox);
-            if (result && std::get_if<Point>(&*result)) {
+            if (result && std::get_if<Point>(&*result))
+            {
                 p2 = *std::get_if<Point>(&*result);
                 isFinite = true;
-            } else {
             }
-        } else if (const Line3* line = CGAL::object_cast<Line3>(&edgeObj)) {
+            else
+            {
+            }
+        }
+        else if (const Line3 *line = CGAL::object_cast<Line3>(&edgeObj))
+        {
             std::vector<Point> intersections;
             auto result = CGAL::intersection(*line, bbox);
-            if (result) {
-                if (const Point* p = std::get_if<Point>(&*result)) {
+            if (result)
+            {
+                if (const Point *p = std::get_if<Point>(&*result))
+                {
                     intersections.push_back(*p);
-                } else if (const Segment3* s = std::get_if<Segment3>(&*result)) {
+                }
+                else if (const Segment3 *s = std::get_if<Segment3>(&*result))
+                {
                     p1 = s->source();
                     p2 = s->target();
                     isFinite = true;
                 }
             }
-            if (intersections.size() == 1) {
+            if (intersections.size() == 1)
+            {
                 p1 = line->point(0);
                 p2 = intersections[0];
                 isFinite = true;
             }
         }
 
-        if (!isFinite) {
+        if (!isFinite)
+        {
             continue;
         }
 
         int idx1 = find_vertex(p1);
         int idx2 = find_vertex(p2);
-        if (idx1 == -1 || idx2 == -1) {
+        if (idx1 == -1 || idx2 == -1)
+        {
             continue;
         }
-        if (idx1 == idx2) {
+        if (idx1 == idx2)
+        {
             continue;
         }
-
 
         int v1 = std::min(idx1, idx2);
         int v2 = std::max(idx1, idx2);
-        if (processedPairs.count({v1, v2})) {
+        if (processedPairs.count({v1, v2}))
+        {
             continue;
         }
         processedPairs.insert({v1, v2});
 
         double dist = CGAL::sqrt(CGAL::squared_distance(p1, p2));
-        if (dist <= D) {
-            while (mapto[v2] != v2) v2 = mapto[v2];
-            while (mapto[v1] != v1) v1 = mapto[v1];
-            if (v1 < v2) mapto[v2] = v1;
-            else mapto[v1] = v2;
+        if (dist <= D)
+        {
+            while (mapto[v2] != v2)
+                v2 = mapto[v2];
+            while (mapto[v1] != v1)
+                v1 = mapto[v1];
+            if (v1 < v2)
+                mapto[v2] = v1;
+            else
+                mapto[v1] = v2;
         }
     }
 
-    if (processedPairs.empty() && vertices.size() > 1) {
-        for (size_t i = 0; i < vertices.size(); ++i) {
-            for (size_t j = i + 1; j < vertices.size(); ++j) {
+    if (processedPairs.empty() && vertices.size() > 1)
+    {
+        for (size_t i = 0; i < vertices.size(); ++i)
+        {
+            for (size_t j = i + 1; j < vertices.size(); ++j)
+            {
                 int v1 = i, v2 = j;
                 double dist = CGAL::sqrt(CGAL::squared_distance(vertices[i].vertex, vertices[j].vertex));
-                if (dist <= D) {
-                    while (mapto[v2] != v2) v2 = mapto[v2];
-                    while (mapto[v1] != v1) v1 = mapto[v1];
-                    if (v1 < v2) mapto[v2] = v1;
-                    else mapto[v1] = v2;
+                if (dist <= D)
+                {
+                    while (mapto[v2] != v2)
+                        v2 = mapto[v2];
+                    while (mapto[v1] != v1)
+                        v1 = mapto[v1];
+                    if (v1 < v2)
+                        mapto[v2] = v1;
+                    else
+                        mapto[v1] = v2;
                 }
             }
         }
     }
 
+    // After processing edges, merge vertices within a small tolerance O(n^2)
+    // * For vertices within a small distance but with no direct edge connecting them
+    const double mergeTolerance = 1e-8;
+    for (size_t i = 0; i < vertices.size(); ++i)
+    {
+        for (size_t j = i + 1; j < vertices.size(); ++j)
+        {
+            double dist = CGAL::sqrt(CGAL::squared_distance(vertices[i].vertex, vertices[j].vertex));
+            if (dist <= mergeTolerance)
+            {
+                int v1 = i, v2 = j;
+                while (mapto[v1] != v1)
+                    v1 = mapto[v1];
+                while (mapto[v2] != v2)
+                    v2 = mapto[v2];
+                if (v1 < v2)
+                    mapto[v2] = v1;
+                else
+                    mapto[v1] = v2;
+            }
+        }
+    }
+
     std::cout << "[DEBUG] Performing path compression\n";
-    for (size_t i = 0; i < mapto.size(); ++i) {
+    for (size_t i = 0; i < mapto.size(); ++i)
+    {
         int root = i;
-        while (mapto[root] != root) root = mapto[root];
+        while (mapto[root] != root)
+            root = mapto[root];
         mapto[i] = root;
     }
 
     std::cout << "[DEBUG] Rebuilding vertices\n";
     std::map<int, int> oldToNewIndex;
     std::vector<VoronoiVertex> newVertices;
-    for (size_t i = 0; i < vertices.size(); ++i) {
+    for (size_t i = 0; i < vertices.size(); ++i)
+    {
         int root = mapto[i];
-        if (oldToNewIndex.count(root) == 0) {
+        if (oldToNewIndex.count(root) == 0)
+        {
             VoronoiVertex v = vertices[root];
             v.index = newVertices.size();
             oldToNewIndex[root] = v.index;
@@ -151,7 +210,8 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3& bbo
     std::cout << "[DEBUG] New vertex count: " << vertices.size() << "\n";
 
     oldToNewVertexIndex.resize(mapto.size());
-    for (size_t i = 0; i < mapto.size(); ++i) {
+    for (size_t i = 0; i < mapto.size(); ++i)
+    {
         oldToNewVertexIndex[i] = oldToNewIndex[mapto[i]];
     }
     std::cout << "[DEBUG] Updated oldToNewVertexIndex, size: " << oldToNewVertexIndex.size() << "\n";
@@ -160,35 +220,65 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3& bbo
     std::vector<Object> newEdges;
     std::set<std::pair<Point, Vector3>, RayKeyComparator> raySet;
     std::set<std::pair<Point, Vector3>, LineKeyComparator> lineSet;
-    for (const auto& edge : edges) {
+    std::set<std::pair<int, int>> segmentSet; // For segment duplicate removal
+
+    for (const auto &edge : edges)
+    {
         Segment3 seg;
         Ray3 ray;
         Line3 line;
-        if (CGAL::assign(seg, edge)) {
+        if (CGAL::assign(seg, edge))
+        {
             int idx1 = find_vertex(seg.source());
             int idx2 = find_vertex(seg.target());
-            if (idx1 != -1 && idx2 != -1 && idx1 != idx2) {
-                newEdges.push_back(edge);
-            } else {
+            if (idx1 != -1 && idx2 != -1 && idx1 != idx2)
+            {
+                // Normalize segment key: smaller index first
+                auto segKey = std::make_pair(std::min(idx1, idx2), std::max(idx1, idx2));
+                if (segmentSet.insert(segKey).second)
+                {
+                    newEdges.push_back(edge);
+                }
             }
-        } else if (CGAL::assign(ray, edge)) {
+        }
+        else if (CGAL::assign(ray, edge))
+        {
             Point source = ray.source();
             Vector3 dir = ray.direction().vector();
-            auto rayKey = std::make_pair(source, dir);
-            if (raySet.insert(rayKey).second) {
-                newEdges.push_back(edge);
-            } else {
+            // Normalize direction to unit length and standard form
+            double norm = std::sqrt(dir.squared_length());
+            if (norm > 0)
+            {
+                dir = dir / norm;
+                if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0))
+                {
+                    dir = -dir;
+                }
             }
-        } else if (CGAL::assign(line, edge)) {
+            auto rayKey = std::make_pair(source, dir);
+            if (raySet.insert(rayKey).second)
+            {
+                newEdges.push_back(edge);
+            }
+        }
+        else if (CGAL::assign(line, edge))
+        {
             Point pointOnLine = line.point(0);
             Vector3 dir = line.direction().vector();
-            if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0)) {
-                dir = -dir;
+            // Normalize direction to unit length and standard form
+            double norm = std::sqrt(dir.squared_length());
+            if (norm > 0)
+            {
+                dir = dir / norm;
+                if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0))
+                {
+                    dir = -dir;
+                }
             }
             auto lineKey = std::make_pair(pointOnLine, dir);
-            if (lineSet.insert(lineKey).second) {
+            if (lineSet.insert(lineKey).second)
+            {
                 newEdges.push_back(edge);
-            } else {
             }
         }
     }
