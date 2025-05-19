@@ -25,11 +25,10 @@ struct VoronoiVertex
     VoronoiVertex(Point p) : vertex(p) {}
 };
 
-
-struct VoronoiEdge 
+struct VoronoiEdge
 {
     CGAL::Object edgeObject;
-    int type;                    //!< 0 for segment, 1 for ray and 2 for lines; -1 for unknown
+    int type; //!< 0 for segment, 1 for ray and 2 for lines; -1 for unknown
 
     //! @brief constructor
     /*!
@@ -37,7 +36,6 @@ struct VoronoiEdge
      */
     VoronoiEdge(CGAL::Object obj) : edgeObject(obj) {}
 };
-
 
 //! @brief Represents a midpoint of an edge in a Voronoi diagram.
 /*!
@@ -62,8 +60,8 @@ struct MidpointNode
 struct VoronoiFacet
 {
     std::vector<int> vertices_indices; //!< Indices of vertices forming this facet, ordered.
-    //TODO: Remove this, replace with array of indices
-    std::vector<float> vertex_values;  //!< Scalar values at the facet's vertices.
+    // TODO: Remove this, replace with array of indices
+    std::vector<float> vertex_values;       //!< Scalar values at the facet's vertices.
     std::vector<int> vertex_values_indices; //!< The locations in voronoiDiagram.vertexValues for vertices in the facet
 
     //! @brief Default constructor.
@@ -92,11 +90,9 @@ struct Cycle
      *                  associated with this cycle are used in the computation.
      */
     void compute_centroid(const std::vector<MidpointNode> &midpoints);
-        // Compute centroid of the cycle using the positions in vertices.
+    // Compute centroid of the cycle using the positions in vertices.
     void compute_centroid(const std::vector<VoronoiVertex> &vertices);
 };
-
-
 
 //! @brief Represents a Voronoi cell (polytope) in the Voronoi diagram.
 /*!
@@ -136,19 +132,39 @@ struct VoronoiCellEdge
  */
 struct VoronoiDiagram
 {
-    std::vector<VoronoiVertex> vertices;                       //!< List of Voronoi vertices in the diagram.
-    std::vector<Object> edges;                                 //!< List of edges in the diagram (e.g., line segments).
-    std::vector<VoronoiCellEdge> cellEdges;                    //!< List of Cell Edges in the diagram
-    std::vector<float> vertexValues;                           //!< Scalar values at the Voronoi vertices.
-    std::vector<VoronoiCell> cells;                            //!< List of Voronoi cells in the diagram.
-    std::vector<VoronoiFacet> facets;                          //!< List of facets in the diagram.
-
+    std::vector<VoronoiVertex> vertices;    //!< List of Voronoi vertices in the diagram.
+    std::vector<Object> edges;              //!< List of edges in the diagram (e.g., line segments).
+    std::vector<VoronoiCellEdge> cellEdges; //!< List of Cell Edges in the diagram
+    std::vector<float> vertexValues;        //!< Scalar values at the Voronoi vertices.
+    std::vector<VoronoiCell> cells;         //!< List of Voronoi cells in the diagram.
+    std::vector<VoronoiFacet> facets;       //!< List of facets in the diagram.
+    std::vector<int> oldToNewVertexIndex;  //!< Mapping from old to new vertex indices after collapse
 
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
     std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
 
     //! @brief Checks internal consistency of the VoronoiDiagram.
     void check() const;
+
+    //! @brief Comprehensive checker for Voronoi diagram consistency.
+    /*!
+     * Verifies the following properties:
+     * 1. Each bounded Voronoi facet has 3 or more distinct vertices.
+     * 2. Each bounded Voronoi cell has 4 or more facets.
+     * 3. Each Voronoi facet is in at most two voronoi cells.
+     * 4. In each bounded Voronoi cell, each edge is in exactly two facets with opposite orientations.
+     * 5. For every Voronoi cell, all facet normals point outward.
+     * 6. For facets in two cells, the orientation in one cell is opposite to the other.
+     */
+    void checkAdvanced() const;
+
+    //! @brief Collapse all Voronoi vertices closer than D, rebuild cells/facets, and re‐check
+    /*! @param D distance threshold in the same units as your Point field
+    * @param bbox bounding box of the point set for infinite edge collapse ( Ray / Lines)
+    */
+    void collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3& bbox);
+
+    int find_vertex(const Point &p);
 
 private:
     //! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
@@ -159,6 +175,13 @@ private:
 
     //! @brief Checks each VoronoiCell's facets to ensure that every facet's vertices are in the cell's vertex set.
     void checkCellFacets() const;
+
+    /// Hash a facet by its three smallest vertex indices (for “at most two cells” check)
+    std::tuple<int,int,int> getFacetHashKey(const std::vector<int>& verts) const;
+
+    /// Do two facet‐vertex‐sequences represent the same cyclic orientation?
+    bool haveSameOrientation(const std::vector<int>& f1,
+                             const std::vector<int>& f2) const;
 };
 
 //! @brief Represents an isosurface in the domain.
@@ -210,6 +233,36 @@ struct PointComparator
         return (std::fabs(a.x() - b.x()) < epsilon) &&
                (std::fabs(a.y() - b.y()) < epsilon) &&
                (std::fabs(a.z() - b.z()) < epsilon);
+    }
+};
+
+struct RayKeyComparator {
+    bool operator()(const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>>& a,
+                    const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>>& b) const {
+        // Compare points first
+        if (a.first < b.first) return true;
+        if (b.first < a.first) return false;
+        // If points are equal, compare vectors lexicographically
+        auto a_begin = a.second.cartesian_begin();
+        auto a_end = a.second.cartesian_end();
+        auto b_begin = b.second.cartesian_begin();
+        auto b_end = b.second.cartesian_end();
+        return std::lexicographical_compare(a_begin, a_end, b_begin, b_end);
+    }
+};
+
+struct LineKeyComparator {
+    bool operator()(const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>>& a,
+                    const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>>& b) const {
+        // Compare points first
+        if (a.first < b.first) return true;
+        if (b.first < a.first) return false;
+        // If points are equal, compare vectors lexicographically
+        auto a_begin = a.second.cartesian_begin();
+        auto a_end = a.second.cartesian_end();
+        auto b_begin = b.second.cartesian_begin();
+        auto b_end = b.second.cartesian_end();
+        return std::lexicographical_compare(a_begin, a_end, b_begin, b_end);
     }
 };
 
@@ -350,7 +403,8 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
     os << "\ncells:\n";
     for (const auto &cell : vd.cells)
     {
-        os << "\n" << cell;
+        os << "\n"
+           << cell;
     }
 
     // 6. Voronoi CellEdges
@@ -382,7 +436,6 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
         int edgeIndex = kv.second;
         os << "  ( " << v1 << ", " << v2 << " ) -> " << edgeIndex << "\n";
     }
-
 
     return os;
 }
@@ -416,4 +469,7 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiCellEdge &ce)
     return os;
 }
 
+// Helper function declarations (internal linkage)
+std::tuple<int, int, int> getFacetHashKey(const std::vector<int> &vertices);
+bool haveSameOrientation(const std::vector<int> &facet1, const std::vector<int> &facet2);
 #endif
