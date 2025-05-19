@@ -36,19 +36,25 @@ void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
     isovertex = CGAL::centroid(points.begin(), points.end());
 }
 
-void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbox)
+
+// Compute centroid of the cycle using the positions in voronoiVertices.
+void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
 {
-    std::cout << "[DEBUG] Starting collapseSmallEdges with D = " << D << "\n";
-    std::cout << "[DEBUG] Initial vertex count: " << vertices.size() << ", edge count: " << edges.size() << "\n";
-
-    std::vector<int> mapto(vertices.size());
-    for (size_t i = 0; i < mapto.size(); ++i)
+    double sumX = 0, sumY = 0, sumZ = 0;
+    for (int idx : midpoint_indices)
     {
-        mapto[i] = i;
+        const Point &p = voronoiVertices[idx].vertex;
+        sumX += p.x();
+        sumY += p.y();
+        sumZ += p.z();
     }
+    double n = static_cast<double>(midpoint_indices.size());
+    isovertex = Point(sumX / n, sumY / n, sumZ / n);
+}
 
-    std::set<std::pair<int, int>> processedPairs;
-
+// Helper function to process edges and mark vertices for merging
+void VoronoiDiagram::processEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbox, std::vector<int> &mapto, std::set<std::pair<int, int>> &processedPairs)
+{
     for (size_t edgeIdx = 0; edgeIdx < edges.size(); ++edgeIdx)
     {
         const Object &edgeObj = edges[edgeIdx];
@@ -69,9 +75,6 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
             {
                 p2 = *std::get_if<Point>(&*result);
                 isFinite = true;
-            }
-            else
-            {
             }
         }
         else if (const Line3 *line = CGAL::object_cast<Line3>(&edgeObj))
@@ -100,27 +103,17 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
         }
 
         if (!isFinite)
-        {
             continue;
-        }
 
         int idx1 = find_vertex(p1);
         int idx2 = find_vertex(p2);
-        if (idx1 == -1 || idx2 == -1)
-        {
+        if (idx1 == -1 || idx2 == -1 || idx1 == idx2)
             continue;
-        }
-        if (idx1 == idx2)
-        {
-            continue;
-        }
 
         int v1 = std::min(idx1, idx2);
         int v2 = std::max(idx1, idx2);
         if (processedPairs.count({v1, v2}))
-        {
             continue;
-        }
         processedPairs.insert({v1, v2});
 
         double dist = CGAL::sqrt(CGAL::squared_distance(p1, p2));
@@ -136,33 +129,11 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
                 mapto[v1] = v2;
         }
     }
+}
 
-    if (processedPairs.empty() && vertices.size() > 1)
-    {
-        for (size_t i = 0; i < vertices.size(); ++i)
-        {
-            for (size_t j = i + 1; j < vertices.size(); ++j)
-            {
-                int v1 = i, v2 = j;
-                double dist = CGAL::sqrt(CGAL::squared_distance(vertices[i].vertex, vertices[j].vertex));
-                if (dist <= D)
-                {
-                    while (mapto[v2] != v2)
-                        v2 = mapto[v2];
-                    while (mapto[v1] != v1)
-                        v1 = mapto[v1];
-                    if (v1 < v2)
-                        mapto[v2] = v1;
-                    else
-                        mapto[v1] = v2;
-                }
-            }
-        }
-    }
-
-    // After processing edges, merge vertices within a small tolerance O(n^2)
-    // * For vertices within a small distance but with no direct edge connecting them
-    const double mergeTolerance = 1e-8;
+// Helper function to merge vertices within a small tolerance
+void VoronoiDiagram::mergeCloseVertices(double mergeTolerance, std::vector<int> &mapto)
+{
     for (size_t i = 0; i < vertices.size(); ++i)
     {
         for (size_t j = i + 1; j < vertices.size(); ++j)
@@ -182,8 +153,11 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
             }
         }
     }
+}
 
-    std::cout << "[DEBUG] Performing path compression\n";
+// Helper function to perform path compression
+void VoronoiDiagram::compressMapping(std::vector<int> &mapto)
+{
     for (size_t i = 0; i < mapto.size(); ++i)
     {
         int root = i;
@@ -191,8 +165,11 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
             root = mapto[root];
         mapto[i] = root;
     }
+}
 
-    std::cout << "[DEBUG] Rebuilding vertices\n";
+// Helper function to rebuild vertices
+void VoronoiDiagram::rebuildVertices(const std::vector<int> &mapto)
+{
     std::map<int, int> oldToNewIndex;
     std::vector<VoronoiVertex> newVertices;
     for (size_t i = 0; i < vertices.size(); ++i)
@@ -207,20 +184,20 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
         }
     }
     vertices = newVertices;
-    std::cout << "[DEBUG] New vertex count: " << vertices.size() << "\n";
 
     oldToNewVertexIndex.resize(mapto.size());
     for (size_t i = 0; i < mapto.size(); ++i)
     {
         oldToNewVertexIndex[i] = oldToNewIndex[mapto[i]];
     }
-    std::cout << "[DEBUG] Updated oldToNewVertexIndex, size: " << oldToNewVertexIndex.size() << "\n";
+}
 
-    std::cout << "[DEBUG] Rebuilding edges with duplicate removal\n";
+// Helper function to rebuild edges with duplicate removal
+void VoronoiDiagram::rebuildEdges()
+{
     std::vector<Object> newEdges;
     std::set<std::pair<Point, Vector3>, RayKeyComparator> raySet;
     std::set<std::pair<Point, Vector3>, LineKeyComparator> lineSet;
-    std::set<std::pair<int, int>> segmentSet; // For segment duplicate removal
 
     for (const auto &edge : edges)
     {
@@ -233,28 +210,13 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
             int idx2 = find_vertex(seg.target());
             if (idx1 != -1 && idx2 != -1 && idx1 != idx2)
             {
-                // Normalize segment key: smaller index first
-                auto segKey = std::make_pair(std::min(idx1, idx2), std::max(idx1, idx2));
-                if (segmentSet.insert(segKey).second)
-                {
-                    newEdges.push_back(edge);
-                }
+                newEdges.push_back(edge);
             }
         }
         else if (CGAL::assign(ray, edge))
         {
             Point source = ray.source();
             Vector3 dir = ray.direction().vector();
-            // Normalize direction to unit length and standard form
-            double norm = std::sqrt(dir.squared_length());
-            if (norm > 0)
-            {
-                dir = dir / norm;
-                if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0))
-                {
-                    dir = -dir;
-                }
-            }
             auto rayKey = std::make_pair(source, dir);
             if (raySet.insert(rayKey).second)
             {
@@ -265,15 +227,9 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
         {
             Point pointOnLine = line.point(0);
             Vector3 dir = line.direction().vector();
-            // Normalize direction to unit length and standard form
-            double norm = std::sqrt(dir.squared_length());
-            if (norm > 0)
+            if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0))
             {
-                dir = dir / norm;
-                if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0))
-                {
-                    dir = -dir;
-                }
+                dir = -dir;
             }
             auto lineKey = std::make_pair(pointOnLine, dir);
             if (lineSet.insert(lineKey).second)
@@ -283,26 +239,45 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
         }
     }
     edges = newEdges;
-    std::cout << "[DEBUG] New edge count: " << edges.size() << "\n";
-
     segmentVertexPairToEdgeIndex.clear();
+}
+
+void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbox)
+{
+    std::cout << "[DEBUG] Starting collapseSmallEdges with D = " << D << "\n";
+    std::cout << "[DEBUG] Initial vertex count: " << vertices.size() << ", edge count: " << edges.size() << "\n";
+
+    std::vector<int> mapto(vertices.size());
+    for (size_t i = 0; i < mapto.size(); ++i)
+    {
+        mapto[i] = i;
+    }
+
+    std::set<std::pair<int, int>> processedPairs;
+
+    // Process edges to mark vertices for merging
+    processEdges(D, bbox, mapto, processedPairs);
+
+    // Merge vertices within a small tolerance
+    const double mergeTolerance = 1e-8;
+    mergeCloseVertices(mergeTolerance, mapto);
+
+    // Perform path compression
+    std::cout << "[DEBUG] Performing path compression\n";
+    compressMapping(mapto);
+
+    // Rebuild vertices
+    std::cout << "[DEBUG] Rebuilding vertices\n";
+    rebuildVertices(mapto);
+    std::cout << "[DEBUG] New vertex count: " << vertices.size() << "\n";
+
+    // Rebuild edges
+    std::cout << "[DEBUG] Rebuilding edges with duplicate removal\n";
+    rebuildEdges();
+    std::cout << "[DEBUG] New edge count: " << edges.size() << "\n";
     std::cout << "[DEBUG] Cleared segmentVertexPairToEdgeIndex\n";
 }
 
-// Compute centroid of the cycle using the positions in voronoiVertices.
-void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
-{
-    double sumX = 0, sumY = 0, sumZ = 0;
-    for (int idx : midpoint_indices)
-    {
-        const Point &p = voronoiVertices[idx].vertex;
-        sumX += p.x();
-        sumY += p.y();
-        sumZ += p.z();
-    }
-    double n = static_cast<double>(midpoint_indices.size());
-    isovertex = Point(sumX / n, sumY / n, sumZ / n);
-}
 
 //! @brief Checks internal consistency of the VoronoiDiagram.
 void VoronoiDiagram::check() const
@@ -343,17 +318,14 @@ void VoronoiDiagram::checkCellEdgeLookup() const
     }
 }
 
-//! @brief Checks that each cellEdge's `nextCellEdge` points to another edge with the same `edgeIndex`.
-void VoronoiDiagram::checkNextCellEdgeConsistency() const
+void VoronoiDiagram::checkNextCellEdgeValidity() const
 {
-    // 1. Check that each nextCellEdge is valid and has the same edgeIndex.
     for (int ceIdx = 0; ceIdx < static_cast<int>(cellEdges.size()); ++ceIdx)
     {
         const VoronoiCellEdge &ce = cellEdges[ceIdx];
         int nxt = ce.nextCellEdge;
         if (nxt < 0)
         {
-            // -1 might be allowed for boundary conditions or partial references.
             continue;
         }
         if (nxt >= static_cast<int>(cellEdges.size()))
@@ -371,8 +343,11 @@ void VoronoiDiagram::checkNextCellEdgeConsistency() const
             throw std::runtime_error("Inconsistent nextCellEdge edgeIndex.");
         }
     }
+}
 
-    // 2. Extended check: each set of cell edges with the same edgeIndex forms a single closed cycle.
+// Helper function to check edge cycles
+void VoronoiDiagram::checkEdgeCycles() const
+{
     std::unordered_map<int, std::vector<int>> edgeIndexToCellEdges;
     for (int ceIdx = 0; ceIdx < static_cast<int>(cellEdges.size()); ++ceIdx)
     {
@@ -421,6 +396,12 @@ void VoronoiDiagram::checkNextCellEdgeConsistency() const
             throw std::runtime_error("Ring does not include all edges for edgeIndex.");
         }
     }
+}
+
+void VoronoiDiagram::checkNextCellEdgeConsistency() const
+{
+    checkNextCellEdgeValidity();
+    checkEdgeCycles();
 }
 
 //! @brief Checks each VoronoiCell's facets to ensure that every facet's vertices are in the cell's vertex set.
@@ -493,9 +474,9 @@ bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1,
     return false;
 }
 
-void VoronoiDiagram::checkAdvanced() const
+// Helper function to check facet vertex count
+void VoronoiDiagram::checkFacetVertexCount() const
 {
-    // 1) Each bounded facet has ≥ 3 vertices
     for (size_t fi = 0; fi < facets.size(); ++fi)
     {
         auto const &F = facets[fi].vertices_indices;
@@ -503,29 +484,39 @@ void VoronoiDiagram::checkAdvanced() const
             throw std::runtime_error("Facet " + std::to_string(fi) +
                                      " has fewer than 3 vertices.");
     }
+}
 
-    // 2) Each bounded cell has ≥ 4 facets
+// Helper function to check cell facet count
+void VoronoiDiagram::checkCellFacetCount() const
+{
     for (size_t ci = 0; ci < cells.size(); ++ci)
     {
         if (cells[ci].facet_indices.size() < 4)
             throw std::runtime_error("Cell " + std::to_string(ci) +
                                      " has fewer than 4 facets.");
     }
+}
 
-    // 3) No facet appears in more than two cells
+// Helper function to check facet cell count
+void VoronoiDiagram::checkFacetCellCount() const
+{
     std::map<std::tuple<int, int, int>, std::vector<int>> hashToFacets;
     for (size_t fi = 0; fi < facets.size(); ++fi)
     {
         auto key = getFacetHashKey(facets[fi].vertices_indices);
         hashToFacets[key].push_back((int)fi);
         if (hashToFacets[key].size() > 2)
-            throw std::runtime_error("Facet with hash “" + std::to_string(std::get<0>(key)) + "," + std::to_string(std::get<1>(key)) + "," + std::to_string(std::get<2>(key)) + "” appears in >2 cells.");
+            throw std::runtime_error("Facet with hash “" + std::to_string(std::get<0>(key)) + "," +
+                                     std::to_string(std::get<1>(key)) + "," + std::to_string(std::get<2>(key)) +
+                                     "” appears in >2 cells.");
     }
+}
 
-    // 4) In each cell, every Voronoi‐edge must border exactly two facets and in opposite orientation
+// Helper function to check edge facet count
+void VoronoiDiagram::checkEdgeFacetCount() const
+{
     for (const auto &cell : cells)
     {
-        // build oriented‐edge counts
         std::map<std::pair<int, int>, int> orientedCount;
         for (int fi : cell.facet_indices)
         {
@@ -537,7 +528,6 @@ void VoronoiDiagram::checkAdvanced() const
                 orientedCount[{u, v}]++;
             }
         }
-        // check each undirected edge
         std::set<std::pair<int, int>> seen;
         for (auto const &kv : orientedCount)
         {
@@ -547,10 +537,8 @@ void VoronoiDiagram::checkAdvanced() const
             if (seen.count(uv) || seen.count(vu))
                 continue;
             int cnt_vu = orientedCount.count(vu) ? orientedCount.at(vu) : 0;
-            if (cnt_uv + cnt_vu != 2 ||
-                cnt_uv != 1 || cnt_vu != 1)
-                throw std::runtime_error("In cell " +
-                                         std::to_string(cell.cellIndex) +
+            if (cnt_uv + cnt_vu != 2 || cnt_uv != 1 || cnt_vu != 1)
+                throw std::runtime_error("In cell " + std::to_string(cell.cellIndex) +
                                          " edge {" + std::to_string(uv.first) + "," +
                                          std::to_string(uv.second) +
                                          "} does not appear exactly twice with opposite orientations.");
@@ -558,8 +546,11 @@ void VoronoiDiagram::checkAdvanced() const
             seen.insert(vu);
         }
     }
+}
 
-    // 5) Facet outward‐normal check: orient(v1,v2,v3,p) < 0
+// Helper function to check facet normals
+void VoronoiDiagram::checkFacetNormals() const
+{
     for (const auto &cell : cells)
     {
         auto p = cell.delaunay_vertex->point();
@@ -575,8 +566,17 @@ void VoronoiDiagram::checkAdvanced() const
                                          " has inward‐pointing normal.");
         }
     }
+}
 
-    // 6) Paired‐facet orientations
+// Helper function to check paired facet orientations
+void VoronoiDiagram::checkPairedFacetOrientations() const
+{
+    std::map<std::tuple<int, int, int>, std::vector<int>> hashToFacets;
+    for (size_t fi = 0; fi < facets.size(); ++fi)
+    {
+        auto key = getFacetHashKey(facets[fi].vertices_indices);
+        hashToFacets[key].push_back((int)fi);
+    }
     for (auto const &kv : hashToFacets)
     {
         auto const &fvec = kv.second;
@@ -585,10 +585,19 @@ void VoronoiDiagram::checkAdvanced() const
             auto &A = facets[fvec[0]].vertices_indices;
             auto &B = facets[fvec[1]].vertices_indices;
             if (haveSameOrientation(A, B))
-                throw std::runtime_error("Facet “" +
-                                         std::to_string(fvec[0]) + "” and “" +
+                throw std::runtime_error("Facet “" + std::to_string(fvec[0]) + "” and “" +
                                          std::to_string(fvec[1]) +
                                          "” have the SAME orientation in their two cells.");
         }
     }
+}
+
+void VoronoiDiagram::checkAdvanced() const
+{
+    checkFacetVertexCount();
+    checkCellFacetCount();
+    checkFacetCellCount();
+    checkEdgeFacetCount();
+    checkFacetNormals();
+    checkPairedFacetOrientations();
 }

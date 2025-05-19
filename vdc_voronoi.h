@@ -78,7 +78,7 @@ struct Cycle
     std::vector<int> midpoint_indices;      //!< Indices of midpoints forming this cycle.
     std::vector<std::pair<int, int>> edges; //!< Edges forming the cycle, represented by pairs of midpoint indices.
     Point isovertex;                        //!< Geometric centroid of the cycle, representing the isovertex.
-    int voronoi_cell_index;                 //!< Index of the Voronoi cell this cycle belongs to.
+    int voronoi_cell_index;                 //!< Index of the Voronoi cell this cycle belongs to;
 
     // TODO: record it using the indices of the voronoi edges instead of the midpoints
     //! @brief Computes the centroid of the cycle.
@@ -147,21 +147,9 @@ struct VoronoiDiagram
     void check() const;
 
     //! @brief Comprehensive checker for Voronoi diagram consistency.
-    /*!
-     * Verifies the following properties:
-     * 1. Each bounded Voronoi facet has 3 or more distinct vertices.
-     * 2. Each bounded Voronoi cell has 4 or more facets.
-     * 3. Each Voronoi facet is in at most two voronoi cells.
-     * 4. In each bounded Voronoi cell, each edge is in exactly two facets with opposite orientations.
-     * 5. For every Voronoi cell, all facet normals point outward.
-     * 6. For facets in two cells, the orientation in one cell is opposite to the other.
-     */
     void checkAdvanced() const;
 
     //! @brief Collapse all Voronoi vertices closer than D, rebuild cells/facets, and re‐check
-    /*! @param D distance threshold in the same units as your Point field
-    * @param bbox bounding box of the point set for infinite edge collapse ( Ray / Lines)
-    */
     void collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3& bbox);
 
     int find_vertex(const Point &p);
@@ -175,6 +163,25 @@ private:
 
     //! @brief Checks each VoronoiCell's facets to ensure that every facet's vertices are in the cell's vertex set.
     void checkCellFacets() const;
+
+    //! @brief Helper methods for collapseSmallEdges
+    void processEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbox, std::vector<int> &mapto, std::set<std::pair<int, int>> &processedPairs);
+    void mergeCloseVertices(double mergeTolerance, std::vector<int> &mapto);
+    void compressMapping(std::vector<int> &mapto);
+    void rebuildVertices(const std::vector<int> &mapto);
+    void rebuildEdges();
+
+    //! @brief Helper methods for checkAdvanced
+    void checkFacetVertexCount() const;
+    void checkCellFacetCount() const;
+    void checkFacetCellCount() const;
+    void checkEdgeFacetCount() const;
+    void checkFacetNormals() const;
+    void checkPairedFacetOrientations() const;
+
+    //! @brief Helper methods for checkNextCellEdgeConsistency
+    void checkNextCellEdgeValidity() const;
+    void checkEdgeCycles() const;
 
     /// Hash a facet by its three smallest vertex indices (for “at most two cells” check)
     std::tuple<int,int,int> getFacetHashKey(const std::vector<int>& verts) const;
