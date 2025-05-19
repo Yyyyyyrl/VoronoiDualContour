@@ -3,262 +3,281 @@
 
 #include "vdc_func.h"
 
-
-
 //! @brief Helper function - returns the index of the vertex matching p, or -1 if not found.
-int find_vertex_index(const VoronoiDiagram &vd, const Point &p) {
-    for (const auto &vVertex : vd.vertices) {
-        // Use an appropriate comparison (you already have PointApproxEqual, for example).
+
+//! @brief Implementation of collapse_small_voronoi_edges function
+void collapse_small_voronoi_edges(VoronoiDiagram &vd, double D, CGAL::Epick::Iso_cuboid_3 &bbox)
+{
+    // Simply call the member function
+    vd.collapseSmallEdges(D, bbox);
+}
+int find_vertex_index(const VoronoiDiagram &vd, const Point &p)
+{
+    for (const auto &vVertex : vd.vertices)
+    {
+        // Use an appropriate comparison.
         if (PointApproxEqual()(vVertex.vertex, p))
             return vVertex.index;
     }
     return -1; // Not found (should not happen if all points are valid)
 }
 
-//! @brief Computes the dual triangles for the final mesh in single iso vertex case.
-void computeDualTriangles(IsoSurface &iso_surface, std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &pointToIndexMap)
+//! @brief Generates a Delaunay triangle based on orientation and cell finiteness.
+/*!
+ * Adds a triangle to the dualTriangles vector, adjusting vertex order based on
+ * the orientation and whether the cell is infinite.
+ *
+ * @param p1 First vertex of the triangle.
+ * @param p2 Second vertex of the triangle.
+ * @param p3 Third vertex of the triangle.
+ * @param iOrient Orientation value determining vertex order.
+ * @param isInfinite Flag indicating if the cell is infinite.
+ * @param dualTriangles Vector to store the generated triangles.
+ */
+static void generateTriangle(
+    const Point &p1, const Point &p2, const Point &p3,
+    int iOrient, bool isInfinite,
+    std::vector<DelaunayTriangle> &dualTriangles)
 {
-
-    std::vector<DelaunayTriangle> dualTriangles;
-    for (const auto &edge : voronoi_edges)
+    if (isInfinite)
     {
-        Object intersectObj;
-        Segment3 seg, iseg;
-        Ray3 ray;
-        Line3 line;
-        Point3 v1, v2, ip;
-        Vector3 vec1, vec2, norm;
-        bool isFinite = false;
-
-        if (CGAL::assign(seg, edge))
+        if (iOrient < 0)
         {
-            // If the edge is a segment
-            v1 = seg.source();
-            v2 = seg.target();
-
-            // Check if it's bipolar
-            // If the edge is a segment the two ends must be both in voronoi_vertices so their scalar values are pre-calculated
-            if (is_bipolar(vertexValueMap[v1], vertexValueMap[v2], isovalue))
-            {
-
-
-                intersectObj = CGAL::intersection(bbox, Ray3(seg.source(), v2 - v1));
-                CGAL::assign(iseg, intersectObj);
-                Point intersection_point = iseg.target();
-                CGAL::Orientation o;
-                Point positive;
-
-                Point p1 = seg.source();
-                Point p2 = seg.target();
-
-                if (vertexValueMap[v1] >= vertexValueMap[v2])
-                {
-                    positive = v1;
-                }
-                else
-                {
-                    positive = v2;
-                }
-
-                for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
-                {
-                    int iFacet = facet.second;
-                    Cell_handle c = facet.first;
-                    int d1, d2, d3;
-                    d1 = (iFacet + 1) % 4;
-                    d2 = (iFacet + 2) % 4;
-                    d3 = (iFacet + 3) % 4;
-
-                    Point p1 = c->vertex(d1)->point();
-                    Point p2 = c->vertex(d2)->point();
-                    Point p3 = c->vertex(d3)->point();
-
-                    int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], vertexValueMap[v2]);
-
-                    if (dt.is_infinite(c))
-                    {
-                        if (iOrient < 0)
-                        {
-                            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                        }
-                        else
-                        {
-                            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                        }
-                    }
-                    else
-                    {
-                        if (iOrient >= 0)
-                        {
-                            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                        }
-                        else
-                        {
-                            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                        }
-                    }
-                }
-            }
+            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
         }
-        else if (CGAL::assign(ray, edge))
+        else
         {
-            // If the edge is a ray
-            intersectObj = CGAL::intersection(bbox, ray);
-
-            if (CGAL::assign(iseg, intersectObj))
-            {
-
-                // assign a corresponding scalar value to the intersection point and check if the segment between the source and intersection point is bi-polar
-                Point intersection_point = iseg.target();
-                CGAL::Orientation o;
-                Point positive;
-
-                v1 = iseg.source();
-                v2 = iseg.target();
-
-                float iPt_value = trilinear_interpolate(adjust_outside_bound_points(intersection_point, grid, v1, v2), grid);
-
-                if (vertexValueMap[iseg.source()] >= iPt_value)
-                {
-                    positive = v1;
-                }
-                else
-                {
-                    positive = v2;
-                }
-
-                // Check if it's bipolar
-                if (is_bipolar(vertexValueMap[iseg.source()], iPt_value, isovalue))
-                {
-
-                    Point p1 = ray.source();
-                    Vector3 direction = ray.direction().vector();
-
-
-                    for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
-                    {
-
-                        Facet mirror_f = dt.mirror_facet(facet);
-                        Object e = dt.dual(facet);
-
-                        int iFacet = facet.second;
-                        Cell_handle c = facet.first;
-                        int d1, d2, d3;
-                        d1 = (iFacet + 1) % 4;
-                        d2 = (iFacet + 2) % 4;
-                        d3 = (iFacet + 3) % 4;
-
-                        Point p1 = c->vertex(d1)->point();
-                        Point p2 = c->vertex(d2)->point();
-                        Point p3 = c->vertex(d3)->point();
-
-                        int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], iPt_value);
-
-                        if (dt.is_infinite(c))
-                        {
-                            if (iOrient < 0)
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            }
-                            else
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            }
-                        }
-                        else
-                        {
-                            if (iOrient >= 0)
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            }
-                            else
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            }
-                        }
-                    }
-                }
-            }
+            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
         }
-        else if (CGAL::assign(line, edge))
+    }
+    else
+    {
+        if (iOrient >= 0)
         {
-            //  If the edge is a line
-            Ray3 ray1(line.point(), line.direction());
-            Ray3 ray2(line.point(), -line.direction());
+            dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
+        }
+        else
+        {
+            dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
+        }
+    }
+}
 
-            intersectObj = CGAL::intersection(bbox, line);
-            if (CGAL::assign(iseg, intersectObj))
+//! @brief Processes a segment edge for dual triangle computation.
+/*!
+ * Checks if the segment is bipolar and generates triangles for each associated
+ * Delaunay facet.
+ *
+ * @param seg The segment edge to process.
+ * @param edge The CGAL object representing the edge.
+ * @param vertexValueMap Map of Voronoi vertices to scalar values.
+ * @param isovalue The isovalue for bipolarity check.
+ * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
+ * @param dt The Delaunay triangulation.
+ * @param dualTriangles Vector to store generated triangles.
+ */
+static void processSegmentEdge(
+    const Segment3 &seg,
+    const CGAL::Object &edge,
+    std::map<Point, float> &vertexValueMap,
+    float isovalue,
+    const std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    Delaunay &dt,
+    std::vector<DelaunayTriangle> &dualTriangles)
+{
+    Point v1 = seg.source();
+    Point v2 = seg.target();
+
+    if (is_bipolar(vertexValueMap[v1], vertexValueMap[v2], isovalue))
+    {
+        Point positive = (vertexValueMap[v1] >= vertexValueMap[v2]) ? v1 : v2;
+
+        for (const auto &facet : voronoi_edge_to_delaunay_facet_map.at(edge))
+        {
+            int iFacet = facet.second;
+            Cell_handle c = facet.first;
+            int d1 = (iFacet + 1) % 4;
+            int d2 = (iFacet + 2) % 4;
+            int d3 = (iFacet + 3) % 4;
+
+            Point p1 = c->vertex(d1)->point();
+            Point p2 = c->vertex(d2)->point();
+            Point p3 = c->vertex(d3)->point();
+
+            int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], vertexValueMap[v2]);
+            generateTriangle(p1, p2, p3, iOrient, dt.is_infinite(c), dualTriangles);
+        }
+    }
+}
+
+//! @brief Processes a ray edge for dual triangle computation.
+/*!
+ * Intersects the ray with the bounding box, checks bipolarity, and generates
+ * triangles for associated Delaunay facets.
+ *
+ * @param ray The ray edge to process.
+ * @param edge The CGAL object representing the edge.
+ * @param vertexValueMap Map of Voronoi vertices to scalar values.
+ * @param bbox The bounding box for intersection.
+ * @param grid The scalar grid for interpolation.
+ * @param isovalue The isovalue for bipolarity check.
+ * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
+ * @param dt The Delaunay triangulation.
+ * @param dualTriangles Vector to store generated triangles.
+ */
+static void processRayEdge(
+    const Ray3 &ray,
+    const CGAL::Object &edge,
+    std::map<Point, float> &vertexValueMap,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    ScalarGrid &grid,
+    float isovalue,
+    const std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    Delaunay &dt,
+    std::vector<DelaunayTriangle> &dualTriangles)
+{
+    CGAL::Object intersectObj = CGAL::intersection(bbox, ray);
+    Segment3 iseg;
+    if (CGAL::assign(iseg, intersectObj))
+    {
+        Point v1 = iseg.source();
+        Point v2 = iseg.target();
+        float iPt_value = trilinear_interpolate(adjust_outside_bound_points(v2, grid, v1, v2), grid);
+
+        if (is_bipolar(vertexValueMap[v1], iPt_value, isovalue))
+        {
+            Point positive = (vertexValueMap[v1] >= iPt_value) ? v1 : v2;
+
+            for (const auto &facet : voronoi_edge_to_delaunay_facet_map.at(edge))
             {
+                Facet mirror_f = dt.mirror_facet(facet);
+                Object e = dt.dual(facet);
 
-                Point intersection1 = iseg.source();
-                Point intersection2 = iseg.target();
+                int iFacet = facet.second;
+                Cell_handle c = facet.first;
+                int d1 = (iFacet + 1) % 4;
+                int d2 = (iFacet + 2) % 4;
+                int d3 = (iFacet + 3) % 4;
 
-                float iPt1_val = trilinear_interpolate(adjust_outside_bound_points(intersection1, grid, intersection1, intersection2), grid);
-                float iPt2_val = trilinear_interpolate(adjust_outside_bound_points(intersection2, grid, intersection1, intersection2), grid);
+                Point p1 = c->vertex(d1)->point();
+                Point p2 = c->vertex(d2)->point();
+                Point p3 = c->vertex(d3)->point();
 
-                CGAL::Orientation o;
-                Point positive;
-
-                if (iPt1_val >= iPt2_val)
-                {
-                    positive = intersection1;
-                }
-                else
-                {
-                    positive = intersection2;
-                }
-
-                if (is_bipolar(iPt1_val, iPt2_val, isovalue))
-                {
-
-                    Point p1 = line.point(0);
-                    Point p2 = line.point(1);
-
-                    // TODO: Find the Delaunay Triangle dual to the edge
-
-                    for (const auto &facet : voronoi_edge_to_delaunay_facet_map[edge])
-                    {
-                        int iFacet = facet.second;
-                        Cell_handle c = facet.first;
-                        int d1, d2, d3;
-                        d1 = (iFacet + 1) % 4;
-                        d2 = (iFacet + 2) % 4;
-                        d3 = (iFacet + 3) % 4;
-
-                        Point p1 = c->vertex(d1)->point();
-                        Point p2 = c->vertex(d2)->point();
-                        Point p3 = c->vertex(d3)->point();
-
-                        int iOrient = get_orientation(iFacet, intersection1, intersection2, iPt1_val, iPt2_val);
-                        if (dt.is_infinite(c))
-                        {
-                            if (iOrient < 0)
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            }
-                            else
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            }
-                        }
-                        else
-                        {
-                            if (iOrient >= 0)
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p2, p3));
-                            }
-                            else
-                            {
-                                dualTriangles.push_back(DelaunayTriangle(p1, p3, p2));
-                            }
-                        }
-                    }
-                }
+                int iOrient = get_orientation(iFacet, v1, v2, vertexValueMap[v1], iPt_value);
+                generateTriangle(p1, p2, p3, iOrient, dt.is_infinite(c), dualTriangles);
             }
         }
     }
+}
+
+//! @brief Processes a line edge for dual triangle computation.
+/*!
+ * Intersects the line with the bounding box, checks bipolarity, and generates
+ * triangles for associated Delaunay facets.
+ *
+ * @param line The line edge to process.
+ * @param edge The CGAL object representing the edge.
+ * @param grid The scalar grid for interpolation.
+ * @param isovalue The isovalue for bipolarity check.
+ * @param bbox The bounding box for intersection.
+ * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
+ * @param dt The Delaunay triangulation.
+ * @param dualTriangles Vector to store generated triangles.
+ */
+static void processLineEdge(
+    const Line3 &line,
+    const CGAL::Object &edge,
+    ScalarGrid &grid,
+    float isovalue,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    const std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    Delaunay &dt,
+    std::vector<DelaunayTriangle> &dualTriangles)
+{
+    CGAL::Object intersectObj = CGAL::intersection(bbox, line);
+    Segment3 iseg;
+    if (CGAL::assign(iseg, intersectObj))
+    {
+        Point intersection1 = iseg.source();
+        Point intersection2 = iseg.target();
+
+        float iPt1_val = trilinear_interpolate(adjust_outside_bound_points(intersection1, grid, intersection1, intersection2), grid);
+        float iPt2_val = trilinear_interpolate(adjust_outside_bound_points(intersection2, grid, intersection1, intersection2), grid);
+
+        if (is_bipolar(iPt1_val, iPt2_val, isovalue))
+        {
+            Point positive = (iPt1_val >= iPt2_val) ? intersection1 : intersection2;
+
+            for (const auto &facet : voronoi_edge_to_delaunay_facet_map.at(edge))
+            {
+                int iFacet = facet.second;
+                Cell_handle c = facet.first;
+                int d1 = (iFacet + 1) % 4;
+                int d2 = (iFacet + 2) % 4;
+                int d3 = (iFacet + 3) % 4;
+
+                Point p1 = c->vertex(d1)->point();
+                Point p2 = c->vertex(d2)->point();
+                Point p3 = c->vertex(d3)->point();
+
+                int iOrient = get_orientation(iFacet, intersection1, intersection2, iPt1_val, iPt2_val);
+                generateTriangle(p1, p2, p3, iOrient, dt.is_infinite(c), dualTriangles);
+            }
+        }
+    }
+}
+
+//! @brief Computes the dual triangles for the final mesh in the single isovertex case.
+/*!
+ * Iterates over Voronoi edges, processes segments, rays, and lines to generate
+ * Delaunay triangles dual to bipolar edges.
+ *
+ * @param iso_surface Instance of IsoSurface to store triangles.
+ * @param voronoi_edges Vector of Voronoi edges.
+ * @param vertexValueMap Map of Voronoi vertices to scalar values.
+ * @param bbox Bounding box of the computational domain.
+ * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
+ * @param dt Delaunay triangulation structure.
+ * @param grid Scalar grid containing scalar values.
+ * @param isovalue The isovalue used for computing.
+ * @param point_index_map The map between points in the Delaunay triangulation to their indices.
+ */
+void computeDualTriangles(
+    IsoSurface &iso_surface,
+    std::vector<CGAL::Object> &voronoi_edges,
+    std::map<Point, float> &vertexValueMap,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
+    Delaunay &dt,
+    ScalarGrid &grid,
+    float isovalue,
+    std::map<Point, int> &pointToIndexMap)
+{
+    std::vector<DelaunayTriangle> dualTriangles;
+
+    for (const auto &edge : voronoi_edges)
+    {
+        Segment3 seg;
+        Ray3 ray;
+        Line3 line;
+
+        if (CGAL::assign(seg, edge))
+        {
+            processSegmentEdge(seg, edge, vertexValueMap, isovalue, delaunay_facet_to_voronoi_edge_map, dt, dualTriangles);
+        }
+        else if (CGAL::assign(ray, edge))
+        {
+            processRayEdge(ray, edge, vertexValueMap, bbox, grid, isovalue, delaunay_facet_to_voronoi_edge_map, dt, dualTriangles);
+        }
+        else if (CGAL::assign(line, edge))
+        {
+            processLineEdge(line, edge, grid, isovalue, bbox, delaunay_facet_to_voronoi_edge_map, dt, dualTriangles);
+        }
+    }
+
     iso_surface.isosurfaceTrianglesSingle = dualTriangles;
 }
+
 
 static inline int selectIsovertexFromCellEdge(
     const VoronoiDiagram &voronoiDiagram,
@@ -296,11 +315,308 @@ static inline int selectIsovertexFromCellEdge(
     return isoVtxIndex;
 }
 
-//! @brief Computes the dual triangles for the final mesh in the multi iso vertex case.
+//! @brief Generates a triangle for the multi-isovertex case.
+/*!
+ * Adds a triangle to the isosurface's triangle list, adjusting vertex order based
+ * on orientation, and logs problematic triangles if invalid.
+ *
+ * @param iso_surface The isosurface to store the triangle.
+ * @param idx1 First vertex index.
+ * @param idx2 Second vertex index.
+ * @param idx3 Third vertex index.
+ * @param iOrient Orientation value determining vertex order.
+ * @param isValid Flag indicating if the triangle is valid.
+ */
+static void generateTriangleMulti(
+    IsoSurface &iso_surface,
+    int idx1, int idx2, int idx3,
+    int iOrient,
+    bool isValid)
+{
+    if (isValid)
+    {
+        if (iOrient < 0)
+        {
+            iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+        }
+        else
+        {
+            iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
+        }
+    }
+    else
+    {
+        std::cout << "Problematic triangle" << std::endl;
+        std::cout << "Vertex 1: " << idx1 << std::endl;
+        std::cout << "Vertex 2: " << idx2 << std::endl;
+        std::cout << "Vertex 3: " << idx3 << std::endl;
+    }
+}
+
+//! @brief Selects isovertices for a Delaunay facet.
+/*!
+ * Retrieves isovertex indices for the three vertices of a facet, ensuring they
+ * are valid and not dummy vertices.
+ *
+ * @param voronoiDiagram The Voronoi diagram containing cell data.
+ * @param facet The Delaunay facet to process.
+ * @param globalEdgeIndex The global edge index for isovertex selection.
+ * @param idx1 Output parameter for the first vertex index.
+ * @param idx2 Output parameter for the second vertex index.
+ * @param idx3 Output parameter for the third vertex index.
+ * @param cellIndex1 Output parameter for the first cell index.
+ * @param cellIndex2 Output parameter for the second cell index.
+ * @param cellIndex3 Output parameter for the third cell index.
+ * @return True if the vertices are valid, false otherwise.
+ */
+static bool selectIsovertices(
+    const VoronoiDiagram &voronoiDiagram,
+    const Facet &facet,
+    int globalEdgeIndex,
+    int &idx1, int &idx2, int &idx3,
+    int &cellIndex1, int &cellIndex2, int &cellIndex3)
+{
+    int iFacet = facet.second;
+    Cell_handle c = facet.first;
+    int d1 = (iFacet + 1) % 4;
+    int d2 = (iFacet + 2) % 4;
+    int d3 = (iFacet + 3) % 4;
+
+    Vertex_handle delaunay_vertex1 = c->vertex(d1);
+    Vertex_handle delaunay_vertex2 = c->vertex(d2);
+    Vertex_handle delaunay_vertex3 = c->vertex(d3);
+
+    if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
+    {
+        return false;
+    }
+
+    cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
+    cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
+    cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
+
+    idx1 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex1, globalEdgeIndex);
+    idx2 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex2, globalEdgeIndex);
+    idx3 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex3, globalEdgeIndex);
+
+    return (idx1 != idx2 && idx2 != idx3 && idx1 != idx3 && idx1 >= 0 && idx2 >= 0 && idx3 >= 0);
+}
+
+//! @brief Processes a segment edge for multi-isovertex triangle computation.
+/*!
+ * Checks if the segment is bipolar, retrieves the global edge index, and generates
+ * triangles for associated Delaunay facets.
+ *
+ * @param seg The segment edge to process.
+ * @param edge The CGAL object representing the edge.
+ * @param voronoiDiagram The Voronoi diagram containing edge and cell data.
+ * @param isovalue The isovalue for bipolarity check.
+ * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
+ * @param iso_surface The isosurface to store triangles.
+ */
+static void processSegmentEdgeMulti(
+    const Segment3 &seg,
+    const CGAL::Object &edge,
+    VoronoiDiagram &voronoiDiagram,
+    float isovalue,
+    const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    IsoSurface &iso_surface)
+{
+    Point v1 = seg.source();
+    Point v2 = seg.target();
+    int idx_v1 = find_vertex_index(voronoiDiagram, v1);
+    int idx_v2 = find_vertex_index(voronoiDiagram, v2);
+    float val1 = voronoiDiagram.vertexValues[idx_v1];
+    float val2 = voronoiDiagram.vertexValues[idx_v2];
+
+    if (is_bipolar(val1, val2, isovalue))
+    {
+        if (idx_v1 > idx_v2)
+            std::swap(idx_v1, idx_v2);
+        auto itEdge = voronoiDiagram.segmentVertexPairToEdgeIndex.find(std::make_pair(idx_v1, idx_v2));
+        if (itEdge == voronoiDiagram.segmentVertexPairToEdgeIndex.end())
+            return;
+
+        int globalEdgeIndex = itEdge->second;
+        auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+        if (it != voronoi_edge_to_delaunay_facet_map.end())
+        {
+            for (const auto &facet : it->second)
+            {
+                int idx1, idx2, idx3, cellIndex1, cellIndex2, cellIndex3;
+                bool isValid = selectIsovertices(voronoiDiagram, facet, globalEdgeIndex, idx1, idx2, idx3, cellIndex1, cellIndex2, cellIndex3);
+                int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
+                generateTriangleMulti(iso_surface, idx1, idx2, idx3, iOrient, isValid);
+            }
+        }
+    }
+}
+
+//! @brief Processes a ray edge for multi-isovertex triangle computation.
+/*!
+ * Intersects the ray with the bounding box, checks bipolarity, and generates
+ * triangles using the first isovertex from each cell.
+ *
+ * @param ray The ray edge to process.
+ * @param edge The CGAL object representing the edge.
+ * @param voronoiDiagram The Voronoi diagram containing edge and cell data.
+ * @param grid The scalar grid for interpolation.
+ * @param isovalue The isovalue for bipolarity check.
+ * @param bbox The bounding box for intersection.
+ * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
+ * @param iso_surface The isosurface to store triangles.
+ */
+static void processRayEdgeMulti(
+    const Ray3 &ray,
+    const CGAL::Object &edge,
+    VoronoiDiagram &voronoiDiagram,
+    ScalarGrid &grid,
+    float isovalue,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    IsoSurface &iso_surface)
+{
+    CGAL::Object intersectObj = CGAL::intersection(bbox, ray);
+    Segment3 iseg;
+    if (CGAL::assign(iseg, intersectObj))
+    {
+        Point v1 = ray.source();
+        Point v2 = iseg.target();
+        int idx_v1 = find_vertex_index(voronoiDiagram, v1);
+        float val1 = voronoiDiagram.vertexValues[idx_v1];
+        float val2 = trilinear_interpolate(v2, grid);
+
+        if (is_bipolar(val1, val2, isovalue))
+        {
+            auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+            if (it != voronoi_edge_to_delaunay_facet_map.end())
+            {
+                for (const auto &facet : it->second)
+                {
+                    int iFacet = facet.second;
+                    Cell_handle c = facet.first;
+                    int d1 = (iFacet + 1) % 4;
+                    int d2 = (iFacet + 2) % 4;
+                    int d3 = (iFacet + 3) % 4;
+
+                    Vertex_handle delaunay_vertex1 = c->vertex(d1);
+                    Vertex_handle delaunay_vertex2 = c->vertex(d2);
+                    Vertex_handle delaunay_vertex3 = c->vertex(d3);
+
+                    if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
+                        continue;
+
+                    int cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
+                    int cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
+                    int cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
+
+                    VoronoiCell &vc1 = voronoiDiagram.cells[cellIndex1];
+                    VoronoiCell &vc2 = voronoiDiagram.cells[cellIndex2];
+                    VoronoiCell &vc3 = voronoiDiagram.cells[cellIndex3];
+
+                    int idx1 = vc1.isoVertexStartIndex;
+                    int idx2 = vc2.isoVertexStartIndex;
+                    int idx3 = vc3.isoVertexStartIndex;
+
+                    int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
+                    bool isValid = (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
+                    generateTriangleMulti(iso_surface, idx1, idx2, idx3, iOrient, isValid);
+                }
+            }
+        }
+    }
+}
+
+//! @brief Processes a line edge for multi-isovertex triangle computation.
+/*!
+ * Intersects the line with the bounding box, checks bipolarity, and generates
+ * triangles using the first isovertex from each cell.
+ *
+ * @param line The line edge to process.
+ * @param edge The CGAL object representing the edge.
+ * @param voronoiDiagram The Voronoi diagram containing edge and cell data.
+ * @param grid The scalar grid for interpolation.
+ * @param isovalue The isovalue for bipolarity check.
+ * @param bbox The bounding box for intersection.
+ * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
+ * @param iso_surface The isosurface to store triangles.
+ */
+static void processLineEdgeMulti(
+    const Line3 &line,
+    const CGAL::Object &edge,
+    VoronoiDiagram &voronoiDiagram,
+    ScalarGrid &grid,
+    float isovalue,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    IsoSurface &iso_surface)
+{
+    CGAL::Object intersectObj = CGAL::intersection(bbox, line);
+    Segment3 iseg;
+    if (CGAL::assign(iseg, intersectObj))
+    {
+        Point v1 = iseg.source();
+        Point v2 = iseg.target();
+        float val1 = trilinear_interpolate(v1, grid);
+        float val2 = trilinear_interpolate(v2, grid);
+
+        if (is_bipolar(val1, val2, isovalue))
+        {
+            auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
+            if (it != voronoi_edge_to_delaunay_facet_map.end())
+            {
+                for (const auto &facet : it->second)
+                {
+                    int iFacet = facet.second;
+                    Cell_handle c = facet.first;
+                    int d1 = (iFacet + 1) % 4;
+                    int d2 = (iFacet + 2) % 4;
+                    int d3 = (iFacet + 3) % 4;
+
+                    Vertex_handle delaunay_vertex1 = c->vertex(d1);
+                    Vertex_handle delaunay_vertex2 = c->vertex(d2);
+                    Vertex_handle delaunay_vertex3 = c->vertex(d3);
+
+                    if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
+                        continue;
+
+                    int cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
+                    int cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
+                    int cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
+
+                    VoronoiCell &vc1 = voronoiDiagram.cells[cellIndex1];
+                    VoronoiCell &vc2 = voronoiDiagram.cells[cellIndex2];
+                    VoronoiCell &vc3 = voronoiDiagram.cells[cellIndex3];
+
+                    int idx1 = vc1.isoVertexStartIndex;
+                    int idx2 = vc2.isoVertexStartIndex;
+                    int idx3 = vc3.isoVertexStartIndex;
+
+                    int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
+                    bool isValid = (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
+                    generateTriangleMulti(iso_surface, idx1, idx2, idx3, iOrient, isValid);
+                }
+            }
+        }
+    }
+}
+
+//! @brief Computes the dual triangles for the final mesh in the multi-isovertex case.
+/*!
+ * Iterates over Voronoi edges, processes segments, rays, and lines to generate
+ * Delaunay triangles dual to bipolar edges for multiple isovalues.
+ *
+ * @param voronoiDiagram The Voronoi diagram to compute from.
+ * @param bbox Bounding box of the computational domain.
+ * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
+ * @param grid Scalar grid containing scalar values.
+ * @param isovalue The isovalue for mesh computation.
+ * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
+ */
 void computeDualTrianglesMulti(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
     ScalarGrid &grid,
     float isovalue,
     IsoSurface &iso_surface)
@@ -313,243 +629,15 @@ void computeDualTrianglesMulti(
 
         if (CGAL::assign(seg, edge))
         {
-            // Edge is a segment
-            Point v1 = seg.source();
-            Point v2 = seg.target();
-
-            int idx_v1 = find_vertex_index(voronoiDiagram, v1);
-            int idx_v2 = find_vertex_index(voronoiDiagram, v2);
-
-            float val1 = voronoiDiagram.vertexValues[idx_v1];
-            float val2 = voronoiDiagram.vertexValues[idx_v2];
-
-            if (is_bipolar(val1, val2, isovalue))
-            {
-                // Find globalEdgeIndex
-                if (idx_v1 > idx_v2)
-                    std::swap(idx_v1, idx_v2);
-                auto itEdge = voronoiDiagram.segmentVertexPairToEdgeIndex.find(std::make_pair(idx_v1, idx_v2));
-                if (itEdge == voronoiDiagram.segmentVertexPairToEdgeIndex.end())
-                {
-                    continue; // edge not found in map
-                }
-                int globalEdgeIndex = itEdge->second;
-
-                auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
-                if (it != voronoi_edge_to_delaunay_facet_map.end())
-                {
-                    const std::vector<Facet> &facets = it->second;
-                    for (const auto &facet : facets)
-                    {
-                        int iFacet = facet.second;
-                        Cell_handle c = facet.first;
-                        int d1 = (iFacet + 1) % 4;
-                        int d2 = (iFacet + 2) % 4;
-                        int d3 = (iFacet + 3) % 4;
-
-                        Vertex_handle delaunay_vertex1 = c->vertex(d1);
-                        Vertex_handle delaunay_vertex2 = c->vertex(d2);
-                        Vertex_handle delaunay_vertex3 = c->vertex(d3);
-
-                        int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
-
-                        if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
-                        {
-                            continue;
-                        }
-
-
-                        int cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
-                        int cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
-                        int cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
-
-                        VoronoiCell &vc1 = voronoiDiagram.cells[cellIndex1];
-                        VoronoiCell &vc2 = voronoiDiagram.cells[cellIndex2];
-                        VoronoiCell &vc3 = voronoiDiagram.cells[cellIndex3];
-
-                        /* Pic Isovertex from the VoronoiCell
-                         */
-
-                        // Simply pick the first vertex within each cell
-                        int idx1 = vc1.isoVertexStartIndex;
-                        int idx2 = vc2.isoVertexStartIndex;
-                        int idx3 = vc3.isoVertexStartIndex;
-
-                        // Pick the one from its surrounding CellEgdes
-                        //  int idx1 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex1, globalEdgeIndex);
-                        //  int idx2 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex2, globalEdgeIndex);
-                        //  int idx3 = selectIsovertexFromCellEdge(voronoiDiagram, cellIndex3, globalEdgeIndex);
-
-                        if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3 && idx1 >= 0 && idx2 >= 0 && idx3 >= 0)
-                        {
-                            if (iOrient < 0)
-                            {
-                                iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
-                            }
-                            else
-                            {
-                                iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
-                            }
-                        }
-                        else
-                        {
-                            std::cout << "Problematic triangle" << std::endl;
-                            std::cout << "Vertex 1: " << idx1 << " from Cell " << cellIndex1 << std::endl;
-                            std::cout << "Vertex 2: " << idx2 << " from Cell " << cellIndex2 << std::endl;
-                            std::cout << "Vertex 3: " << idx3 << " from Cell " << cellIndex3 << std::endl;
-                        }
-                    }
-                }
-            }
+            processSegmentEdgeMulti(seg, edge, voronoiDiagram, isovalue, delaunay_facet_to_voronoi_edge_map, iso_surface);
         }
         else if (CGAL::assign(ray, edge))
         {
-            // Edge is a ray
-            CGAL::Object intersectObj = CGAL::intersection(bbox, ray);
-            Segment3 iseg;
-            if (CGAL::assign(iseg, intersectObj))
-            {
-                Point v1 = ray.source();
-                Point v2 = iseg.target();
-
-                int idx_v1 = find_vertex_index(voronoiDiagram, v1);
-                float val1 = voronoiDiagram.vertexValues[idx_v1];
-                float val2 = trilinear_interpolate(v2, grid);
-
-                if (is_bipolar(val1, val2, isovalue))
-                {
-                    auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
-                    if (it != voronoi_edge_to_delaunay_facet_map.end())
-                    {
-                        const std::vector<Facet> &facets = it->second;
-                        for (const auto &facet : facets)
-                        {
-                            int iFacet = facet.second;
-                            Cell_handle c = facet.first;
-                            int d1 = (iFacet + 1) % 4;
-                            int d2 = (iFacet + 2) % 4;
-                            int d3 = (iFacet + 3) % 4;
-
-                            Vertex_handle delaunay_vertex1 = c->vertex(d1);
-                            Vertex_handle delaunay_vertex2 = c->vertex(d2);
-                            Vertex_handle delaunay_vertex3 = c->vertex(d3);
-
-                            int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
-
-                            if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
-                            {
-                                continue;
-                            }
-
-                            int cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
-                            int cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
-                            int cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
-
-                            VoronoiCell &vc1 = voronoiDiagram.cells[cellIndex1];
-                            VoronoiCell &vc2 = voronoiDiagram.cells[cellIndex2];
-                            VoronoiCell &vc3 = voronoiDiagram.cells[cellIndex3];
-
-                            // For simplicity, take the first isovertex in each cell
-                            int idx1 = vc1.isoVertexStartIndex;
-                            int idx2 = vc2.isoVertexStartIndex;
-                            int idx3 = vc3.isoVertexStartIndex;
-
-                            if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
-                            {
-                                if (iOrient < 0)
-                                {
-                                    iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
-                                }
-                                else
-                                {
-                                    iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
-                                }
-                            }
-                            else
-                            {
-                                std::cout << "Problematic triangle" << std::endl;
-                                std::cout << "Vertex 1: " << idx1 << " from Cell " << cellIndex1 << std::endl;
-                                std::cout << "Vertex 2: " << idx2 << " from Cell " << cellIndex2 << std::endl;
-                                std::cout << "Vertex 3: " << idx3 << " from Cell " << cellIndex3 << std::endl;
-                            }
-                        }
-                    }
-                }
-            }
+            processRayEdgeMulti(ray, edge, voronoiDiagram, grid, isovalue, bbox, delaunay_facet_to_voronoi_edge_map, iso_surface);
         }
         else if (CGAL::assign(line, edge))
         {
-            // Edge is a line
-            CGAL::Object intersectObj = CGAL::intersection(bbox, line);
-            Segment3 iseg;
-            if (CGAL::assign(iseg, intersectObj))
-            {
-                Point v1 = iseg.source();
-                Point v2 = iseg.target();
-
-                float val1 = trilinear_interpolate(v1, grid);
-                float val2 = trilinear_interpolate(v2, grid);
-
-                if (is_bipolar(val1, val2, isovalue))
-                {
-                    auto it = voronoi_edge_to_delaunay_facet_map.find(edge);
-                    if (it != voronoi_edge_to_delaunay_facet_map.end())
-                    {
-                        const std::vector<Facet> &facets = it->second;
-                        for (const auto &facet : facets)
-                        {
-                            int iFacet = facet.second;
-                            Cell_handle c = facet.first;
-                            int d1 = (iFacet + 1) % 4;
-                            int d2 = (iFacet + 2) % 4;
-                            int d3 = (iFacet + 3) % 4;
-
-                            Vertex_handle delaunay_vertex1 = c->vertex(d1);
-                            Vertex_handle delaunay_vertex2 = c->vertex(d2);
-                            Vertex_handle delaunay_vertex3 = c->vertex(d3);
-
-                            int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
-
-                            if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
-                            {
-                                continue;
-                            }
-
-                            int cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
-                            int cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
-                            int cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
-
-                            VoronoiCell &vc1 = voronoiDiagram.cells[cellIndex1];
-                            VoronoiCell &vc2 = voronoiDiagram.cells[cellIndex2];
-                            VoronoiCell &vc3 = voronoiDiagram.cells[cellIndex3];
-
-                            // For simplicity, take the first isovertex in each cell
-                            int idx1 = vc1.isoVertexStartIndex;
-                            int idx2 = vc2.isoVertexStartIndex;
-                            int idx3 = vc3.isoVertexStartIndex;
-
-                            if (idx1 != idx2 && idx2 != idx3 && idx1 != idx3)
-                            {
-                                if (iOrient < 0)
-                                {
-                                    iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
-                                }
-                                else
-                                {
-                                    iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
-                                }
-                            }
-                            else
-                            {
-                                std::cout << "Problematic triangle" << std::endl;
-                                std::cout << "Vertex 1: " << idx1 << " from Cell " << cellIndex1 << std::endl;
-                                std::cout << "Vertex 2: " << idx2 << " from Cell " << cellIndex2 << std::endl;
-                                std::cout << "Vertex 3: " << idx3 << " from Cell " << cellIndex3 << std::endl;
-                            }
-                        }
-                    }
-                }
-            }
+            processLineEdgeMulti(line, edge, voronoiDiagram, grid, isovalue, bbox, delaunay_facet_to_voronoi_edge_map, iso_surface);
         }
     }
 }
@@ -613,180 +701,252 @@ void Compute_Isosurface_Vertices_Single(ScalarGrid &grid, float isovalue, IsoSur
     }
 }
 
+//! @brief Collects midpoints for bipolar edges in a Voronoi cell's facets.
+/*!
+ * Identifies bipolar edges, computes their midpoints, and stores them along with
+ * facet associations.
+ *
+ * @param vc The Voronoi cell to process.
+ * @param voronoiDiagram The Voronoi diagram containing facet and vertex data.
+ * @param isovalue The isovalue for bipolarity check.
+ * @param midpoints Vector to store computed midpoints.
+ * @param edge_to_midpoint_index Map linking edge keys to midpoint indices.
+ * @param facet_midpoint_indices Vector storing midpoint indices for each facet.
+ */
+static void collectMidpoints(
+    VoronoiCell &vc,
+    VoronoiDiagram &voronoiDiagram,
+    float isovalue,
+    std::vector<MidpointNode> &midpoints,
+    std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
+    std::vector<std::vector<int>> &facet_midpoint_indices)
+{
+    for (size_t i = 0; i < vc.facet_indices.size(); ++i)
+    {
+        int facet_index = vc.facet_indices[i];
+        VoronoiFacet &facet = voronoiDiagram.facets[facet_index];
+        size_t num_vertices = facet.vertices_indices.size();
+
+        std::vector<int> current_facet_midpoints;
+
+        for (size_t j = 0; j < num_vertices; ++j)
+        {
+            size_t idx1 = j;
+            size_t idx2 = (j + 1) % num_vertices;
+
+            float val1 = facet.vertex_values[idx1];
+            float val2 = facet.vertex_values[idx2];
+
+            if (is_bipolar(val1, val2, isovalue))
+            {
+                int vertex_index1 = facet.vertices_indices[idx1];
+                int vertex_index2 = facet.vertices_indices[idx2];
+
+                Point p1 = voronoiDiagram.vertices[vertex_index1].vertex;
+                Point p2 = voronoiDiagram.vertices[vertex_index2].vertex;
+
+                double t = (isovalue - val1) / (val2 - val1);
+                Point midpoint = p1 + (p2 - p1) * t;
+
+                auto edge_key = std::make_pair(std::min(vertex_index1, vertex_index2),
+                                               std::max(vertex_index1, vertex_index2));
+
+                if (edge_to_midpoint_index.find(edge_key) == edge_to_midpoint_index.end())
+                {
+                    int globalEdgeIndex = -1;
+                    auto iter_glob = voronoiDiagram.segmentVertexPairToEdgeIndex.find(edge_key);
+                    if (iter_glob != voronoiDiagram.segmentVertexPairToEdgeIndex.end())
+                    {
+                        globalEdgeIndex = iter_glob->second;
+                    }
+
+                    MidpointNode node;
+                    node.point = midpoint;
+                    node.facet_index = facet_index;
+                    node.cycle_index = -1;
+                    node.global_edge_index = globalEdgeIndex;
+
+                    midpoints.push_back(node);
+                    int midpoint_index = midpoints.size() - 1;
+                    edge_to_midpoint_index[edge_key] = midpoint_index;
+                    current_facet_midpoints.push_back(midpoint_index);
+                }
+                else
+                {
+                    int midpoint_index = edge_to_midpoint_index[edge_key];
+                    current_facet_midpoints.push_back(midpoint_index);
+                }
+            }
+        }
+
+        facet_midpoint_indices.push_back(current_facet_midpoints);
+    }
+}
+
+//! @brief Connects midpoints within each facet to form a graph.
+/*!
+ * Links pairs of midpoints in each facet to establish connectivity for cycle detection.
+ *
+ * @param facet_midpoint_indices Vector storing midpoint indices for each facet.
+ * @param midpoints Vector of midpoints to update with connectivity.
+ */
+static void connectMidpoints(
+    const std::vector<std::vector<int>> &facet_midpoint_indices,
+    std::vector<MidpointNode> &midpoints)
+{
+    for (const auto &facet_midpoints : facet_midpoint_indices)
+    {
+        size_t num_midpoints = facet_midpoints.size();
+        for (size_t k = 0; k + 1 < num_midpoints; k += 2)
+        {
+            int idx1 = facet_midpoints[k];
+            int idx2 = facet_midpoints[k + 1];
+            midpoints[idx1].connected_to.push_back(idx2);
+            midpoints[idx2].connected_to.push_back(idx1);
+        }
+    }
+}
+
+//! @brief Extracts cycles from the midpoint connectivity graph.
+/*!
+ * Uses depth-first search to identify closed cycles in the midpoint graph.
+ *
+ * @param midpoints Vector of midpoints with connectivity information.
+ * @param cycles Vector to store the extracted cycles as lists of midpoint indices.
+ */
+static void extractCycles(
+    const std::vector<MidpointNode> &midpoints,
+    std::vector<std::vector<int>> &cycles)
+{
+    std::set<int> visited;
+
+    for (size_t i = 0; i < midpoints.size(); ++i)
+    {
+        if (visited.find(i) == visited.end())
+        {
+            std::vector<int> cycle;
+            std::stack<int> stack;
+            stack.push(i);
+
+            while (!stack.empty())
+            {
+                int current = stack.top();
+                stack.pop();
+
+                if (visited.find(current) != visited.end())
+                {
+                    continue;
+                }
+
+                visited.insert(current);
+                cycle.push_back(current);
+
+                for (int neighbor : midpoints[current].connected_to)
+                {
+                    if (visited.find(neighbor) == visited.end())
+                    {
+                        stack.push(neighbor);
+                    }
+                }
+            }
+
+            if (!cycle.empty())
+            {
+                cycles.push_back(cycle);
+            }
+        }
+    }
+}
+
+//! @brief Computes centroids for cycles and updates the isosurface.
+/*!
+ * Calculates the centroid for each cycle, updates the Voronoi cell's cycles,
+ * and adds the centroid to the isosurface vertices.
+ *
+ * @param vc The Voronoi cell to update.
+ * @param voronoiDiagram The Voronoi diagram for edge lookup.
+ * @param midpoints Vector of midpoints used for centroid computation.
+ * @param cycles Vector of cycles as lists of midpoint indices.
+ * @param iso_surface The isosurface to store vertices.
+ */
+static void computeCycleCentroids(
+    VoronoiCell &vc,
+    VoronoiDiagram &voronoiDiagram,
+    std::vector<MidpointNode> &midpoints,
+    const std::vector<std::vector<int>> &cycles,
+    IsoSurface &iso_surface)
+{
+    vc.isoVertexStartIndex = iso_surface.isosurfaceVertices.size();
+    vc.numIsoVertices = cycles.size();
+
+    int cycIdx = 0;
+    for (const auto &single_cycle : cycles)
+    {
+        Cycle cycle;
+        cycle.voronoi_cell_index = vc.cellIndex;
+        cycle.midpoint_indices = single_cycle;
+
+        for (size_t i = 0; i < single_cycle.size(); ++i)
+        {
+            int idx1 = single_cycle[i];
+            int idx2 = single_cycle[(i + 1) % single_cycle.size()];
+            cycle.edges.emplace_back(idx1, idx2);
+        }
+
+        cycle.compute_centroid(midpoints);
+
+        for (int ptIdx : single_cycle)
+        {
+            midpoints[ptIdx].cycle_index = cycIdx;
+
+            int globalEdgeIdx = midpoints[ptIdx].global_edge_index;
+            if (globalEdgeIdx >= 0)
+            {
+                std::pair<int, int> key = std::make_pair(vc.cellIndex, globalEdgeIdx);
+                auto iter_cEdge = voronoiDiagram.cellEdgeLookup.find(key);
+                if (iter_cEdge != voronoiDiagram.cellEdgeLookup.end())
+                {
+                    int cEdgeIdx = iter_cEdge->second;
+                    auto &cyclesVec = voronoiDiagram.cellEdges[cEdgeIdx].cycleIndices;
+
+                    if (std::find(cyclesVec.begin(), cyclesVec.end(), cycIdx) == cyclesVec.end())
+                    {
+                        cyclesVec.push_back(cycIdx);
+                    }
+                }
+            }
+        }
+
+        vc.cycles.push_back(cycle);
+        iso_surface.isosurfaceVertices.push_back(cycle.isovertex);
+        cycIdx++;
+    }
+}
+
 //! @brief Computes isosurface vertices for the multi-isovertex case.
+/*!
+ * Processes each Voronoi cell to identify bipolar edges, form cycles, and compute
+ * centroids as isosurface vertices.
+ *
+ * @param voronoiDiagram The Voronoi diagram to compute vertices for.
+ * @param isovalue The isovalue to use for vertex computation.
+ * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
+ */
 void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface)
 {
     for (auto &vc : voronoiDiagram.cells)
     {
         std::vector<MidpointNode> midpoints;
         std::map<std::pair<int, int>, int> edge_to_midpoint_index;
+        std::vector<std::vector<int>> facet_midpoint_indices;
 
-        // First pass: Collect midpoints and build edge connectivity
-        for (size_t i = 0; i < vc.facet_indices.size(); ++i)
-        {
-            int facet_index = vc.facet_indices[i];
-            VoronoiFacet &facet = voronoiDiagram.facets[facet_index];
-            size_t num_vertices = facet.vertices_indices.size();
+        collectMidpoints(vc, voronoiDiagram, isovalue, midpoints, edge_to_midpoint_index, facet_midpoint_indices);
+        connectMidpoints(facet_midpoint_indices, midpoints);
 
-            // Store indices of midpoints in this facet
-            std::vector<int> facet_midpoint_indices;
-
-            for (size_t j = 0; j < num_vertices; ++j)
-            {
-                size_t idx1 = j;
-                size_t idx2 = (j + 1) % num_vertices;
-
-                float val1 = facet.vertex_values[idx1];
-                float val2 = facet.vertex_values[idx2];
-
-                // Check for bipolar edge
-                if (is_bipolar(val1, val2, isovalue))
-                {
-                    int vertex_index1 = facet.vertices_indices[idx1];
-                    int vertex_index2 = facet.vertices_indices[idx2];
-
-                    Point p1 = voronoiDiagram.vertices[vertex_index1].vertex;
-                    Point p2 = voronoiDiagram.vertices[vertex_index2].vertex;
-
-                    double t = (isovalue - val1) / (val2 - val1);
-                    Point midpoint = p1 + (p2 - p1) * t;
-
-                    auto edge_key = std::make_pair(std::min(vertex_index1, vertex_index2),
-                                                   std::max(vertex_index1, vertex_index2));
-
-                    if (edge_to_midpoint_index.find(edge_key) == edge_to_midpoint_index.end())
-                    {
-
-                        // Find global index of the edge
-
-                        int globalEdgeIndex;
-
-                        auto iter_glob = voronoiDiagram.segmentVertexPairToEdgeIndex.find(edge_key);
-                        if (iter_glob != voronoiDiagram.segmentVertexPairToEdgeIndex.end())
-                        {
-                            globalEdgeIndex = iter_glob->second;
-                        }
-
-                        MidpointNode node;
-                        node.point = midpoint;
-                        node.facet_index = facet_index;
-                        node.cycle_index = -1;                    // Initialize as -1, will set later when find its corresponding cycle
-                        node.global_edge_index = globalEdgeIndex; // Store the global index of whioch edge this point belongs to
-
-                        midpoints.push_back(node);
-                        int midpoint_index = midpoints.size() - 1;
-                        edge_to_midpoint_index[edge_key] = midpoint_index;
-                        facet_midpoint_indices.push_back(midpoint_index);
-                    }
-                    else
-                    {
-                        int midpoint_index = edge_to_midpoint_index[edge_key];
-                        facet_midpoint_indices.push_back(midpoint_index);
-                    }
-                }
-            }
-
-            // Connect midpoints in this facet
-            size_t num_midpoints = facet_midpoint_indices.size();
-            for (size_t k = 0; k + 1 < num_midpoints; k += 2)
-            {
-                int idx1 = facet_midpoint_indices[k];
-                int idx2 = facet_midpoint_indices[k + 1];
-                midpoints[idx1].connected_to.push_back(idx2);
-                midpoints[idx2].connected_to.push_back(idx1);
-            }
-        }
-
-        // Extract cycles from the graph of midpoints
         std::vector<std::vector<int>> cycles;
-        std::set<int> visited;
+        extractCycles(midpoints, cycles);
 
-        for (size_t i = 0; i < midpoints.size(); ++i)
-        {
-            if (visited.find(i) == visited.end())
-            {
-                std::vector<int> cycle;
-                std::stack<int> stack;
-                stack.push(i);
-
-                while (!stack.empty())
-                {
-                    int current = stack.top();
-                    stack.pop();
-
-                    if (visited.find(current) != visited.end())
-                    {
-                        continue;
-                    }
-
-                    visited.insert(current);
-                    cycle.push_back(current);
-
-                    for (int neighbor : midpoints[current].connected_to)
-                    {
-                        if (visited.find(neighbor) == visited.end())
-                        {
-                            stack.push(neighbor);
-                        }
-                    }
-                }
-
-                if (!cycle.empty())
-                {
-                    cycles.push_back(cycle);
-                }
-            }
-        }
-
-        // For each cycle, compute the centroid and store isoVertices
-        vc.isoVertexStartIndex = iso_surface.isosurfaceVertices.size();
-        vc.numIsoVertices = cycles.size();
-
-        int cycIdx = 0;
-        for (const auto &single_cycle : cycles)
-        {
-            Cycle cycle;
-            cycle.voronoi_cell_index = vc.cellIndex;
-            cycle.midpoint_indices = single_cycle;
-
-            // Store edges (pairs of indices into midpoints)
-            for (size_t i = 0; i < single_cycle.size(); ++i)
-            {
-                int idx1 = single_cycle[i];
-                int idx2 = single_cycle[(i + 1) % single_cycle.size()];
-                cycle.edges.emplace_back(idx1, idx2);
-            }
-
-            // Compute centroid using the midpoints
-            cycle.compute_centroid(midpoints);
-
-            for (int ptIdx : single_cycle)
-            {
-                midpoints[ptIdx].cycle_index = cycIdx;
-
-                int globalEdgeIdx = midpoints[ptIdx].global_edge_index;
-                if (globalEdgeIdx >= 0)
-                {
-                    std::pair<int, int> key = std::make_pair(vc.cellIndex, globalEdgeIdx);
-                    auto iter_cEdge = voronoiDiagram.cellEdgeLookup.find(key);
-                    if (iter_cEdge != voronoiDiagram.cellEdgeLookup.end())
-                    {
-                        int cEdgeIdx = iter_cEdge->second;
-                        auto &cyclesVec = voronoiDiagram.cellEdges[cEdgeIdx].cycleIndices;
-
-                        // Avoid duplicate pushes:
-                        if (std::find(cyclesVec.begin(), cyclesVec.end(), cycIdx) == cyclesVec.end())
-                        {
-                            cyclesVec.push_back(cycIdx);
-                        }
-                    }
-                }
-            }
-
-            vc.cycles.push_back(cycle);
-            iso_surface.isosurfaceVertices.push_back(cycle.isovertex);
-            cycIdx++;
-        }
+        computeCycleCentroids(vc, voronoiDiagram, midpoints, cycles, iso_surface);
     }
 }
 
@@ -853,21 +1013,33 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
     return points;
 }
 
-//! @brief Constructs a Delaunay triangulation from a grid and grid facets.
-void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters, std::map<Point, int> &pointToIndexMap)
+//! @brief Collects points for the Delaunay triangulation.
+/*!
+ * Gathers original points and dummy points from grid facets for multi-isovertex mode,
+ * or uses only active cube centers for single-isovertex mode.
+ *
+ * @param grid The grid containing data.
+ * @param grid_facets The grid facets for dummy point generation.
+ * @param activeCubeCenters The list of center points of active cubes.
+ * @param vdc_param The VDC_PARAM instance containing user input options.
+ * @param delaunay_points Output vector for all points (original + dummy).
+ * @param dummy_points Output vector for dummy points.
+ */
+static void collectDelaunayPoints(
+    Grid &grid,
+    const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+    const std::vector<Point> &activeCubeCenters,
+    VDC_PARAM &vdc_param,
+    std::vector<Point> &delaunay_points,
+    std::vector<Point> &dummy_points)
 {
     if (vdc_param.multi_isov)
     {
-        std::vector<Point> delaunay_points;
-        std::vector<Point> dummy_points;
-
-        // Add original points
         for (const auto &p : activeCubeCenters)
         {
             delaunay_points.push_back(p);
         }
 
-        // Add dummy points from grid facets
         for (int d = 0; d < 3; d++)
         {
             for (const auto &f : grid_facets[d])
@@ -877,37 +1049,68 @@ void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vecto
             }
         }
 
-        /*
-         * Temp method of writing dummy points to a CSV file for debugging
-         */
-        if (debug)
-        {
-            write_dummy_points(grid, dummy_points);
-        }
-
-        // Insert all points into the triangulation
         delaunay_points.insert(delaunay_points.end(), dummy_points.begin(), dummy_points.end());
-        dt.insert(delaunay_points.begin(), delaunay_points.end());
-
-        // Set vertex info
-        for (auto delaunay_vertex = dt.finite_vertices_begin(); delaunay_vertex != dt.finite_vertices_end(); ++delaunay_vertex)
-        {
-            Point p = delaunay_vertex->point();
-            if (std::find(dummy_points.begin(), dummy_points.end(), p) != dummy_points.end())
-            {
-                delaunay_vertex->info().is_dummy = true;  // Mark dummy points
-            }
-            else
-            {
-                delaunay_vertex->info().is_dummy = false; // Mark regular points
-            }
-        }
     }
     else
     {
-        dt.insert(activeCubeCenters.begin(), activeCubeCenters.end());
+        delaunay_points = activeCubeCenters;
     }
+}
 
+//! @brief Inserts points into the Delaunay triangulation.
+/*!
+ * Inserts the collected points into the triangulation and writes debug output if enabled.
+ *
+ * @param dt The Delaunay triangulation to insert points into.
+ * @param delaunay_points The points to insert.
+ * @param activeCubeCenters The list of center points of active cubes.
+ * @param vdc_param The VDC_PARAM instance containing user input options.
+ */
+static void insertPointsIntoTriangulation(
+    Delaunay &dt,
+    std::vector<Point> &delaunay_points,
+    std::vector<Point> &activeCubeCenters,
+    VDC_PARAM &vdc_param)
+{
+    dt.insert(delaunay_points.begin(), delaunay_points.end());
+
+    if (vdc_param.multi_isov)
+    {
+        write_triangulation(dt, activeCubeCenters, vdc_param.output_filename);
+    }
+}
+
+//! @brief Sets vertex info for the Delaunay triangulation.
+/*!
+ * Marks vertices as dummy or regular based on their presence in the dummy points list.
+ *
+ * @param dt The Delaunay triangulation to update.
+ * @param dummy_points The list of dummy points.
+ */
+static void setVertexInfo(Delaunay &dt, const std::vector<Point> &dummy_points)
+{
+    for (auto delaunay_vertex = dt.finite_vertices_begin(); delaunay_vertex != dt.finite_vertices_end(); ++delaunay_vertex)
+    {
+        Point p = delaunay_vertex->point();
+        delaunay_vertex->info().is_dummy = (std::find(dummy_points.begin(), dummy_points.end(), p) != dummy_points.end());
+    }
+}
+
+//! @brief Assigns indices to points in the point index map.
+/*!
+ * Builds the point index map for multi-isovertex or single-isovertex mode.
+ *
+ * @param dt The Delaunay triangulation.
+ * @param activeCubeCenters The list of center points of active cubes.
+ * @param vdc_param The VDC_PARAM instance containing user input options.
+ * @param point_index_map The map to store point-to-index mappings.
+ */
+static void assignPointIndices(
+    Delaunay &dt,
+    const std::vector<Point> &activeCubeCenters,
+    VDC_PARAM &vdc_param,
+    std::map<Point, int> &point_index_map)
+{
     int i = 0;
     if (vdc_param.multi_isov)
     {
@@ -915,45 +1118,107 @@ void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vecto
         {
             if (delaunay_vertex->info().is_dummy)
             {
-                continue; // Skip dummy points
+                continue;
             }
             Point p = delaunay_vertex->point();
-            pointToIndexMap[p] = i;
-            i++;
+            point_index_map[p] = i++;
         }
     }
     else
     {
         for (const auto &pt : activeCubeCenters)
         {
-            pointToIndexMap[pt] = i;
-            i++;
+            point_index_map[pt] = i++;
         }
     }
+}
+
+//! @brief Constructs a Delaunay triangulation from a grid and grid facets.
+/*!
+ * Constructs a 3D Delaunay triangulation using the grid's scalar values
+ * and the facets of the active cubes.
+ *
+ * @param dt The Delaunay triangulation instance.
+ * @param grid The grid containing scalar values.
+ * @param grid_facets The grid facets to use in constructing the triangulation.
+ * @param vdc_param The VDC_PARAM instance holding user input options.
+ * @param activeCubeCenters The list of center points of active cubes.
+ * @param point_index_map The map between points in the Delaunay triangulation to their indices (used in single isovertex case only).
+ */
+void construct_delaunay_triangulation(
+    Delaunay &dt,
+    Grid &grid,
+    const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+    VDC_PARAM &vdc_param,
+    std::vector<Point> &activeCubeCenters,
+    std::map<Point, int> &point_index_map)
+{
+    std::vector<Point> delaunay_points;
+    std::vector<Point> dummy_points;
+
+    collectDelaunayPoints(grid, grid_facets, activeCubeCenters, vdc_param, delaunay_points, dummy_points);
+
+    if (vdc_param.multi_isov && debug)
+    {
+        write_dummy_points(grid, dummy_points);
+    }
+
+    insertPointsIntoTriangulation(dt, delaunay_points, activeCubeCenters, vdc_param);
+
+    if (vdc_param.multi_isov)
+    {
+        setVertexInfo(dt, dummy_points);
+    }
+
+    assign_indices_dt(dt, point_index_map);
+    assignPointIndices(dt, activeCubeCenters, vdc_param, point_index_map);
+}
+
+/**
+ * @brief Assigns unique indices to vertices and tetrahedra in a Delaunay Triangulation (DT)
+ *
+ * This function assigns unique indices to all vertices and tetrahedra in the given
+ * Delaunay triangulation and maps these indices to the specified mapping.
+ *
+ * @param dt The Delaunay triangulation object
+ * @param pointToIndexMap Mapping from points to indices, where keys are points and values are their corresponding indices
+ */
+void assign_indices_dt(Delaunay &dt, std::map<Point, int> &pointToIndexMap)
+{
+    // First, assign unique indices to all vertices
+    int vertex_counter = 0;
+    for (auto vertex = dt.finite_vertices_begin(); vertex != dt.finite_vertices_end(); ++vertex)
+    {
+        vertex->info().index = vertex_counter++;
+        vertex->info().voronoiCellIndex = -1; // Initialize voronoi cell index
+        pointToIndexMap[vertex->point()] = vertex->info().index;
+    }
+
+    // Then, assign unique indices to all cells (tetrahedra)
+    int cell_counter = 0;
+    for (auto cell = dt.finite_cells_begin(); cell != dt.finite_cells_end(); ++cell)
+    {
+        cell->info().index = cell_counter++;
+        cell->info().dualVoronoiVertexIndex = -1; // Initialize dual voronoi vertex index
+    }
+
+    std::cout << " Stat of DT: # of vertices: " << vertex_counter << " # of cells: " << cell_counter << std::endl;
 }
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
 void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
 {
     voronoiDiagram.vertices.clear();
-
-    std::set<Point> seen_points;
+    int vertex_index = 0;
     for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin();
          cit != dt.finite_cells_end(); ++cit)
     {
-
         Point voronoi_vertex = dt.dual(cit);
         VoronoiVertex vVertex(voronoi_vertex);
-        
-        if (seen_points.insert(voronoi_vertex).second)
-        {
-            int vertex_index = voronoiDiagram.vertices.size();
-            vVertex.index = vertex_index;
-            voronoiDiagram.vertices.push_back(vVertex);
-            
-
-            cit->info().dualVoronoiVertexIndex = vertex_index;
-        }
+        vVertex.index = vertex_index;
+        voronoiDiagram.vertices.push_back(vVertex);
+        cit->info().dualVoronoiVertexIndex = vertex_index;
+        vertex_index++;
     }
 }
 
@@ -1047,7 +1312,6 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
     }
 }
 
-
 //
 // Helper function: Order a set of circumcenters (given by indices) in cyclic order,
 // for the facet dual to the Delaunay edge between p0 and p1.
@@ -1103,7 +1367,8 @@ void orderFacetVertices(std::vector<int> &indices,
     Point center(sumX / count, sumY / count, sumZ / count);
 
     // Sort indices by their angle (using atan2) in the (vRef, vRef2) coordinate system.
-    std::sort(indices.begin(), indices.end(), [&](int a, int b) {
+    std::sort(indices.begin(), indices.end(), [&](int a, int b)
+              {
         const Point &pa = vertices[a].vertex;
         const Point &pb = vertices[b].vertex;
 
@@ -1120,165 +1385,257 @@ void orderFacetVertices(std::vector<int> &indices,
                                    CGAL::scalar_product(va_proj, vRef));
         double angleB = std::atan2(CGAL::scalar_product(vb_proj, vRef2),
                                    CGAL::scalar_product(vb_proj, vRef));
-        return angleA < angleB;
-    });
+        return angleA < angleB; });
 }
 
+//! @brief Creates a Voronoi cell for a Delaunay vertex.
+/*!
+ * Initializes a Voronoi cell with the given cell index and Delaunay vertex handle.
+ *
+ * @param delaunay_vertex The Delaunay vertex to create the cell for.
+ * @param cellIndex The index to assign to the cell.
+ * @return The initialized Voronoi cell.
+ */
+static VoronoiCell createVoronoiCell(Vertex_handle delaunay_vertex, int cellIndex)
+{
+    VoronoiCell vc(delaunay_vertex);
+    vc.cellIndex = cellIndex;
+    std::cout << "[DEBUG] Created VoronoiCell with index " << cellIndex << "\n";
+    return vc;
+}
 
-//! @brief (in dev) Construct the voronoi cells routine that doesn't use Convex_Hull_3
+//! @brief Collects unique vertex indices from incident cells.
+/*!
+ * Retrieves the Voronoi vertex indices from cells incident to a Delaunay vertex,
+ * applying the old-to-new vertex index mapping.
+ *
+ * @param dt The Delaunay triangulation.
+ * @param delaunay_vertex The Delaunay vertex to process.
+ * @param voronoiDiagram The Voronoi diagram containing vertex mappings.
+ * @param vertices_indices Vector to store the collected vertex indices.
+ */
+static void collectCellVertices(
+    Delaunay &dt,
+    Vertex_handle delaunay_vertex,
+    VoronoiDiagram &voronoiDiagram,
+    std::vector<int> &vertices_indices)
+{
+    std::vector<Cell_handle> incidentCells;
+    dt.finite_incident_cells(delaunay_vertex, std::back_inserter(incidentCells));
+    std::cout << "[DEBUG] Found " << incidentCells.size() << " incident cells\n";
+
+    std::set<int> uniqueVertexIndices;
+    for (Cell_handle c : incidentCells)
+    {
+        int oldIdx = c->info().dualVoronoiVertexIndex;
+        if (oldIdx >= 0 && oldIdx < voronoiDiagram.oldToNewVertexIndex.size())
+        {
+            int newIdx = voronoiDiagram.oldToNewVertexIndex[oldIdx];
+            if (newIdx >= 0 && newIdx < voronoiDiagram.vertices.size())
+            {
+                uniqueVertexIndices.insert(newIdx);
+            }
+            else
+            {
+                std::cerr << "[ERROR] Invalid new vertex index " << newIdx
+                          << " (vertices size: " << voronoiDiagram.vertices.size() << ")\n";
+            }
+        }
+        else
+        {
+            std::cerr << "[ERROR] Invalid old vertex index " << oldIdx
+                      << " (oldToNewVertexIndex size: " << voronoiDiagram.oldToNewVertexIndex.size() << ")\n";
+        }
+    }
+    vertices_indices.assign(uniqueVertexIndices.begin(), uniqueVertexIndices.end());
+    std::cout << "[DEBUG] Collected " << vertices_indices.size() << " unique vertex indices\n";
+}
+
+//! @brief Builds a facet from an incident edge using cell circulators.
+/*!
+ * Constructs a Voronoi facet by collecting vertices around an incident edge,
+ * ordering them cyclically, and assigning scalar values.
+ *
+ * @param dt The Delaunay triangulation.
+ * @param ed The incident edge to process.
+ * @param delaunay_vertex The Delaunay vertex associated with the cell.
+ * @param voronoiDiagram The Voronoi diagram containing vertex and value data.
+ * @param facet_indices Vector to store the facet index.
+ * @return The constructed Voronoi facet, or an empty facet if invalid.
+ */
+static VoronoiFacet buildFacetFromEdge(
+    Delaunay &dt,
+    const Edge &ed,
+    Vertex_handle delaunay_vertex,
+    VoronoiDiagram &voronoiDiagram,
+    std::vector<int> &facet_indices)
+{
+    VoronoiFacet vf;
+    Cell_handle cell_ed = ed.first;
+    int i = ed.second;
+    int j = ed.third;
+
+    if (dt.is_infinite(cell_ed))
+    {
+        std::cerr << "[WARNING] Infinite edge detected - Cell index: " << cell_ed->info().index
+                  << ", Edge indices: (" << i << ", " << j << "), Skipping\n";
+        return vf;
+    }
+
+    Vertex_handle v1 = cell_ed->vertex(i);
+    Vertex_handle v2 = cell_ed->vertex(j);
+    std::cout << "[DEBUG] Edge vertices: ("
+              << v1->point().x() << ", " << v1->point().y() << ", " << v1->point().z() << ") to ("
+              << v2->point().x() << ", " << v2->point().y() << ", " << v2->point().z() << ")\n";
+
+    if (v1->info().is_dummy || v2->info().is_dummy)
+    {
+        std::cerr << "[WARNING] Dummy vertex in edge, skipping\n";
+        return vf;
+    }
+
+    if (v1 != delaunay_vertex && v2 != delaunay_vertex)
+    {
+        std::cerr << "[ERROR] Edge does not include current Delaunay vertex\n";
+        throw std::runtime_error("Invalid edge detected");
+    }
+
+    Delaunay::Cell_circulator cc = dt.incident_cells(ed);
+    if (cc == nullptr)
+    {
+        std::cerr << "[ERROR] Null cell circulator for edge (" << i << ", " << j << ")\n";
+        return vf;
+    }
+
+    std::set<int> facetVertexSet;
+    bool skipFacet = false;
+    Delaunay::Cell_circulator start = cc;
+    do
+    {
+        if (dt.is_infinite(cc))
+        {
+            std::cout << "[DEBUG] Infinite cell in circulator, skipping facet\n";
+            skipFacet = true;
+            break;
+        }
+        int oldIdx = cc->info().dualVoronoiVertexIndex;
+        if (oldIdx >= 0 && oldIdx < voronoiDiagram.oldToNewVertexIndex.size())
+        {
+            int newIdx = voronoiDiagram.oldToNewVertexIndex[oldIdx];
+            if (newIdx >= 0 && newIdx < voronoiDiagram.vertices.size())
+            {
+                facetVertexSet.insert(newIdx);
+            }
+            else
+            {
+                std::cerr << "[ERROR] Invalid new index " << newIdx << " in circulator\n";
+            }
+        }
+        else
+        {
+            std::cerr << "[ERROR] Invalid old index " << oldIdx << " in circulator\n";
+        }
+        ++cc;
+    } while (cc != start);
+
+    if (skipFacet || facetVertexSet.size() < 3)
+    {
+        if (!skipFacet)
+            std::cerr << "[ERROR] Facet has only " << facetVertexSet.size() << " vertices\n";
+        return vf;
+    }
+
+    std::vector<int> facetVertexIndices(facetVertexSet.begin(), facetVertexSet.end());
+    orderFacetVertices(facetVertexIndices, v1->point(), v2->point(), voronoiDiagram.vertices);
+
+    vf.vertices_indices = facetVertexIndices;
+    for (int vIdx : facetVertexIndices)
+    {
+        if (vIdx >= 0 && vIdx < voronoiDiagram.vertexValues.size())
+        {
+            vf.vertex_values.push_back(voronoiDiagram.vertexValues[vIdx]);
+        }
+        else
+        {
+            std::cerr << "[ERROR] Invalid vertex value index " << vIdx
+                      << " (vertexValues size: " << voronoiDiagram.vertexValues.size() << ")\n";
+        }
+    }
+
+    int facetIndex = voronoiDiagram.facets.size();
+    voronoiDiagram.facets.push_back(vf);
+    facet_indices.push_back(facetIndex);
+
+    return vf;
+}
+
+//! @brief Processes incident edges to build facets for a Voronoi cell.
+/*!
+ * Iterates over incident edges to construct facets and add them to the cell.
+ *
+ * @param dt The Delaunay triangulation.
+ * @param delaunay_vertex The Delaunay vertex to process.
+ * @param voronoiDiagram The Voronoi diagram to update.
+ * @param vc The Voronoi cell to populate with facets.
+ */
+static void processIncidentEdges(
+    Delaunay &dt,
+    Vertex_handle delaunay_vertex,
+    VoronoiDiagram &voronoiDiagram,
+    VoronoiCell &vc)
+{
+    std::vector<Edge> incidentEdges;
+    dt.incident_edges(delaunay_vertex, std::back_inserter(incidentEdges));
+    std::cout << "[DEBUG] Found " << incidentEdges.size() << " incident edges\n";
+
+    for (const Edge &ed : incidentEdges)
+    {
+        buildFacetFromEdge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facet_indices);
+    }
+}
+
+//! @brief Constructs Voronoi cells without using Convex_Hull_3 (in development).
+/*!
+ * Populates the Voronoi diagram with polyhedral cells derived from the Delaunay
+ * triangulation by processing incident edges and cell circulators.
+ *
+ * @param voronoiDiagram The Voronoi diagram to populate with cells.
+ * @param dt The Delaunay triangulation corresponding (dual) to the Voronoi diagram.
+ */
 void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
 {
-    // Clear old data in the Voronoi diagram
     voronoiDiagram.cells.clear();
     voronoiDiagram.facets.clear();
 
     int cellIndex = 0;
 
-    std::cerr << "checkpoint";
- 
-    // ----------------------------------------------------------------
-    // 1 Iteration over all finite vertices as Vertex_handle
-    // ----------------------------------------------------------------
     for (Vertex_handle delaunay_vertex : dt.finite_vertex_handles())
     {
         if (delaunay_vertex->info().is_dummy)
         {
-            std::cerr << "dummy vertex met in iterating dt\n";
+            std::cerr << "[WARNING] Dummy vertex skipped - Index: " << delaunay_vertex->info().index
+                      << ", Position: (" << delaunay_vertex->point().x() << ", "
+                      << delaunay_vertex->point().y() << ", "
+                      << delaunay_vertex->point().z() << ")\n";
             continue;
         }
 
-        // Create a new VoronoiCell instance
-        VoronoiCell vc(delaunay_vertex);
-        vc.cellIndex = cellIndex;
+        VoronoiCell vc = createVoronoiCell(delaunay_vertex, cellIndex);
+        collectCellVertices(dt, delaunay_vertex, voronoiDiagram, vc.vertices_indices);
+        processIncidentEdges(dt, delaunay_vertex, voronoiDiagram, vc);
 
-        // ------------------------------------------------------------
-        // 2 Gather all Delaunay cells incident to this vertex (delaunay_vertex)
-        //    Build a set of Voronoi vertices from them
-        // ------------------------------------------------------------
-        std::vector<Cell_handle> incidentCells;
-        dt.finite_incident_cells(delaunay_vertex, std::back_inserter(incidentCells));
+        std::cerr << "[INFO] Processed cell " << cellIndex << " - "
+                  << vc.facet_indices.size() << " facets, "
+                  << vc.vertices_indices.size() << " vertices\n";
 
-        std::set<int> uniqueVertexIndices;
-        for (Cell_handle c : incidentCells)
-        {
-            // Convert the Delaunay cell to its Voronoi dual (a point)
-            auto dualPtIdx = c->info().dualVoronoiVertexIndex;
-            uniqueVertexIndices.insert(dualPtIdx);
-
-        }
-        // Store them in the cell
-        vc.vertices_indices.assign(uniqueVertexIndices.begin(), uniqueVertexIndices.end());
-
-        // ----------------------------------------------------------------
-        // 3 For each edge incident to 'delaunay_vertex', gather the ring of cells around it
-        //    and form a boundary facet for the Voronoi cell.
-        // ----------------------------------------------------------------
-
-        std::vector<Edge> incidentEdges;
-        dt.incident_edges(delaunay_vertex, std::back_inserter(incidentEdges));
-
-
-        for (const Edge &ed : incidentEdges)
-        {
-            // Edge is a tuple: (Cell_handle c, int i, int j)
-            Cell_handle cEdge = ed.first;
-            if (dt.is_infinite(cEdge))
-            {
-                continue;
-                //throw std::runtime_error("infinite edge detected");
-            }
-
-            // Collect the two vertex handles for this edge
-            int i = ed.second;
-            int j = ed.third;
-            std::cerr << "(i,j) : " << i << " " << j <<"\n";
-            Vertex_handle v1 = cEdge->vertex(i);
-            Vertex_handle v2 = cEdge->vertex(j);
-
-            // Make sure the edge actually has 'delaunay_vertex' as one of its end
-            if (v1 != delaunay_vertex && v2 != delaunay_vertex)
-            {
-                throw std::runtime_error("Invalid edges detected");
-            }
-
-            // Retrieve all cells around this edge using a Cell_circulator
-            Delaunay::Cell_circulator cc = dt.incident_cells(ed);
-            if (cc == nullptr)
-            {
-                // Degenrate case as no cells found around that edge
-                std::cerr << "Degenerate Cell achieved in circulating \n"; 
-            }
-
-            std::set<int> facetVertexSet;
-            bool skipFacet = false;
-            int ii = 0;
-
-            Delaunay::Cell_circulator start = cc;
-            do
-            {
-                std::cout << "Iteration " << ii << std::endl;
-                if (dt.is_infinite(cc))
-                {
-                    // Edge extends to infinity => skip
-                    skipFacet = true;
-                    break;
-                }
-                std::cout << "checkpoint: find cell" << std::endl;
-                auto voronoiVertexIdx = cc->info().dualVoronoiVertexIndex;
-                facetVertexSet.insert(voronoiVertexIdx);
-
-
-
-                ++cc;
-                ++ii;
-            } while (cc != start);
-
-            std::cerr << "checkpoint: cc_circ\n";
-
-            
-            if (skipFacet)
-            {
-                // Means it was unbounded
-                continue;
-            }
-
-            // Check facet validity
-            if (facetVertexSet.size() < 3)
-            {
-                throw std::runtime_error("Invalid Facet");
-            }
-
-            // Convert the set to a vector
-            std::vector<int> facetVertexIndices(facetVertexSet.begin(), facetVertexSet.end());
-
-            std::cerr << "checkpoint: vf\n";
-            // Build a VoronoiFacet
-            VoronoiFacet vf;
-            vf.vertices_indices = facetVertexIndices;
-            
-            // TODO: Change this back after done with test_vor
-/*             for (int vIdx : facetVertexIndices)
-            {
-                vf.vertex_values.push_back(voronoiDiagram.vertexValues[vIdx]);
-            } */
-
-            // Add to global facet list
-            int facetIndex = voronoiDiagram.facets.size();
-            voronoiDiagram.facets.push_back(vf);
-
-            // Record this facet in the cell
-            vc.facet_indices.push_back(facetIndex);
-        }
-
-        std::cerr << "checkpoint: cellIndex = " << cellIndex << "\n";
-
-        // Store the cell in the diagram
         voronoiDiagram.cells.push_back(vc);
         delaunay_vertex->info().voronoiCellIndex = cellIndex;
         cellIndex++;
     }
-}
 
+    std::cout << "[DEBUG] Finished construct_voronoi_cells_non_convex_hull, created "
+              << cellIndex << " cells\n";
+}
 
 //! @brief Constructs Voronoi cells from the Delaunay triangulation without using convex hull computation.
 void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
@@ -1308,7 +1665,7 @@ void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram, Delaunay 
             Point q = neighbor->point();
             Point mid = CGAL::midpoint(p, q);
             Vector3 normal = q - p;
-            
+
             // Construct the bisector plane.
             // With this construction, delaunay_vertex->point() lies in the negative half-space:
             //   (q - p) · (delaunay_vertex->point() - mid) < 0,
@@ -1321,7 +1678,7 @@ void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram, Delaunay 
         Point interior = delaunay_vertex->point();
         Polyhedron_3 poly;
         // Compute the intersection of the halfspaces.
-        CGAL::halfspace_intersection_3(halfspaces.begin(), halfspaces.end(), poly, interior );
+        CGAL::halfspace_intersection_3(halfspaces.begin(), halfspaces.end(), poly, interior);
         vc.polyhedron = poly;
 
         // Extract the vertex indices from the computed polyhedron.
@@ -1365,39 +1722,35 @@ void construct_voronoi_edges(
     std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
     Delaunay &dt)
 {
-    std::set<std::string> seen_edges; // Used to check for duplicate edges
-
+    voronoiDiagram.edges.clear();
     for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin();
          fit != dt.finite_facets_end(); ++fit)
     {
         Facet facet = *fit;
-
         CGAL::Object vEdge = dt.dual(facet);
-
-        if (isDegenerate(vEdge))
-        {
-            continue;
-        }
-
-        std::string edgeRep = objectToString(vEdge);
-
+        /*         if (isDegenerate(vEdge))
+                {
+                    continue; // Skip edges where source == target, though rare with distinct indices
+                } */
+        voronoiDiagram.edges.push_back(vEdge);
         voronoi_edge_to_delaunay_facet_map[vEdge].push_back(facet);
-
-        if (seen_edges.find(edgeRep) == seen_edges.end())
-        {
-            voronoiDiagram.edges.push_back(vEdge);
-            seen_edges.insert(edgeRep);
-        }
     }
 }
 
-//! @brief Constructs the cellEdges in the VoronoiDiagram and link them properly
-void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
-                                  std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
-                                  CGAL::Epick::Iso_cuboid_3 &bbox,
-                                  Delaunay &dt)
+//! @brief Builds Voronoi cell edges for each edge in the diagram.
+/*!
+ * Creates VoronoiCellEdge entries for cells sharing each edge, collecting cell indices
+ * from associated Delaunay facets.
+ *
+ * @param voronoiDiagram The Voronoi diagram to populate with cell edges.
+ * @param voronoi_edge_to_delaunay_facet_map Map linking Voronoi edges to Delaunay facets.
+ * @param dt The Delaunay triangulation.
+ */
+static void buildCellEdges(
+    VoronoiDiagram &voronoiDiagram,
+    const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    Delaunay &dt)
 {
-    // PASS 2: Build cellEdges for each unique edge
     for (int edgeIdx = 0; edgeIdx < voronoiDiagram.edges.size(); ++edgeIdx)
     {
         const CGAL::Object &edgeObj = voronoiDiagram.edges[edgeIdx];
@@ -1408,11 +1761,9 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
         const std::vector<Facet> &sharedFacets = it->second;
         std::set<int> cellIndices;
 
-        // Gather all VoronoiCell indices that share this edge
         for (const Facet &f : sharedFacets)
         {
             Cell_handle c = f.first;
-            // Skip infinite or degenerate
             if (dt.is_infinite(c))
             {
                 continue;
@@ -1423,7 +1774,6 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
                 Vertex_handle delaunay_vertex = c->vertex(corner);
                 if (delaunay_vertex->info().is_dummy)
                 {
-                    // skip dummy
                     continue;
                 }
                 int cellIdx = delaunay_vertex->info().voronoiCellIndex;
@@ -1431,7 +1781,6 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
             }
         }
 
-        // Create a VoronoiCellEdge for each cell that shares this edge
         for (int cIdx : cellIndices)
         {
             VoronoiCellEdge cellEdge;
@@ -1442,8 +1791,18 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
             voronoiDiagram.cellEdges.push_back(cellEdge);
         }
     }
+}
 
-    // link the CellEdges via nextCellEdge
+//! @brief Links Voronoi cell edges in a circular ring.
+/*!
+ * Connects cell edges sharing the same edge index using the nextCellEdge field
+ * to form a closed loop.
+ *
+ * @param voronoiDiagram The Voronoi diagram containing cell edges to link.
+ */
+static void linkCellEdges(
+    VoronoiDiagram &voronoiDiagram)
+{
     std::unordered_map<int, std::vector<int>> edgeIdx_to_cellEdges;
     for (int ceIdx = 0; ceIdx < (int)voronoiDiagram.cellEdges.size(); ++ceIdx)
     {
@@ -1451,12 +1810,10 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
         edgeIdx_to_cellEdges[ce.edgeIndex].push_back(ceIdx);
     }
 
-    // Link each group in a ring
     for (auto &kv : edgeIdx_to_cellEdges)
     {
         auto &cellEdgeIndices = kv.second;
         int N = (int)cellEdgeIndices.size();
-        // no special ordering, but we can just do a circular link
         for (int i = 0; i < N; i++)
         {
             int ceIdx = cellEdgeIndices[i];
@@ -1464,102 +1821,118 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
             voronoiDiagram.cellEdges[ceIdx].nextCellEdge = nextIdx;
         }
     }
+}
 
-    // For each edge in voronoiDiagram.edges, see if it is a Segment_3:
-    for (int edgeIdx = 0; edgeIdx < (int)voronoiDiagram.edges.size(); ++edgeIdx)
+//! @brief Processes edge mapping for a single Voronoi edge.
+/*!
+ * Updates the segmentVertexPairToEdgeIndex map for segments, rays, and lines
+ * after intersecting with the bounding box.
+ *
+ * @param voronoiDiagram The Voronoi diagram to update.
+ * @param edgeObj The CGAL object representing the edge.
+ * @param edgeIdx The index of the edge in the diagram.
+ * @param bbox The bounding box for intersection.
+ */
+static void processEdgeMapping(
+    VoronoiDiagram &voronoiDiagram,
+    const CGAL::Object &edgeObj,
+    int edgeIdx,
+    CGAL::Epick::Iso_cuboid_3 &bbox)
+{
+    Segment3 seg;
+    Ray3 ray;
+    Line3 line;
+    Point p1, p2;
+    bool isSegment = false;
+
+    if (CGAL::assign(seg, edgeObj))
     {
-        const CGAL::Object &edgeObj = voronoiDiagram.edges[edgeIdx];
-
-        Segment3 seg;
-        Ray3 ray;
-        Line3 line;
-        if (CGAL::assign(seg, edgeObj))
+        p1 = seg.source();
+        p2 = seg.target();
+        isSegment = true;
+    }
+    else if (CGAL::assign(ray, edgeObj))
+    {
+        CGAL::Object clippedObj = CGAL::intersection(bbox, ray);
+        Segment3 clippedSeg;
+        if (CGAL::assign(clippedSeg, clippedObj))
         {
-            // It's a segment
-            Point p1 = seg.source();
-            Point p2 = seg.target();
-
-            // Get their Voronoi vertex indices
-            int idx1 = find_vertex_index(voronoiDiagram, p1);
-            int idx2 = find_vertex_index(voronoiDiagram, p2);
-            if (idx1 != -1 &&
-                idx2 != -1)
-            {
-                int v1 = idx1;
-                int v2 = idx2;
-                if (v1 > v2)
-                    std::swap(v1, v2); // ensure ascending
-
-                // Record in the global map
-                // This implies each pair of vertex indices maps to exactly one edgeIdx
-                std::pair<int, int> edgeKey = std::make_pair(v1, v2);
-                voronoiDiagram.segmentVertexPairToEdgeIndex[edgeKey] = edgeIdx;
-            }
+            p1 = clippedSeg.source();
+            p2 = clippedSeg.target();
+            isSegment = true;
         }
-        // CASE 2: It's a Ray_3
-        else if (CGAL::assign(ray, edgeObj))
+    }
+    else if (CGAL::assign(line, edgeObj))
+    {
+        CGAL::Object clippedObj = CGAL::intersection(bbox, line);
+        Segment3 clippedSeg;
+        if (CGAL::assign(clippedSeg, clippedObj))
         {
-            // Intersect with the bounding box to get a finite segment
-            CGAL::Object clippedObj = CGAL::intersection(bbox, ray);
-            Segment3 clippedSeg;
-            if (CGAL::assign(clippedSeg, clippedObj))
-            {
-                // If the intersection is a proper segment
-                Point p1 = clippedSeg.source();
-                Point p2 = clippedSeg.target();
-
-                int idx1 = find_vertex_index(voronoiDiagram, p1);
-                int idx2 = find_vertex_index(voronoiDiagram, p2);
-                if (idx1 != -1 &&
-                    idx2 != -1)
-                {
-                    int v1 = idx1;
-                    int v2 = idx2;
-                    if (v1 > v2)
-                        std::swap(v1, v2);
-
-                    voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
-                }
-            }
-        }
-        // CASE 3: It's a Line_3
-        else if (CGAL::assign(line, edgeObj))
-        {
-            // Similarly, clip line with bounding box
-            CGAL::Object clippedObj = CGAL::intersection(bbox, line);
-            Segment3 clippedSeg;
-            if (CGAL::assign(clippedSeg, clippedObj))
-            {
-                // If the intersection is a proper segment
-                Point p1 = clippedSeg.source();
-                Point p2 = clippedSeg.target();
-
-                int idx1 = find_vertex_index(voronoiDiagram, p1);
-                int idx2 = find_vertex_index(voronoiDiagram, p2);
-                if (idx1 != -1 &&
-                    idx2 != -1)
-                {
-                    int v1 = idx1;
-                    int v2 = idx2;
-                    if (v1 > v2)
-                        std::swap(v1, v2);
-
-                    voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
-                }
-                // else intersection is partially outside
-            }
+            p1 = clippedSeg.source();
+            p2 = clippedSeg.target();
+            isSegment = true;
         }
     }
 
-    // Populate the lookup table of CellEdges using (cellindex, edgeindex) that would be used in future step
+    if (isSegment)
+    {
+        int idx1 = find_vertex_index(voronoiDiagram, p1);
+        int idx2 = find_vertex_index(voronoiDiagram, p2);
+        if (idx1 != -1 && idx2 != -1)
+        {
+            int v1 = std::min(idx1, idx2);
+            int v2 = std::max(idx1, idx2);
+            voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
+        }
+    }
+}
+
+//! @brief Updates edge mappings for all Voronoi edges.
+/*!
+ * Processes all edges to update segmentVertexPairToEdgeIndex and cellEdgeLookup maps.
+ *
+ * @param voronoiDiagram The Voronoi diagram to update.
+ * @param bbox The bounding box for intersection.
+ */
+static void updateEdgeMappings(
+    VoronoiDiagram &voronoiDiagram,
+    CGAL::Epick::Iso_cuboid_3 &bbox)
+{
+    for (int edgeIdx = 0; edgeIdx < (int)voronoiDiagram.edges.size(); ++edgeIdx)
+    {
+        const CGAL::Object &edgeObj = voronoiDiagram.edges[edgeIdx];
+        processEdgeMapping(voronoiDiagram, edgeObj, edgeIdx, bbox);
+    }
+
     voronoiDiagram.cellEdgeLookup.clear();
     for (int ceIdx = 0; ceIdx < (int)voronoiDiagram.cellEdges.size(); ++ceIdx)
     {
         const VoronoiCellEdge &ce = voronoiDiagram.cellEdges[ceIdx];
-        // Build key
         std::pair<int, int> key = std::make_pair(ce.cellIndex, ce.edgeIndex);
         voronoiDiagram.cellEdgeLookup[key] = ceIdx;
     }
+}
+
+//! @brief Constructs the Voronoi cell edges in the Voronoi diagram and links them.
+/*!
+ * Builds cell edges for each Voronoi edge, links them in a circular ring, and
+ * updates edge mappings.
+ *
+ * @param voronoiDiagram The Voronoi diagram to populate with edges.
+ * @param voronoi_edge_to_delaunay_facet_map Map linking Voronoi edges to Delaunay facets.
+ * @param bbox The bounding box used for clipping rays and lines.
+ * @param dt The Delaunay triangulation.
+ */
+void construct_voronoi_cell_edges(
+    VoronoiDiagram &voronoiDiagram,
+    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    Delaunay &dt)
+{
+    voronoiDiagram.cellEdges.clear();
+    buildCellEdges(voronoiDiagram, voronoi_edge_to_delaunay_facet_map, dt);
+    linkCellEdges(voronoiDiagram);
+    updateEdgeMappings(voronoiDiagram, bbox);
 }
 
 //! @brief Wrap up function of constructing voronoi diagram
@@ -1567,11 +1940,10 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::ma
 {
     construct_voronoi_vertices(vd, dt);
     construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map, dt);
+    vd.collapseSmallEdges(0.01, bbox); // Use document's D or make configurable
     compute_voronoi_values(vd, grid, vertexValueMap);
-
     if (vdc_param.multi_isov)
     {
-        // Construct Voronoi cells for the diagram.
         if (vdc_param.convex_hull)
         {
             construct_voronoi_cells(vd, dt);
@@ -1579,24 +1951,16 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::ma
         else
         {
             construct_voronoi_cells_non_convex_hull(vd, dt);
-            //construct_voronoi_cells_halfspace(vd, dt);
         }
+        std::cout << vd << std::endl;
         construct_voronoi_cell_edges(vd, voronoi_edge_to_delaunay_facet_map, bbox, dt);
     }
-
-    if (vdc_param.test_vor)
-    {
-        vd.check();
-        std::ofstream log("vd_info.txt");
-        log << vd; // Write the Voronoi diagram's details to the log file.
-        log.close();
-    }
-
     vd.check();
 }
 
-//！@brief Wrap up function for constructing iso surface
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters,std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &pointToIndexMap) {
+// ！@brief Wrap up function for constructing iso surface
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &pointToIndexMap)
+{
     if (vdc_param.multi_isov)
     {
         Compute_Isosurface_Vertices_Multi(vd, vdc_param.isovalue, iso_surface);
@@ -1606,7 +1970,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
         Compute_Isosurface_Vertices_Single(grid, vdc_param.isovalue, iso_surface, data_grid, activeCubeCenters);
     }
 
-        if (vdc_param.multi_isov)
+    if (vdc_param.multi_isov)
     {
         computeDualTrianglesMulti(vd, bbox, voronoi_edge_to_delaunay_facet_map, grid, vdc_param.isovalue, iso_surface);
     }
