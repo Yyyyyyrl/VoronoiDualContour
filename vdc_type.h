@@ -19,6 +19,7 @@
 #include <cstring>     // C-style string operations.
 #include <teem/nrrd.h> // Teem library for handling NRRD data files.
 #include <iomanip>     // For formatted output (e.g., precision control).
+#include <variant>
 
 
 // CGAL headers for computational geometry operations.
@@ -363,5 +364,27 @@ void print_cell_circuit(OSTREAM_TYPE& os, Cell_circulator start, int vertex_inde
     
     os << "Total: " << count << " cells\n";
 }
+
+
+//! @brief Structure for comparing points for approximate equality.
+/*!
+ * This structure defines a custom comparator for points, allowing comparison
+ * with a small epsilon tolerance.
+ */
+struct PointApproxEqual
+{
+
+    //! @brief Compares two points for approximate equality.
+    /*!
+     * @param p1 First point.
+     * @param p2 Second point.
+     * @return `true` if the points are approximately equal, `false` otherwise.
+     */
+    bool operator()(const Point &p1, const Point &p2) const
+    {
+        const double EPSILON = 1e-6;
+        return (CGAL::squared_distance(p1, p2) < EPSILON * EPSILON);
+    }
+};
 
 #endif // VDC_TYPE_H
