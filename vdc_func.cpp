@@ -1727,13 +1727,42 @@ void construct_voronoi_edges(
          fit != dt.finite_facets_end(); ++fit)
     {
         Facet facet = *fit;
+        Cell_handle c1 = facet.first;
+        int i = facet.second;
+        Cell_handle c2 = c1->neighbor(i);
         CGAL::Object vEdge = dt.dual(facet);
         /*         if (isDegenerate(vEdge))
                 {
                     continue; // Skip edges where source == target, though rare with distinct indices
                 } */
+        int idx1 = -1;
+        int idx2 = -1;
+        if (!dt.is_infinite(c1))
+            idx1 = c1->info().dualVoronoiVertexIndex;
+        if (!dt.is_infinite(c2))
+            idx2 = c2->info().dualVoronoiVertexIndex;
+
+        //TODO: Duplicate check
+        if (idx1 != -1 && idx2 != -1)
+        {
+            voronoiDiagram.edgeVertexIndices.push_back(std::make_pair(idx1, idx2));
+        }
+        else if (idx1 != -1)
+        {
+            voronoiDiagram.edgeVertexIndices.push_back(std::make_pair(idx1, -1));
+        }
+        else if (idx2 != -1)
+        {
+            voronoiDiagram.edgeVertexIndices.push_back(std::make_pair(idx2, -1));
+        }
+        else
+        {
+            std::cerr << "Error: finite facet with both adjacent cells infinite.\n";
+        }
+
         voronoiDiagram.edges.push_back(vEdge);
         voronoi_edge_to_delaunay_facet_map[vEdge].push_back(facet);
+
     }
 }
 
