@@ -60,7 +60,6 @@ struct MidpointNode
 struct VoronoiFacet
 {
     std::vector<int> vertices_indices; //!< Indices of vertices forming this facet, ordered.
-    // TODO: Remove this, replace with array of indices
     std::vector<float> vertex_values;       //!< Scalar values at the facet's vertices.
     std::vector<int> vertex_values_indices; //!< The locations in voronoiDiagram.vertexValues for vertices in the facet
 
@@ -134,6 +133,7 @@ struct VoronoiDiagram
 {
     std::vector<VoronoiVertex> vertices;    //!< List of Voronoi vertices in the diagram.
     std::vector<Object> edges;              //!< List of edges in the diagram (e.g., line segments).
+    std::vector<std::pair<int, int>> edgeVertexIndices; //!< where each pair corresponds to an edge in edges. For segments, both indices are valid (>=0); for rays, one is -1; for lines, both are -1.
     std::vector<VoronoiCellEdge> cellEdges; //!< List of Cell Edges in the diagram
     std::vector<float> vertexValues;        //!< Scalar values at the Voronoi vertices.
     std::vector<VoronoiCell> cells;         //!< List of Voronoi cells in the diagram.
@@ -165,7 +165,7 @@ private:
     void checkCellFacets() const;
 
     //! @brief Helper methods for collapseSmallEdges
-    void processEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbox, std::vector<int> &mapto, std::set<std::pair<int, int>> &processedPairs);
+    void processEdges(std::vector<int>& mapto, double D);
     void mergeCloseVertices(double mergeTolerance, std::vector<int> &mapto);
     void compressMapping(std::vector<int> &mapto);
     void rebuildVertices(const std::vector<int> &mapto);

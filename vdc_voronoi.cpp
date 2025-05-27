@@ -53,80 +53,37 @@ void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
 }
 
 // Helper function to process edges and mark vertices for merging
-void VoronoiDiagram::processEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbox, std::vector<int> &mapto, std::set<std::pair<int, int>> &processedPairs)
-{
-    for (size_t edgeIdx = 0; edgeIdx < edges.size(); ++edgeIdx)
-    {
-        const Object &edgeObj = edges[edgeIdx];
-        Point p1, p2;
-        bool isFinite = false;
+void VoronoiDiagram::processEdges(std::vector<int>& mapto, double D) {
+    for (size_t edgeIdx = 0; edgeIdx < edges.size(); ++edgeIdx) {
+        // Get vertex indices for the current edge
+        int v1 = edgeVertexIndices[edgeIdx].first;
+        int v2 = edgeVertexIndices[edgeIdx].second;
 
-        if (const Segment3 *seg = CGAL::object_cast<Segment3>(&edgeObj))
-        {
-            p1 = seg->source();
-            p2 = seg->target();
-            isFinite = true;
-        }
-        else if (const Ray3 *ray = CGAL::object_cast<Ray3>(&edgeObj))
-        {
-            p1 = ray->source();
-            auto result = CGAL::intersection(*ray, bbox);
-            if (result && std::get_if<Point>(&*result))
-            {
-                p2 = *std::get_if<Point>(&*result);
-                isFinite = true;
-            }
-        }
-        else if (const Line3 *line = CGAL::object_cast<Line3>(&edgeObj))
-        {
-            std::vector<Point> intersections;
-            auto result = CGAL::intersection(*line, bbox);
-            if (result)
-            {
-                if (const Point *p = std::get_if<Point>(&*result))
-                {
-                    intersections.push_back(*p);
-                }
-                else if (const Segment3 *s = std::get_if<Segment3>(&*result))
-                {
-                    p1 = s->source();
-                    p2 = s->target();
-                    isFinite = true;
-                }
-            }
-            if (intersections.size() == 1)
-            {
-                p1 = line->point(0);
-                p2 = intersections[0];
-                isFinite = true;
-            }
-        }
+        // Skip edges that are not finite segments (rays or lines)
+        if (v1 < 0 || v2 < 0) continue;
 
-        if (!isFinite)
-            continue;
+        // Find the roots of the vertex sets in the union-find structure
+        int root1 = v1;
+        while (mapto[root1] != root1) root1 = mapto[root1];
+        int root2 = v2;
+        while (mapto[root2] != root2) root2 = mapto[root2];
 
-        int idx1 = find_vertex(p1);
-        int idx2 = find_vertex(p2);
-        if (idx1 == -1 || idx2 == -1 || idx1 == idx2)
-            continue;
+        // If vertices are already in the same set, skip
+        if (root1 == root2) continue;
 
-        int v1 = std::min(idx1, idx2);
-        int v2 = std::max(idx1, idx2);
-        if (processedPairs.count({v1, v2}))
-            continue;
-        processedPairs.insert({v1, v2});
-
+        // Compute the distance between the vertex positions
+        Point p1 = vertices[v1].vertex;
+        Point p2 = vertices[v2].vertex;
         double dist = CGAL::sqrt(CGAL::squared_distance(p1, p2));
-        if (dist <= D)
-        {
-            while (mapto[v2] != v2)
-                v2 = mapto[v2];
-            while (mapto[v1] != v1)
-                v1 = mapto[v1];
-            if (v1 < v2)
-                mapto[v2] = v1;
-            else
-                mapto[v1] = v2;
+
+        // Merge vertices if the distance is less than or equal to threshold D
+        if (dist <= D) {
+            // Union by setting the parent; use smaller index as parent for consistency
+            if (root1 < root2) {
+                mapto[root1] = root2;
+            } else {
+                mapto[root2] = root1;
+            }
         }
     }
 }
@@ -195,12 +152,21 @@ void VoronoiDiagram::rebuildVertices(const std::vector<int> &mapto)
 // Helper function to rebuild edges with duplicate removal
 void VoronoiDiagram::rebuildEdges()
 {
+    std::set<CGAL::Object, ObjectComparator> uniqueEdges;
     std::vector<Object> newEdges;
     std::set<std::pair<Point, Vector3>, RayKeyComparator> raySet;
     std::set<std::pair<Point, Vector3>, LineKeyComparator> lineSet;
 
     for (const auto &edge : edges)
     {
+
+        // Check for duplicates; insert if unique
+        auto [it, inserted] = uniqueEdges.insert(edge);
+        if (!inserted) {
+            // Edge is a duplicate; just update the facet mapping
+            continue;
+        }
+
         Segment3 seg;
         Ray3 ray;
         Line3 line;
@@ -256,11 +222,11 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
     std::set<std::pair<int, int>> processedPairs;
 
     // Process edges to mark vertices for merging
-    processEdges(D, bbox, mapto, processedPairs);
+    processEdges(mapto, D);
 
     // Merge vertices within a small tolerance
     const double mergeTolerance = 1e-8;
-    mergeCloseVertices(mergeTolerance, mapto);
+    //mergeCloseVertices(mergeTolerance, mapto);
 
     // Perform path compression
     std::cout << "[DEBUG] Performing path compression\n";
