@@ -12,33 +12,6 @@
 #include "vdc_delaunay.h"
 #include "vdc_commandline.h"
 
-//! @brief Converts a CGAL::Object into a string representation.
-/*!
- * This function helps in debugging by converting a geometric object (e.g., Segment, Ray, Line)
- * into a human-readable string format.
- * 
- * @param obj The CGAL::Object to convert.
- * @return A string representation of the object.
- */
-std::string objectToString(const CGAL::Object &obj);
-
-//! @brief Comparator for CGAL::Object instances.
-/*!
- * Allows comparison of CGAL objects based on their string representation.
- */
-struct ObjectComparator
-{
-    //! @brief Compare two CGAL::Object instances.
-    /*!
-     * @param obj1 The first object.
-     * @param obj2 The second object.
-     * @return `true` if obj1 < obj2, otherwise `false`.
-     */
-    bool operator()(const Object &obj1, const Object &obj2) const
-    {
-        return objectToString(obj1) < objectToString(obj2);
-    }
-};
 
 //! @brief Checks if two scalar values are bipolar with respect to an isovalue.
 /*!
