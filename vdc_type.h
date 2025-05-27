@@ -5,15 +5,15 @@
 #define VDC_TYPE_H
 
 // Standard library headers for various utilities.
-#include <iostream>    // Input and output stream.
-#include <fstream>     // File stream for reading and writing files.
-#include <vector>      // STL vector container.
-#include <array>       // STL array container.
-#include <cmath>       // Math functions like abs(), pow(), etc.
-#include <limits>      // To work with numeric limits of data types.
+#include <iostream> // Input and output stream.
+#include <fstream>  // File stream for reading and writing files.
+#include <vector>   // STL vector container.
+#include <array>    // STL array container.
+#include <cmath>    // Math functions like abs(), pow(), etc.
+#include <limits>   // To work with numeric limits of data types.
 #include <set>
 #include <stack>
-#include <iterator> // for std::back_inserter
+#include <iterator>    // for std::back_inserter
 #include <algorithm>   // Common algorithms like sort(), min(), max().
 #include <cstddef>     // Definitions for size_t, ptrdiff_t, etc.
 #include <cstring>     // C-style string operations.
@@ -21,18 +21,17 @@
 #include <iomanip>     // For formatted output (e.g., precision control).
 #include <variant>
 
-
 // CGAL headers for computational geometry operations.
-#include <CGAL/bounding_box.h>                         // Compute bounding boxes for geometric objects.
-#include <CGAL/intersections.h>                       // Perform geometric intersection tests.
-#include <CGAL/Vector_3.h>                            // Represents a vector in 3D space.
-#include <CGAL/Polyhedron_3.h>                        // Represents 3D polyhedral surfaces.
-#include <CGAL/convex_hull_3.h>                       // Compute convex hulls in 3D.
-#include <CGAL/Convex_hull_3/dual/halfspace_intersection_3.h>            // Compute Halfspace Intersections in 3D
-#include <CGAL/centroid.h>                            // Compute centroids of geometric objects.
+#include <CGAL/bounding_box.h>                                  // Compute bounding boxes for geometric objects.
+#include <CGAL/intersections.h>                                 // Perform geometric intersection tests.
+#include <CGAL/Vector_3.h>                                      // Represents a vector in 3D space.
+#include <CGAL/Polyhedron_3.h>                                  // Represents 3D polyhedral surfaces.
+#include <CGAL/convex_hull_3.h>                                 // Compute convex hulls in 3D.
+#include <CGAL/Convex_hull_3/dual/halfspace_intersection_3.h>   // Compute Halfspace Intersections in 3D
+#include <CGAL/centroid.h>                                      // Compute centroids of geometric objects.
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h> // Kernel for exact predicates and inexact constructions.
-#include <CGAL/Delaunay_triangulation_3.h>            // Delaunay triangulation in 3D.
-#include <CGAL/Triangulation_vertex_base_with_info_3.h> // Vertex base with additional user data.
+#include <CGAL/Delaunay_triangulation_3.h>                      // Delaunay triangulation in 3D.
+#include <CGAL/Triangulation_vertex_base_with_info_3.h>         // Vertex base with additional user data.
 #include <CGAL/Triangulation_cell_base_with_info_3.h>
 #include <CGAL/Delaunay_triangulation_cell_base_with_circumcenter_3.h> // Cell base with circumcenter support.
 
@@ -43,15 +42,17 @@
  */
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 
-struct VERTEX_INFO {
-    bool is_dummy;                          // indicator of whether this delaunay vertex is added for bounding ( dummy )
-    int voronoiCellIndex;                   // Index of the voronoi Cell that is dual to the vertex
-    int index;                              // Index of the delaunay vertex in the triangulation
+struct VERTEX_INFO
+{
+    bool is_dummy;        // indicator of whether this delaunay vertex is added for bounding ( dummy )
+    int voronoiCellIndex; // Index of the voronoi Cell that is dual to the vertex
+    int index;            // Index of the delaunay vertex in the triangulation
 };
 
-struct CELL_INFO {
-    int dualVoronoiVertexIndex;             // Index of the voronoi vertex that is dual to this cell
-    int index;                              // Index of this delaunay cell in the triangulation
+struct CELL_INFO
+{
+    int dualVoronoiVertexIndex; // Index of the voronoi vertex that is dual to this cell
+    int index;                  // Index of this delaunay cell in the triangulation
 };
 
 //! @brief Vertex base for triangulations with additional information.
@@ -61,14 +62,13 @@ struct CELL_INFO {
  */
 typedef CGAL::Triangulation_vertex_base_with_info_3<VERTEX_INFO, K> Vb;
 
-
 //! @brief Cell base for Delaunay triangulations.
 /*!
-* This base provides support for calculating circumcenters of cells.
-*/
+ * This base provides support for calculating circumcenters of cells.
+ */
 typedef CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K> Cb2;
- 
-typedef CGAL::Triangulation_cell_base_with_info_3<CELL_INFO,K,Cb2> Cb;
+
+typedef CGAL::Triangulation_cell_base_with_info_3<CELL_INFO, K, Cb2> Cb;
 
 //! @brief Data structure for triangulations.
 /*!
@@ -152,13 +152,18 @@ typedef K::Vector_3 Vector3;
  */
 typedef K::Plane_3 Plane_3;
 
+//! @brief Direction in 3D space.
+/*!
+ * A direction is a vector with norm 1, representing a line through the origin.
+ */
+typedef K::Direction_3 Direction3;
 
 //
 // Custom Output << Operators
 //
 
 //! @brief Output operator for Cell_handle
-/*! 
+/*!
  * This operator allows printing of Cell_handle objects to output streams.
  * It displays the cell's vertices, circumcenter, and additional info.
  *
@@ -167,8 +172,10 @@ typedef K::Plane_3 Plane_3;
  * @return Reference to the output stream
  */
 template <typename OSTREAM_TYPE>
-OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Cell_handle& ch) {
-    if (ch == nullptr) {
+OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Cell_handle &ch)
+{
+    if (ch == nullptr)
+    {
         os << "Cell_handle(nullptr)";
         return os;
     }
@@ -177,34 +184,39 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Cell_handle& ch) {
     os << "Cell_handle[" << &(*ch) << "]:\n";
     os << "  Info: { index: " << ch->info().index
        << ", dualVoronoiVertexIndex: " << ch->info().dualVoronoiVertexIndex << " }\n";
-    
+
     // Print vertices
     os << "  Vertices:\n";
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i)
+    {
         Vertex_handle vh = ch->vertex(i);
-        os << "    [" << i << "]: (" 
-           << vh->point().x() << ", " 
-           << vh->point().y() << ", " 
+        os << "    [" << i << "]: ("
+           << vh->point().x() << ", "
+           << vh->point().y() << ", "
            << vh->point().z() << ")";
-        
-        if (vh->info().is_dummy) {
+
+        if (vh->info().is_dummy)
+        {
             os << " (dummy)";
         }
         os << " index: " << vh->info().index;
         os << "\n";
     }
-    
+
     // Print circumcenter
-    try {
+    try
+    {
         Point cc = ch->circumcenter();
-        os << "  Circumcenter: (" 
-           << cc.x() << ", " 
-           << cc.y() << ", " 
+        os << "  Circumcenter: ("
+           << cc.x() << ", "
+           << cc.y() << ", "
            << cc.z() << ")\n";
-    } catch (...) {
+    }
+    catch (...)
+    {
         os << "  Circumcenter: (calculation failed)\n";
     }
-    
+
     return os;
 }
 
@@ -218,16 +230,18 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Cell_handle& ch) {
  * @return Reference to the output stream
  */
 template <typename OSTREAM_TYPE>
-OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Cell_circulator& cc) {
-    if (cc == Cell_circulator()) {
+OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Cell_circulator &cc)
+{
+    if (cc == Cell_circulator())
+    {
         os << "Cell_circulator(default)";
         return os;
     }
-    
+
     // Get the current cell and output it
     Cell_handle ch = cc;
     os << "Cell_circulator -> " << ch;
-    
+
     return os;
 }
 
@@ -245,73 +259,83 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Cell_circulator& cc) {
  * @return Reference to the output stream
  */
 template <typename OSTREAM_TYPE>
-OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Delaunay& dt) {
+OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Delaunay &dt)
+{
     // Basic statistics
     os << "Delaunay Triangulation Statistics:\n"
        << "  Dimension: " << dt.dimension() << "\n"
        << "  Is valid: " << (dt.is_valid() ? "yes" : "no") << "\n\n";
-    
+
     // Vertex statistics
     int total_vertices = dt.number_of_vertices();
     int dummy_vertices = 0;
     int regular_vertices = 0;
-    
-    for(auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
-        if(vit->info().is_dummy) {
+
+    for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit)
+    {
+        if (vit->info().is_dummy)
+        {
             dummy_vertices++;
-        } else {
+        }
+        else
+        {
             regular_vertices++;
         }
     }
-    
+
     os << "Vertex Statistics:\n"
        << "  Total vertices: " << total_vertices << "\n"
        << "  Regular vertices: " << regular_vertices << "\n"
        << "  Dummy vertices: " << dummy_vertices << "\n";
-    
+
     // Cell statistics
     int finite_cells = dt.number_of_finite_cells();
     int infinite_cells = dt.number_of_cells() - finite_cells;
-    
+
     os << "\nCell Statistics:\n"
        << "  Total cells: " << dt.number_of_cells() << "\n"
        << "  Finite cells: " << finite_cells << "\n"
        << "  Infinite cells: " << infinite_cells << "\n";
-       
+
     // Output detailed information for finite cells
     os << "\nCell Details (limited to first 5 finite cells):\n";
     int cell_count = 0;
-    for(auto cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit) {
+    for (auto cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
+    {
         Cell_handle ch = cit;
-        os << ch; 
-        
+        os << ch;
+
         // Limit the number of cells to display to avoid excessive output
-        if(++cell_count >= 5) {
+        if (++cell_count >= 5)
+        {
             os << "... and " << (finite_cells - 5) << " more finite cells\n";
             break;
         }
-        
+
         // Add a separator line
         os << "  -----------------------------------------\n";
     }
-    
+
     // Vertex degree distribution (number of adjacent cells per vertex)
     std::map<int, int> degree_distribution;
-    for(auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
+    for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit)
+    {
         int degree = dt.degree(vit);
         degree_distribution[degree]++;
     }
-    
+
     os << "\nVertex Degree Distribution:\n"
        << "  (degree: number of vertices)\n";
-    for(const auto& pair : degree_distribution) {
+    for (const auto &pair : degree_distribution)
+    {
         os << "  " << pair.first << " cells: " << pair.second << " vertices\n";
     }
-    
+
     // Vertex detailed information
     os << "\nVertex Details:\n";
     int vertex_count = 0;
-    for(auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
+    for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit)
+    {
         os << "  [" << vit->info().index << "] ("
            << std::fixed << std::setprecision(3)
            << vit->point().x() << ", "
@@ -321,14 +345,15 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Delaunay& dt) {
            << " voronoi_cell: " << vit->info().voronoiCellIndex
            << " degree: " << dt.degree(vit)
            << "\n";
-        
+
         // Limit the number of vertices to display to avoid excessive output
-        if(++vertex_count >= 10) {
+        if (++vertex_count >= 10)
+        {
             os << "  ... and " << (total_vertices - 10) << " more vertices\n";
             break;
         }
     }
-    
+
     return os;
 }
 
@@ -342,29 +367,33 @@ OSTREAM_TYPE& operator<<(OSTREAM_TYPE& os, const Delaunay& dt) {
  * @param vertex_index The index of the vertex being circulated around (for information)
  */
 template <typename OSTREAM_TYPE>
-void print_cell_circuit(OSTREAM_TYPE& os, Cell_circulator start, int vertex_index) {
-    if (start == Cell_circulator()) {
+void print_cell_circuit(OSTREAM_TYPE &os, Cell_circulator start, int vertex_index)
+{
+    if (start == Cell_circulator())
+    {
         os << "Empty Cell_circulator\n";
         return;
     }
-    
+
     os << "Cells around vertex " << vertex_index << ":\n";
-    
+
     Cell_circulator current = start;
     int count = 0;
-    do {
-        os << "Cell " << count << ":\n" << current << "\n";
+    do
+    {
+        os << "Cell " << count << ":\n"
+           << current << "\n";
         ++current;
         ++count;
     } while (current != start && count < 100); // Safety limit to prevent infinite loops
-    
-    if (count >= 100) {
+
+    if (count >= 100)
+    {
         os << "Warning: Circuit may be infinite, stopped after 100 cells\n";
     }
-    
+
     os << "Total: " << count << " cells\n";
 }
-
 
 //! @brief Structure for comparing points for approximate equality.
 /*!
@@ -384,6 +413,98 @@ struct PointApproxEqual
     {
         const double EPSILON = 1e-6;
         return (CGAL::squared_distance(p1, p2) < EPSILON * EPSILON);
+    }
+};
+
+// Comparator for Vector_3
+struct Vector3Comparator
+{
+    bool operator()(const Vector3 &a, const Vector3 &b) const
+    {
+        if (a.x() < b.x())
+            return true;
+        if (a.x() > b.x())
+            return false;
+        if (a.y() < b.y())
+            return true;
+        if (a.y() > b.y())
+            return false;
+        return a.z() < b.z();
+    }
+};
+
+// Comparator for Direction_3
+struct Direction3Comparator
+{
+    bool operator()(const Direction3 &a, const Direction3 &b) const
+    {
+        // Convert directions to vectors for comparison
+        Vector3 va = a.to_vector();
+        Vector3 vb = b.to_vector();
+        return Vector3Comparator()(va, vb);
+    }
+};
+
+//! @brief Comparator for CGAL::Object types.
+/*!
+ * This structure provides a custom comparison operator to order CGAL::Object types.
+ * It specifically handles Segment3, Ray3, and Line3 by comparing their geometric properties.
+ */
+struct ObjectComparator
+{
+    bool operator()(const CGAL::Object &a, const CGAL::Object &b) const
+    {
+        // Extract and compare geometric properties based on type
+        if (const Segment3 *segA = CGAL::object_cast<Segment3>(&a))
+        {
+            if (const Segment3 *segB = CGAL::object_cast<Segment3>(&b))
+            {
+                // Compare segments by their endpoints (order-independent)
+                Point sA1 = segA->source(), sA2 = segA->target();
+                Point sB1 = segB->source(), sB2 = segB->target();
+                std::pair<Point, Point> keyA = (sA1 < sA2) ? std::make_pair(sA1, sA2) : std::make_pair(sA2, sA1);
+                std::pair<Point, Point> keyB = (sB1 < sB2) ? std::make_pair(sB1, sB2) : std::make_pair(sB2, sB1);
+                return keyA < keyB;
+            }
+            return true; // Segments come before rays/lines
+        }
+        if (const Ray3 *rayA = CGAL::object_cast<Ray3>(&a))
+        {
+            if (const Ray3 *rayB = CGAL::object_cast<Ray3>(&b))
+            {
+                // Compare rays by source and direction
+                auto pairA = std::make_pair(rayA->source(), rayA->direction());
+                auto pairB = std::make_pair(rayB->source(), rayB->direction());
+                if (pairA.first < pairB.first)
+                    return true;
+                if (pairB.first < pairA.first)
+                    return false;
+                return Direction3Comparator()(pairA.second, pairB.second);
+            }
+            if (CGAL::object_cast<Segment3>(&b))
+                return false; // Rays after segments
+            return true;      // Rays before lines
+        }
+        if (const Line3 *lineA = CGAL::object_cast<Line3>(&a))
+        {
+            if (const Line3 *lineB = CGAL::object_cast<Line3>(&b))
+            {
+                // Compare lines by a point and direction (normalize direction)
+                Vector3 dA = lineA->direction().vector();
+                Vector3 dB = lineB->direction().vector();
+                if (dA * dB < 0)
+                    dB = -dB; // Normalize direction
+                auto pairA = std::make_pair(lineA->point(0), dA);
+                auto pairB = std::make_pair(lineB->point(0), dB);
+                if (pairA.first < pairB.first)
+                    return true;
+                if (pairB.first < pairA.first)
+                    return false;
+                return Vector3Comparator()(pairA.second, pairB.second);
+            }
+            return false; // Lines after segments and rays
+        }
+        return false; // Default case
     }
 };
 
