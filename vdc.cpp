@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
     std::map<Point, int> pointToIndexMap; // Used in Single Iso-V Case ONLY
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters, pointToIndexMap);
 
+    std::cout << dt << std::endl;
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
     {
@@ -82,6 +83,9 @@ int main(int argc, char *argv[])
         // If test_vor is true means in testing mode for voronoi diagram construction, no need for further move
         return EXIT_SUCCESS;
     }
+
+
+    write_voronoiDiagram(vd, vdc_param.output_filename);
 
     if (indicator)
     {
