@@ -188,59 +188,10 @@ void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
         std::cerr << "Error opening output file.\n";
         exit(EXIT_FAILURE);
     }
-
-    //Write points
+    
     file << "VoronoiDiagram:\n";
 
-    // 1. Voronoi Vertices
-    file << "\nVoronoiVertices:\n";
-    for (size_t i = 0; i < vd.vertices.size(); ++i)
-    {
-        file << "Index " << i << ":\n";
-        file << vd.vertices[i];
-    }
-
-    // 2. Voronoi Edges
-    file << "\nVoronoiEdges:\n";
-    for (const auto &edge : vd.edges)
-    {
-        file << "  Edge: ";
-        Segment3 segment;
-        Line3 line;
-        Ray3 ray;
-
-        if (CGAL::assign(segment, edge))
-        {
-            file << "Segment(" << segment.source() << " - " << segment.target() << ")\n";
-        }
-        else if (CGAL::assign(line, edge))
-        {
-            file << "Line(" << line.point(0) << " - " << line.point(1) << ")\n";
-        }
-        else if (CGAL::assign(ray, edge))
-        {
-            file << "Ray(" << ray.source() << ", direction: " << ray.direction() << ")\n";
-        }
-        else
-        {
-            file << "Unknown edge type.\n";
-        }
-    }
-
-    // 5. Voronoi Cells
-    file << "\nVoronoiCells:\n";
-    for (const auto &cell : vd.cells)
-    {
-        file << "\n" << cell;
-    }
-
-    // 4. Voronoi Facets
-    file << "\nVoronoiFacets:\n";
-    for (size_t i = 0; i < vd.facets.size(); ++i)
-    {
-        file << "Index " << i << ":\n";
-        file << vd.facets[i];
-    }
+    file << vd;
 
     file.close();
     std::cout << "voronoi diagram saved to voronoiDiagram.txt\n";
