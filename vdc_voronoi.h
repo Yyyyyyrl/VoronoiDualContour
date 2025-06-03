@@ -62,7 +62,8 @@ struct VoronoiFacet
     std::vector<int> vertices_indices; //!< Indices of vertices forming this facet, ordered.
     std::vector<float> vertex_values;       //!< Scalar values at the facet's vertices.
     std::vector<int> vertex_values_indices; //!< The locations in voronoiDiagram.vertexValues for vertices in the facet
-
+    int mirror_facet_index = -1; //!< Index of the mirror facet in the adjacent cell
+    
     //! @brief Default constructor.
     VoronoiFacet() = default;
 };

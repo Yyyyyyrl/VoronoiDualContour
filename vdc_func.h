@@ -131,6 +131,7 @@ void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
  */
 void construct_voronoi_cells_NCH(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
+
 //! @brief Constructs Voronoi cells without using Convex_Hull_3 (in development).
 /*!
  * Populates the Voronoi diagram with polyhedral cells derived from the Delaunay
@@ -506,8 +507,7 @@ static void collectCellVertices(Delaunay &dt, Vertex_handle delaunay_vertex, Vor
  * @param facet_indices Vector to store the facet index.
  * @return The constructed Voronoi facet, or an empty facet if invalid.
  */
-static VoronoiFacet buildFacetFromEdge(Delaunay &dt, const Edge &ed, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &facet_indices);
-
+static VoronoiFacet buildFacetFromEdge(Delaunay &dt, const Edge &ed, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &facet_indices, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
 //! @brief Processes incident edges to build facets for a Voronoi cell.
 /*!
  * Iterates over incident edges to construct facets and add them to the cell.
@@ -517,8 +517,7 @@ static VoronoiFacet buildFacetFromEdge(Delaunay &dt, const Edge &ed, Vertex_hand
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param vc The Voronoi cell to populate with facets.
  */
-static void processIncidentEdges(Delaunay &dt, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, VoronoiCell &vc);
-
+static void processIncidentEdges(Delaunay &dt, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, VoronoiCell &vc, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
 //! @brief Collects points for the Delaunay triangulation.
 /*!
  * Gathers original points and dummy points from grid facets for multi-isovertex mode,

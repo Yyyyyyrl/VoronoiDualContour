@@ -278,7 +278,6 @@ void computeDualTriangles(
     iso_surface.isosurfaceTrianglesSingle = dualTriangles;
 }
 
-
 static inline int selectIsovertexFromCellEdge(
     const VoronoiDiagram &voronoiDiagram,
     int cellIndex, int globalEdgeIndex)
@@ -1468,105 +1467,91 @@ static VoronoiFacet buildFacetFromEdge(
     const Edge &ed,
     Vertex_handle delaunay_vertex,
     VoronoiDiagram &voronoiDiagram,
-    std::vector<int> &facet_indices)
+    std::vector<int> &facet_indices,
+    std::map<std::pair<int, int>, std::vector<int>> &edge_to_facets)
 {
-    VoronoiFacet vf;
     Cell_handle cell_ed = ed.first;
     int i = ed.second;
     int j = ed.third;
-
-    if (dt.is_infinite(cell_ed))
-    {
-        std::cerr << "[WARNING] Infinite edge detected - Cell index: " << cell_ed->info().index
-                  << ", Edge indices: (" << i << ", " << j << "), Skipping\n";
-        return vf;
-    }
-
     Vertex_handle v1 = cell_ed->vertex(i);
     Vertex_handle v2 = cell_ed->vertex(j);
-    std::cout << "[DEBUG] Edge vertices: ("
-              << v1->point().x() << ", " << v1->point().y() << ", " << v1->point().z() << ") to ("
-              << v2->point().x() << ", " << v2->point().y() << ", " << v2->point().z() << ")\n";
-
-    if (v1->info().is_dummy || v2->info().is_dummy)
-    {
-        std::cerr << "[WARNING] Dummy vertex in edge, skipping\n";
-        return vf;
-    }
-
-    if (v1 != delaunay_vertex && v2 != delaunay_vertex)
-    {
-        std::cerr << "[ERROR] Edge does not include current Delaunay vertex\n";
-        throw std::runtime_error("Invalid edge detected");
-    }
+    if (v1 != delaunay_vertex)
+        std::swap(v1, v2); // Ensure v1 is the current vertex
 
     Delaunay::Cell_circulator cc = dt.incident_cells(ed);
-    if (cc == nullptr)
-    {
-        std::cerr << "[ERROR] Null cell circulator for edge (" << i << ", " << j << ")\n";
-        return vf;
-    }
-
-    std::set<int> facetVertexSet;
-    bool skipFacet = false;
     Delaunay::Cell_circulator start = cc;
+    std::vector<int> facetVertexIndices;
+    int cell_count = 0;
     do
     {
-        if (dt.is_infinite(cc))
+        if (!dt.is_infinite(cc))
         {
-            std::cout << "[DEBUG] Infinite cell in circulator, skipping facet\n";
-            skipFacet = true;
-            break;
-        }
-        int oldIdx = cc->info().dualVoronoiVertexIndex;
-        if (oldIdx >= 0 && oldIdx < voronoiDiagram.oldToNewVertexIndex.size())
-        {
+            int oldIdx = cc->info().dualVoronoiVertexIndex;
             int newIdx = voronoiDiagram.oldToNewVertexIndex[oldIdx];
-            if (newIdx >= 0 && newIdx < voronoiDiagram.vertices.size())
-            {
-                facetVertexSet.insert(newIdx);
-            }
-            else
-            {
-                std::cerr << "[ERROR] Invalid new index " << newIdx << " in circulator\n";
-            }
-        }
-        else
-        {
-            std::cerr << "[ERROR] Invalid old index " << oldIdx << " in circulator\n";
+            facetVertexIndices.push_back(newIdx);
+            cell_count++;
         }
         ++cc;
     } while (cc != start);
 
-    if (skipFacet || facetVertexSet.size() < 3)
-    {
-        if (!skipFacet)
-            std::cerr << "[ERROR] Facet has only " << facetVertexSet.size() << " vertices\n";
-        return vf;
-    }
+    std::cerr << "[DEBUG] Edge has " << cell_count << " finite incident cells\n";
+    std::set<int> unique_vertices(facetVertexIndices.begin(), facetVertexIndices.end());
+    std::cerr << "[DEBUG] Facet has " << unique_vertices.size() << " unique vertices\n";
 
-    std::vector<int> facetVertexIndices(facetVertexSet.begin(), facetVertexSet.end());
-    orderFacetVertices(facetVertexIndices, v1->point(), v2->point(), voronoiDiagram.vertices);
-
-    vf.vertices_indices = facetVertexIndices;
-    for (int vIdx : facetVertexIndices)
+    // Remove consecutive duplicates while preserving order
+    std::vector<int> uniqueFacetVertices;
+    for (size_t k = 0; k < facetVertexIndices.size(); ++k)
     {
-        if (vIdx >= 0 && vIdx < voronoiDiagram.vertexValues.size())
+        if (k == 0 || facetVertexIndices[k] != facetVertexIndices[k - 1])
         {
-            vf.vertex_values.push_back(voronoiDiagram.vertexValues[vIdx]);
-        }
-        else
-        {
-            std::cerr << "[ERROR] Invalid vertex value index " << vIdx
-                      << " (vertexValues size: " << voronoiDiagram.vertexValues.size() << ")\n";
+            uniqueFacetVertices.push_back(facetVertexIndices[k]);
         }
     }
+    if (uniqueFacetVertices.size() > 1 && uniqueFacetVertices.front() == uniqueFacetVertices.back())
+    {
+        uniqueFacetVertices.pop_back();
+    }
 
-    int facetIndex = voronoiDiagram.facets.size();
-    voronoiDiagram.facets.push_back(vf);
-    facet_indices.push_back(facetIndex);
+    if (uniqueFacetVertices.size() >= 3)
+    {
+        // Compute normal and adjust orientation
+        Point p0 = voronoiDiagram.vertices[uniqueFacetVertices[0]].vertex;
+        Point p1 = voronoiDiagram.vertices[uniqueFacetVertices[1]].vertex;
+        Point p2 = voronoiDiagram.vertices[uniqueFacetVertices[2]].vertex;
+        Vector3 normal = CGAL::cross_product(p1 - p0, p2 - p0);
+        Point centroid(0, 0, 0);
+        for (int idx : uniqueFacetVertices)
+        {
+            centroid = centroid + (voronoiDiagram.vertices[idx].vertex - CGAL::ORIGIN);
+        }
+        centroid = CGAL::ORIGIN + (centroid - CGAL::ORIGIN) / uniqueFacetVertices.size();
+        Point cell_center = delaunay_vertex->point();
+        Vector3 v = centroid - cell_center;
+        if (CGAL::scalar_product(normal, v) < 0)
+        {
+            std::reverse(uniqueFacetVertices.begin(), uniqueFacetVertices.end());
+        }
 
-    return vf;
+        VoronoiFacet facet;
+        facet.vertices_indices = uniqueFacetVertices;
+        for (int idx : uniqueFacetVertices)
+        {
+            facet.vertex_values.push_back(voronoiDiagram.vertexValues[idx]);
+        }
+        int facetIndex = voronoiDiagram.facets.size();
+        voronoiDiagram.facets.push_back(facet);
+        facet_indices.push_back(facetIndex);
+        std::pair<int, int> edge_key = std::make_pair(
+            std::min(v1->info().index, v2->info().index),
+            std::max(v1->info().index, v2->info().index));
+        edge_to_facets[edge_key].push_back(facetIndex);
+        return facet;
+    }
+    else
+    {
+        std::cerr << "[WARNING] Facet has only " << uniqueFacetVertices.size() << " unique vertices, skipping\n";
+        return VoronoiFacet();
+    }
 }
 
 //! @brief Processes incident edges to build facets for a Voronoi cell.
@@ -1582,16 +1567,27 @@ static void processIncidentEdges(
     Delaunay &dt,
     Vertex_handle delaunay_vertex,
     VoronoiDiagram &voronoiDiagram,
-    VoronoiCell &vc)
+    VoronoiCell &vc,
+    std::map<std::pair<int, int>, std::vector<int>> &edge_to_facets)
 {
     std::vector<Edge> incidentEdges;
     dt.incident_edges(delaunay_vertex, std::back_inserter(incidentEdges));
-    std::cout << "[DEBUG] Found " << incidentEdges.size() << " incident edges\n";
+    std::cerr << "[DEBUG] Processing " << incidentEdges.size() << " incident edges for cell " << vc.cellIndex << "\n";
 
     for (const Edge &ed : incidentEdges)
     {
-        buildFacetFromEdge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facet_indices);
+        VoronoiFacet facet = buildFacetFromEdge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facet_indices, edge_to_facets);
+        if (!facet.vertices_indices.empty())
+        {
+            int facetIndex = voronoiDiagram.facets.size() - 1; // Assuming facet was just added
+            if (std::find(vc.facet_indices.begin(), vc.facet_indices.end(), facetIndex) == vc.facet_indices.end())
+            {
+                vc.facet_indices.push_back(facetIndex);
+                std::cerr << "[DEBUG] Added facet " << facetIndex << " with " << facet.vertices_indices.size() << " vertices to cell " << vc.cellIndex << "\n";
+            }
+        }
     }
+    std::cerr << "[DEBUG] Cell " << vc.cellIndex << " has " << vc.facet_indices.size() << " facets\n";
 }
 
 //! @brief Constructs Voronoi cells without using Convex_Hull_3 (in development).
@@ -1604,37 +1600,71 @@ static void processIncidentEdges(
  */
 void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
 {
-    voronoiDiagram.cells.clear();
-    voronoiDiagram.facets.clear();
-
+    std::map<std::pair<int, int>, std::vector<int>> edge_to_facets;
     int cellIndex = 0;
 
-    for (Vertex_handle delaunay_vertex : dt.finite_vertex_handles())
+    for (Vertex_handle v : dt.finite_vertex_handles())
     {
-        if (delaunay_vertex->info().is_dummy)
+        if (v->info().is_dummy)
+            continue; // Skip dummy vertices
+
+        VoronoiCell vc = createVoronoiCell(v, cellIndex);
+        collectCellVertices(dt, v, voronoiDiagram, vc.vertices_indices);
+        processIncidentEdges(dt, v, voronoiDiagram, vc, edge_to_facets);
+
+        // Validate the number of facets
+        if (vc.facet_indices.size() < 4)
         {
-            std::cerr << "[WARNING] Dummy vertex skipped - Index: " << delaunay_vertex->info().index
-                      << ", Position: (" << delaunay_vertex->point().x() << ", "
-                      << delaunay_vertex->point().y() << ", "
-                      << delaunay_vertex->point().z() << ")\n";
-            continue;
+            std::cerr << "[WARNING] Cell " << cellIndex << " has only " << vc.facet_indices.size() << " facets, skipping\n";
+            std::cerr << "[DEBUG] Facet indices: ";
+            for (int fi : vc.facet_indices)
+            {
+                std::cerr << fi << " (" << voronoiDiagram.facets[fi].vertices_indices.size() << " vertices) ";
+            }
+            std::cerr << "\n";
         }
-
-        VoronoiCell vc = createVoronoiCell(delaunay_vertex, cellIndex);
-        collectCellVertices(dt, delaunay_vertex, voronoiDiagram, vc.vertices_indices);
-        processIncidentEdges(dt, delaunay_vertex, voronoiDiagram, vc);
-
-        std::cerr << "[INFO] Processed cell " << cellIndex << " - "
-                  << vc.facet_indices.size() << " facets, "
-                  << vc.vertices_indices.size() << " vertices\n";
-
-        voronoiDiagram.cells.push_back(vc);
-        delaunay_vertex->info().voronoiCellIndex = cellIndex;
-        cellIndex++;
+        else
+        {
+            voronoiDiagram.cells.push_back(vc);
+            v->info().voronoiCellIndex = cellIndex;
+            std::cerr << "[INFO] Cell " << cellIndex << " constructed with " << vc.facet_indices.size() << " facets\n";
+            cellIndex++;
+        }
     }
 
-    std::cout << "[DEBUG] Finished construct_voronoi_cells_non_convex_hull, created "
-              << cellIndex << " cells\n";
+    // Link mirror facets
+    for (const auto &kv : edge_to_facets)
+    {
+        const std::vector<int> &facets = kv.second;
+        if (facets.size() == 2)
+        {
+            int f1 = facets[0];
+            int f2 = facets[1];
+            voronoiDiagram.facets[f1].mirror_facet_index = f2;
+            voronoiDiagram.facets[f2].mirror_facet_index = f1;
+
+            // Verify opposite orientations
+            const auto &v1 = voronoiDiagram.facets[f1].vertices_indices;
+            const auto &v2 = voronoiDiagram.facets[f2].vertices_indices;
+            std::vector<int> v2_rev(v2.rbegin(), v2.rend());
+            if (v1 != v2_rev)
+            {
+                std::cerr << "[WARNING] Facets " << f1 << " and " << f2 << " do not have opposite orientations\n";
+            }
+        }
+        else if (facets.size() == 1)
+        {
+            int f = facets[0];
+            voronoiDiagram.facets[f].mirror_facet_index = -1; // Boundary facet
+            std::cerr << "[INFO] Facet " << f << " identified as a boundary facet\n";
+        }
+        else
+        {
+            std::cerr << "[ERROR] Edge has " << facets.size() << " facets, expected 1 or 2\n";
+        }
+    }
+
+    std::cout << "[INFO] Constructed " << voronoiDiagram.cells.size() << " finite Voronoi cells\n";
 }
 
 //! @brief Constructs Voronoi cells from the Delaunay triangulation without using convex hull computation.
@@ -1742,7 +1772,7 @@ void construct_voronoi_edges(
         if (!dt.is_infinite(c2))
             idx2 = c2->info().dualVoronoiVertexIndex;
 
-        //TODO: Duplicate check
+        // TODO: Duplicate check
         if (idx1 != -1 && idx2 != -1)
         {
             voronoiDiagram.edgeVertexIndices.push_back(std::make_pair(idx1, idx2));
@@ -1762,7 +1792,6 @@ void construct_voronoi_edges(
 
         voronoiDiagram.edges.push_back(vEdge);
         voronoi_edge_to_delaunay_facet_map[vEdge].push_back(facet);
-
     }
 }
 
@@ -1969,7 +1998,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::ma
 {
     construct_voronoi_vertices(vd, dt);
     construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map, dt);
-    vd.collapseSmallEdges(0.01, bbox); // Use document's D or make configurable
+    vd.collapseSmallEdges(0.001, bbox); 
     compute_voronoi_values(vd, grid, vertexValueMap);
     if (vdc_param.multi_isov)
     {
@@ -1981,7 +2010,6 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::ma
         {
             construct_voronoi_cells_non_convex_hull(vd, dt);
         }
-        std::cout << vd << std::endl;
         construct_voronoi_cell_edges(vd, voronoi_edge_to_delaunay_facet_map, bbox, dt);
     }
     vd.check();

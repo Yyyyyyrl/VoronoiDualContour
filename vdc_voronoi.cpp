@@ -224,9 +224,6 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
     // Process edges to mark vertices for merging
     processEdges(mapto, D);
 
-    // Merge vertices within a small tolerance
-    const double mergeTolerance = 1e-8;
-    //mergeCloseVertices(mergeTolerance, mapto);
 
     // Perform path compression
     std::cout << "[DEBUG] Performing path compression\n";
@@ -248,6 +245,7 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
 //! @brief Checks internal consistency of the VoronoiDiagram.
 void VoronoiDiagram::check() const
 {
+    std::cout << "Running validity checks.\n";
     checkCellEdgeLookup();
     checkNextCellEdgeConsistency();
     checkCellFacets();
