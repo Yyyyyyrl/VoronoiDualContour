@@ -152,59 +152,57 @@ void VoronoiDiagram::rebuildVertices(const std::vector<int> &mapto)
 // Helper function to rebuild edges with duplicate removal
 void VoronoiDiagram::rebuildEdges()
 {
-    std::set<CGAL::Object, ObjectComparator> uniqueEdges;
-    std::vector<Object> newEdges;
-    std::set<std::pair<Point, Vector3>, RayKeyComparator> raySet;
-    std::set<std::pair<Point, Vector3>, LineKeyComparator> lineSet;
+    std::map<std::pair<int, int>, int> segmentMap;
+    std::set<CGAL::Object, ObjectComparator> rayLineSet;
 
-    for (const auto &edge : edges)
+    // Process all edges to identify unique ones
+    for (size_t edgeIdx = 0; edgeIdx < edges.size(); ++edgeIdx)
     {
-
-        // Check for duplicates; insert if unique
-        auto [it, inserted] = uniqueEdges.insert(edge);
-        if (!inserted) {
-            // Edge is a duplicate; just update the facet mapping
-            continue;
-        }
-
+        const auto& edge = edges[edgeIdx];
         Segment3 seg;
         Ray3 ray;
         Line3 line;
+
         if (CGAL::assign(seg, edge))
         {
-            int idx1 = find_vertex(seg.source());
-            int idx2 = find_vertex(seg.target());
-            if (idx1 != -1 && idx2 != -1 && idx1 != idx2)
+            // Handle segments using vertex indices
+            int oldIdx1 = edgeVertexIndices[edgeIdx].first;
+            int oldIdx2 = edgeVertexIndices[edgeIdx].second;
+            if (oldIdx1 >= 0 && oldIdx2 >= 0)
             {
-                newEdges.push_back(edge);
+                int newIdx1 = oldToNewVertexIndex[oldIdx1];
+                int newIdx2 = oldToNewVertexIndex[oldIdx2];
+                if (newIdx1 != newIdx2) // Skip collapsed edges (same vertex)
+                {
+                    int v1 = std::min(newIdx1, newIdx2);
+                    int v2 = std::max(newIdx1, newIdx2);
+                    if (segmentMap.find({v1, v2}) == segmentMap.end())
+                    {
+                        segmentMap[{v1, v2}] = edgeIdx;
+                    }
+                }
             }
         }
-        else if (CGAL::assign(ray, edge))
+        else if (CGAL::assign(ray, edge) || CGAL::assign(line, edge))
         {
-            Point source = ray.source();
-            Vector3 dir = ray.direction().vector();
-            auto rayKey = std::make_pair(source, dir);
-            if (raySet.insert(rayKey).second)
-            {
-                newEdges.push_back(edge);
-            }
-        }
-        else if (CGAL::assign(line, edge))
-        {
-            Point pointOnLine = line.point(0);
-            Vector3 dir = line.direction().vector();
-            if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0))
-            {
-                dir = -dir;
-            }
-            auto lineKey = std::make_pair(pointOnLine, dir);
-            if (lineSet.insert(lineKey).second)
-            {
-                newEdges.push_back(edge);
-            }
+            // Handle rays and lines with geometric comparison
+            rayLineSet.insert(edge);
         }
     }
-    edges = newEdges;
+
+    // Rebuild the edges vector
+    std::vector<Object> newEdges;
+    newEdges.reserve(segmentMap.size() + rayLineSet.size()); // Pre-allocate to reduce reallocations
+    for (const auto& kv : segmentMap)
+    {
+        newEdges.push_back(edges[kv.second]);
+    }
+    for (const auto& edge : rayLineSet)
+    {
+        newEdges.push_back(edge);
+    }
+
+    edges = std::move(newEdges);
     segmentVertexPairToEdgeIndex.clear();
 }
 

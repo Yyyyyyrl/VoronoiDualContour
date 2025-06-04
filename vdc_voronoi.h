@@ -126,6 +126,15 @@ struct VoronoiCellEdge
     int nextCellEdge;              //!< Index of next cell edge around the Voronoi Edge ( VoronoiDiagram.edges[edgeIndex])
 };
 
+
+struct pair_hash {
+    std::size_t operator()(const std::pair<int, int>& p) const {
+        auto h1 = std::hash<int>{}(p.first);
+        auto h2 = std::hash<int>{}(p.second);
+        return h1 ^ (h2 << 1); // Shift to reduce collisions
+    }
+};
+
 //! @brief Represents the overall Voronoi diagram.
 /*!
  * The Voronoi diagram consists of vertices, edges, cells, facets, and isosurface data.
