@@ -20,6 +20,7 @@
 #include <teem/nrrd.h> // Teem library for handling NRRD data files.
 #include <iomanip>     // For formatted output (e.g., precision control).
 #include <variant>
+#include <ctime>       // For time-related functions and data types. ( clock )
 
 // CGAL headers for computational geometry operations.
 #include <CGAL/bounding_box.h>                                  // Compute bounding boxes for geometric objects.
