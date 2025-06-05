@@ -1809,6 +1809,11 @@ static void buildCellEdges(
     const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
     Delaunay &dt)
 {
+    voronoiDiagram.cellEdges.clear();
+    std::vector<std::unordered_set<int>> cellIndicesPerEdge(voronoiDiagram.edges.size());
+
+    // Parallelize edge processing
+    #pragma omp parallel for
     for (int edgeIdx = 0; edgeIdx < voronoiDiagram.edges.size(); ++edgeIdx)
     {
         const CGAL::Object &edgeObj = voronoiDiagram.edges[edgeIdx];
@@ -1817,29 +1822,31 @@ static void buildCellEdges(
             continue;
 
         const std::vector<Facet> &sharedFacets = it->second;
-        std::set<int> cellIndices;
+        std::unordered_set<int> cellIndices;
 
         for (const Facet &f : sharedFacets)
         {
             Cell_handle c = f.first;
             if (dt.is_infinite(c))
-            {
                 continue;
-            }
 
             for (int corner = 0; corner < 4; ++corner)
             {
                 Vertex_handle delaunay_vertex = c->vertex(corner);
-                if (delaunay_vertex->info().is_dummy)
+                if (!delaunay_vertex->info().is_dummy)
                 {
-                    continue;
+                    int cellIdx = delaunay_vertex->info().voronoiCellIndex;
+                    cellIndices.insert(cellIdx);
                 }
-                int cellIdx = delaunay_vertex->info().voronoiCellIndex;
-                cellIndices.insert(cellIdx);
             }
         }
+        cellIndicesPerEdge[edgeIdx] = std::move(cellIndices);
+    }
 
-        for (int cIdx : cellIndices)
+    // Collect all cell edges in a single pass
+    for (int edgeIdx = 0; edgeIdx < voronoiDiagram.edges.size(); ++edgeIdx)
+    {
+        for (int cIdx : cellIndicesPerEdge[edgeIdx])
         {
             VoronoiCellEdge cellEdge;
             cellEdge.cellIndex = cIdx;
@@ -1988,9 +1995,30 @@ void construct_voronoi_cell_edges(
     Delaunay &dt)
 {
     voronoiDiagram.cellEdges.clear();
+
+    std::clock_t start = std::clock();
+
     buildCellEdges(voronoiDiagram, voronoi_edge_to_delaunay_facet_map, dt);
+    std::clock_t check1 = std::clock();
+    double duration1 = static_cast<double>(check1 - start) / CLOCKS_PER_SEC;
+
+    std::cout << "build cell edge Execution time: " << duration1 << " seconds" << std::endl;
+
+
     linkCellEdges(voronoiDiagram);
+    std::clock_t check2 = std::clock();
+    double duration2 = static_cast<double>(check2 - check1) / CLOCKS_PER_SEC;
+
+    std::cout << "link cell edge Execution time: " << duration2 << " seconds" << std::endl;
+
+
     updateEdgeMappings(voronoiDiagram, bbox);
+
+    std::clock_t check3 = std::clock();
+
+    double duration3 = static_cast<double>(check3 - check2) / CLOCKS_PER_SEC;
+
+    std::cout << "update edge mapping Execution time: " << duration3 << " seconds" << std::endl;
 }
 
 //! @brief Wrap up function of constructing voronoi diagram
@@ -1998,7 +2026,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::ma
 {
     construct_voronoi_vertices(vd, dt);
     construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map, dt);
-    vd.collapseSmallEdges(0.001, bbox); 
+    vd.collapseSmallEdges(0.001, bbox);
     compute_voronoi_values(vd, grid, vertexValueMap);
     if (vdc_param.multi_isov)
     {
