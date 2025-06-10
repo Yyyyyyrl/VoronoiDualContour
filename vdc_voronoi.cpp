@@ -1,14 +1,24 @@
 #include "vdc_voronoi.h"
 
-int VoronoiDiagram::find_vertex(const Point &p)
+int VoronoiDiagram::find_vertex(const Point &p) const
 {
-    for (const auto &vVertex : vertices)
+    const double SCALE_FACTOR = 1e6;
+    int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
+    int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
+    int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
+    std::tuple<int, int, int> key(ix, iy, iz);
+    auto it = vertexMap.find(key);
+    if (it != vertexMap.end())
     {
-        // Use an appropriate comparison.
-        if (PointApproxEqual()(vVertex.vertex, p))
-            return vVertex.index;
+        for (int idx : it->second)
+        {
+            if (PointApproxEqual()(vertices[idx].vertex, p))
+            {
+                return idx;
+            }
+        }
     }
-    return -1; // Not found (should not happen if all points are valid)
+    return -1;
 }
 //! @brief Computes the centroid of a cycle using the associated midpoints.
 /*!
@@ -232,6 +242,16 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
     rebuildVertices(mapto);
     std::cout << "[DEBUG] New vertex count: " << vertices.size() << "\n";
 
+    vertexMap.clear();
+    const double SCALE_FACTOR = 1e6;
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        const Point& p = vertices[i].vertex;
+        int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
+        int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
+        int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
+        std::tuple<int, int, int> key(ix, iy, iz);
+        vertexMap[key].push_back(i);
+    }
     // Rebuild edges
     std::cout << "[DEBUG] Rebuilding edges with duplicate removal\n";
     rebuildEdges();

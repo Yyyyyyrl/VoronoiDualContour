@@ -13,13 +13,7 @@ void collapse_small_voronoi_edges(VoronoiDiagram &vd, double D, CGAL::Epick::Iso
 }
 int find_vertex_index(const VoronoiDiagram &vd, const Point &p)
 {
-    for (const auto &vVertex : vd.vertices)
-    {
-        // Use an appropriate comparison.
-        if (PointApproxEqual()(vVertex.vertex, p))
-            return vVertex.index;
-    }
-    return -1; // Not found (should not happen if all points are valid)
+    return vd.find_vertex(p);
 }
 
 //! @brief Generates a Delaunay triangle based on orientation and cell finiteness.

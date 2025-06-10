@@ -126,14 +126,16 @@ struct VoronoiCellEdge
     int nextCellEdge;              //!< Index of next cell edge around the Voronoi Edge ( VoronoiDiagram.edges[edgeIndex])
 };
 
-
-struct pair_hash {
-    std::size_t operator()(const std::pair<int, int>& p) const {
-        auto h1 = std::hash<int>{}(p.first);
-        auto h2 = std::hash<int>{}(p.second);
-        return h1 ^ (h2 << 1); // Shift to reduce collisions
+struct TupleHash {
+    std::size_t operator()(const std::tuple<int, int, int>& t) const {
+        std::size_t seed = 0;
+        seed ^= std::hash<int>{}(std::get<0>(t)) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= std::hash<int>{}(std::get<1>(t)) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= std::hash<int>{}(std::get<2>(t)) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return seed;
     }
 };
+
 
 //! @brief Represents the overall Voronoi diagram.
 /*!
@@ -150,6 +152,8 @@ struct VoronoiDiagram
     std::vector<VoronoiFacet> facets;       //!< List of facets in the diagram.
     std::vector<int> oldToNewVertexIndex;  //!< Mapping from old to new vertex indices after collapse
 
+    std::unordered_map<std::tuple<int, int, int>, std::vector<int>, TupleHash> vertexMap;
+
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
     std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
 
@@ -162,7 +166,7 @@ struct VoronoiDiagram
     //! @brief Collapse all Voronoi vertices closer than D, rebuild cells/facets, and re‐check
     void collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3& bbox);
 
-    int find_vertex(const Point &p);
+    int find_vertex(const Point &p) const;
 
 private:
     //! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
