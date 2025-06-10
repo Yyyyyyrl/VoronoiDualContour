@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     std::map<Point, int> pointToIndexMap; // Used in Single Iso-V Case ONLY
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters, pointToIndexMap);
 
-    std::cout << dt << std::endl;
+    //std::cout << dt << std::endl;
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
     {

@@ -13,6 +13,10 @@
 #include <limits>   // To work with numeric limits of data types.
 #include <set>
 #include <stack>
+#include <unordered_map>
+#include <tuple>
+#include <vector>
+#include <functional>
 #include <iterator>    // for std::back_inserter
 #include <algorithm>   // Common algorithms like sort(), min(), max().
 #include <cstddef>     // Definitions for size_t, ptrdiff_t, etc.
