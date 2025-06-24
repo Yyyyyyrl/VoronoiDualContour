@@ -12,6 +12,7 @@
 #include <cmath>    // Math functions like abs(), pow(), etc.
 #include <limits>   // To work with numeric limits of data types.
 #include <set>
+#include <map>
 #include <stack>
 #include <unordered_map>
 #include <tuple>
