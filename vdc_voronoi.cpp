@@ -62,12 +62,16 @@ void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
     isovertex = Point(sumX / n, sumY / n, sumZ / n);
 }
 
-// Helper function to process edges and mark vertices for merging
-void VoronoiDiagram::processEdges(std::vector<int>& mapto, double D) {
-    for (size_t edgeIdx = 0; edgeIdx < edges.size(); ++edgeIdx) {
+/*
+ * Small Edge Collapsing Routines
+ */
+
+ // Helper function to process edges and mark vertices for merging
+static void processEdges(const VoronoiDiagram& vd, std::vector<int>& mapto, double D) {
+    for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx) {
         // Get vertex indices for the current edge
-        int v1 = edgeVertexIndices[edgeIdx].first;
-        int v2 = edgeVertexIndices[edgeIdx].second;
+        int v1 = vd.edgeVertexIndices[edgeIdx].first;
+        int v2 = vd.edgeVertexIndices[edgeIdx].second;
 
         // Skip edges that are not finite segments (rays or lines)
         if (v1 < 0 || v2 < 0) continue;
@@ -82,37 +86,31 @@ void VoronoiDiagram::processEdges(std::vector<int>& mapto, double D) {
         if (root1 == root2) continue;
 
         // Compute the distance between the vertex positions
-        Point p1 = vertices[v1].vertex;
-        Point p2 = vertices[v2].vertex;
+        Point p1 = vd.vertices[v1].vertex;
+        Point p2 = vd.vertices[v2].vertex;
         double dist = CGAL::sqrt(CGAL::squared_distance(p1, p2));
 
         // Merge vertices if the distance is less than or equal to threshold D
         if (dist <= D) {
             // Union by setting the parent; use smaller index as parent for consistency
             if (root1 < root2) {
-                mapto[root1] = root2;
-            } else {
                 mapto[root2] = root1;
+            } else {
+                mapto[root1] = root2;
             }
         }
     }
 }
 
 // Helper function to merge vertices within a small tolerance
-void VoronoiDiagram::mergeCloseVertices(double mergeTolerance, std::vector<int> &mapto)
-{
-    for (size_t i = 0; i < vertices.size(); ++i)
-    {
-        for (size_t j = i + 1; j < vertices.size(); ++j)
-        {
-            double dist = CGAL::sqrt(CGAL::squared_distance(vertices[i].vertex, vertices[j].vertex));
-            if (dist <= mergeTolerance)
-            {
+static void mergeCloseVertices(const VoronoiDiagram& vd, double mergeTolerance, std::vector<int>& mapto) {
+    for (size_t i = 0; i < vd.vertices.size(); ++i) {
+        for (size_t j = i + 1; j < vd.vertices.size(); ++j) {
+            double dist = CGAL::sqrt(CGAL::squared_distance(vd.vertices[i].vertex, vd.vertices[j].vertex));
+            if (dist <= mergeTolerance) {
                 int v1 = i, v2 = j;
-                while (mapto[v1] != v1)
-                    v1 = mapto[v1];
-                while (mapto[v2] != v2)
-                    v2 = mapto[v2];
+                while (mapto[v1] != v1) v1 = mapto[v1];
+                while (mapto[v2] != v2) v2 = mapto[v2];
                 if (v1 < v2)
                     mapto[v2] = v1;
                 else
@@ -123,115 +121,109 @@ void VoronoiDiagram::mergeCloseVertices(double mergeTolerance, std::vector<int> 
 }
 
 // Helper function to perform path compression
-void VoronoiDiagram::compressMapping(std::vector<int> &mapto)
-{
-    for (size_t i = 0; i < mapto.size(); ++i)
-    {
+static void compressMapping(std::vector<int>& mapto) {
+    for (size_t i = 0; i < mapto.size(); ++i) {
         int root = i;
-        while (mapto[root] != root)
-            root = mapto[root];
+        while (mapto[root] != root) root = mapto[root];
         mapto[i] = root;
     }
 }
 
 // Helper function to rebuild vertices
-void VoronoiDiagram::rebuildVertices(const std::vector<int> &mapto)
-{
+static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto) {
     std::map<int, int> oldToNewIndex;
     std::vector<VoronoiVertex> newVertices;
-    for (size_t i = 0; i < vertices.size(); ++i)
-    {
+    for (size_t i = 0; i < vd.vertices.size(); ++i) {
         int root = mapto[i];
-        if (oldToNewIndex.count(root) == 0)
-        {
-            VoronoiVertex v = vertices[root];
+        if (oldToNewIndex.count(root) == 0) {
+            VoronoiVertex v = vd.vertices[root];
             v.index = newVertices.size();
             oldToNewIndex[root] = v.index;
             newVertices.push_back(v);
         }
     }
-    vertices = newVertices;
+    vd.vertices = std::move(newVertices);
 
-    oldToNewVertexIndex.resize(mapto.size());
-    for (size_t i = 0; i < mapto.size(); ++i)
-    {
-        oldToNewVertexIndex[i] = oldToNewIndex[mapto[i]];
+    vd.oldToNewVertexIndex.resize(mapto.size());
+    for (size_t i = 0; i < mapto.size(); ++i) {
+        vd.oldToNewVertexIndex[i] = oldToNewIndex[mapto[i]];
     }
 }
 
 // Helper function to rebuild edges with duplicate removal
-void VoronoiDiagram::rebuildEdges()
-{
+static void rebuildEdges(VoronoiDiagram& vd) {
     std::map<std::pair<int, int>, int> segmentMap;
     std::set<CGAL::Object, ObjectComparator> rayLineSet;
 
     // Process all edges to identify unique ones
-    for (size_t edgeIdx = 0; edgeIdx < edges.size(); ++edgeIdx)
-    {
-        const auto& edge = edges[edgeIdx];
+    for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx) {
+        const auto& edge = vd.edges[edgeIdx];
         Segment3 seg;
         Ray3 ray;
         Line3 line;
 
-        if (CGAL::assign(seg, edge))
-        {
+        if (CGAL::assign(seg, edge)) {
             // Handle segments using vertex indices
-            int oldIdx1 = edgeVertexIndices[edgeIdx].first;
-            int oldIdx2 = edgeVertexIndices[edgeIdx].second;
-            if (oldIdx1 >= 0 && oldIdx2 >= 0)
-            {
-                int newIdx1 = oldToNewVertexIndex[oldIdx1];
-                int newIdx2 = oldToNewVertexIndex[oldIdx2];
-                if (newIdx1 != newIdx2) // Skip collapsed edges (same vertex)
-                {
+            int oldIdx1 = vd.edgeVertexIndices[edgeIdx].first;
+            int oldIdx2 = vd.edgeVertexIndices[edgeIdx].second;
+            if (oldIdx1 >= 0 && oldIdx2 >= 0) {
+                int newIdx1 = vd.oldToNewVertexIndex[oldIdx1];
+                int newIdx2 = vd.oldToNewVertexIndex[oldIdx2];
+                if (newIdx1 != newIdx2) { // Skip collapsed edges (same vertex)
                     int v1 = std::min(newIdx1, newIdx2);
                     int v2 = std::max(newIdx1, newIdx2);
-                    if (segmentMap.find({v1, v2}) == segmentMap.end())
-                    {
+                    if (segmentMap.find({v1, v2}) == segmentMap.end()) {
                         segmentMap[{v1, v2}] = edgeIdx;
                     }
                 }
             }
-        }
-        else if (CGAL::assign(ray, edge) || CGAL::assign(line, edge))
-        {
+        } else if (CGAL::assign(ray, edge) || CGAL::assign(line, edge)) {
             // Handle rays and lines with geometric comparison
             rayLineSet.insert(edge);
         }
     }
 
-    // Rebuild the edges vector
+    // Rebuild the edges and edgeVertexIndices vectors
     std::vector<Object> newEdges;
-    newEdges.reserve(segmentMap.size() + rayLineSet.size()); // Pre-allocate to reduce reallocations
-    for (const auto& kv : segmentMap)
-    {
-        newEdges.push_back(edges[kv.second]);
+    std::vector<std::pair<int, int>> newEdgeVertexIndices;
+    newEdges.reserve(segmentMap.size() + rayLineSet.size());
+    newEdgeVertexIndices.reserve(segmentMap.size());
+
+    for (const auto& kv : segmentMap) {
+        size_t edgeIdx = kv.second;
+        newEdges.push_back(vd.edges[edgeIdx]);
+        int oldIdx1 = vd.edgeVertexIndices[edgeIdx].first;
+        int oldIdx2 = vd.edgeVertexIndices[edgeIdx].second;
+        int newIdx1 = vd.oldToNewVertexIndex[oldIdx1];
+        int newIdx2 = vd.oldToNewVertexIndex[oldIdx2];
+        newEdgeVertexIndices.emplace_back(newIdx1, newIdx2);
     }
-    for (const auto& edge : rayLineSet)
-    {
+    for (const auto& edge : rayLineSet) {
         newEdges.push_back(edge);
+        newEdgeVertexIndices.emplace_back(-1, -1); // Rays and lines have no vertex indices
     }
 
-    edges = std::move(newEdges);
-    segmentVertexPairToEdgeIndex.clear();
+    vd.edges = std::move(newEdges);
+    vd.edgeVertexIndices = std::move(newEdgeVertexIndices);
+    vd.segmentVertexPairToEdgeIndex.clear();
 }
 
-void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbox)
-{
-    std::cout << "[DEBUG] Starting collapseSmallEdges with D = " << D << "\n";
-    std::cout << "[DEBUG] Initial vertex count: " << vertices.size() << ", edge count: " << edges.size() << "\n";
+// Standalone function to collapse small edges
+VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, const CGAL::Epick::Iso_cuboid_3& bbox) {
+    // Create a copy of the input VoronoiDiagram
+    VoronoiDiagram vd = input_vd;
 
-    std::vector<int> mapto(vertices.size());
-    for (size_t i = 0; i < mapto.size(); ++i)
-    {
+    std::cout << "[DEBUG] Starting collapseSmallEdges with D = " << D << "\n";
+    std::cout << "[DEBUG] Initial vertex count: " << vd.vertices.size() << ", edge count: " << vd.edges.size() << "\n";
+
+    // Initialize union-find structure
+    std::vector<int> mapto(vd.vertices.size());
+    for (size_t i = 0; i < mapto.size(); ++i) {
         mapto[i] = i;
     }
 
-    std::set<std::pair<int, int>> processedPairs;
-
     // Process edges to mark vertices for merging
-    processEdges(mapto, D);
-
+    processEdges(vd, mapto, D);
 
     // Perform path compression
     std::cout << "[DEBUG] Performing path compression\n";
@@ -239,25 +231,36 @@ void VoronoiDiagram::collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3 &bbo
 
     // Rebuild vertices
     std::cout << "[DEBUG] Rebuilding vertices\n";
-    rebuildVertices(mapto);
-    std::cout << "[DEBUG] New vertex count: " << vertices.size() << "\n";
+    rebuildVertices(vd, mapto);
+    std::cout << "[DEBUG] New vertex count: " << vd.vertices.size() << "\n";
 
-    vertexMap.clear();
+    // Rebuild vertexMap
+    vd.vertexMap.clear();
     const double SCALE_FACTOR = 1e6;
-    for (size_t i = 0; i < vertices.size(); ++i) {
-        const Point& p = vertices[i].vertex;
+    for (size_t i = 0; i < vd.vertices.size(); ++i) {
+        const Point& p = vd.vertices[i].vertex;
         int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
         int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
         int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
         std::tuple<int, int, int> key(ix, iy, iz);
-        vertexMap[key].push_back(i);
+        vd.vertexMap[key].push_back(i);
     }
+
     // Rebuild edges
     std::cout << "[DEBUG] Rebuilding edges with duplicate removal\n";
-    rebuildEdges();
-    std::cout << "[DEBUG] New edge count: " << edges.size() << "\n";
+    rebuildEdges(vd);
+    std::cout << "[DEBUG] New edge count: " << vd.edges.size() << "\n";
     std::cout << "[DEBUG] Cleared segmentVertexPairToEdgeIndex\n";
+
+    // Clear cell edges and related mappings (since cells/facets may need reconstruction)
+    vd.cellEdges.clear();
+    vd.cellEdgeLookup.clear();
+    vd.cells.clear();
+    vd.facets.clear();
+
+    return vd;
 }
+
 
 
 //! @brief Checks internal consistency of the VoronoiDiagram.

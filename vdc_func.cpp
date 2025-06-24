@@ -9,8 +9,9 @@
 void collapse_small_voronoi_edges(VoronoiDiagram &vd, double D, CGAL::Epick::Iso_cuboid_3 &bbox)
 {
     // Simply call the member function
-    vd.collapseSmallEdges(D, bbox);
+    vd = collapseSmallEdges(vd, D, bbox);
 }
+
 int find_vertex_index(const VoronoiDiagram &vd, const Point &p)
 {
     return vd.find_vertex(p);
@@ -2020,7 +2021,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::ma
 {
     construct_voronoi_vertices(vd, dt);
     construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map, dt);
-    vd.collapseSmallEdges(0.001, bbox);
+    vd = collapseSmallEdges(vd, 0.001, bbox);
     compute_voronoi_values(vd, grid, vertexValueMap);
     if (vdc_param.multi_isov)
     {

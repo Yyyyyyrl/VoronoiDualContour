@@ -15,7 +15,8 @@
 struct VoronoiVertex
 {
     Point vertex;                 //!< Geometric coordinates of the vertex.
-    int index;                    //!<
+    int index;                    //!< The index of the vertex in the Voronoi diagram
+    float value;                  //!< The scalar value of the vertex, used for isosurface extraction
     std::vector<int> cellIndices; //!< Indices of Voronoi cells that contain this vertex.
 
     //! @brief Constructor to initialize a Voronoi vertex.
@@ -28,13 +29,17 @@ struct VoronoiVertex
 struct VoronoiEdge
 {
     CGAL::Object edgeObject;
-    int type; //!< 0 for segment, 1 for ray and 2 for lines; -1 for unknown
-
+    int vertex1;    //!< Index of the first vertex ( -1 if infinite )
+    int vertex2;    //!< Index of the second vertex ( -1 if infinite )
+    int type;       //!< 0 for segment, 1 for ray and 2 for lines; -1 for unknown
+    Point source;   //!< Source point for rays and lines; empty for segments
+    Vector3 direction;  //!< Direction vector for rays and lines; empty for segments
     //! @brief constructor
     /*!
      * @param obj instance of the edge in CGAL::Object
      */
     VoronoiEdge(CGAL::Object obj) : edgeObject(obj) {}
+    VoronoiEdge(int v1, int v2, int t) : vertex1(v1), vertex2(v2), type(t) {}
 };
 
 //! @brief Represents a midpoint of an edge in a Voronoi diagram.
@@ -145,6 +150,7 @@ struct VoronoiDiagram
 {
     std::vector<VoronoiVertex> vertices;    //!< List of Voronoi vertices in the diagram.
     std::vector<Object> edges;              //!< List of edges in the diagram (e.g., line segments).
+    std::vector<VoronoiEdge> vEdges;
     std::vector<std::pair<int, int>> edgeVertexIndices; //!< where each pair corresponds to an edge in edges. For segments, both indices are valid (>=0); for rays, one is -1; for lines, both are -1.
     std::vector<VoronoiCellEdge> cellEdges; //!< List of Cell Edges in the diagram
     std::vector<float> vertexValues;        //!< Scalar values at the Voronoi vertices.
@@ -152,6 +158,7 @@ struct VoronoiDiagram
     std::vector<VoronoiFacet> facets;       //!< List of facets in the diagram.
     std::vector<int> oldToNewVertexIndex;  //!< Mapping from old to new vertex indices after collapse
 
+    std::vector<std::vector<Facet>> edgeToDelaunayFacets;       //!< Mapping from the index of a voronoi edge in the diagram to its corresponding delaunay facet
     std::unordered_map<std::tuple<int, int, int>, std::vector<int>, TupleHash> vertexMap;
 
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
@@ -162,9 +169,6 @@ struct VoronoiDiagram
 
     //! @brief Comprehensive checker for Voronoi diagram consistency.
     void checkAdvanced() const;
-
-    //! @brief Collapse all Voronoi vertices closer than D, rebuild cells/facets, and re‐check
-    void collapseSmallEdges(double D, CGAL::Epick::Iso_cuboid_3& bbox);
 
     int find_vertex(const Point &p) const;
 
@@ -178,12 +182,6 @@ private:
     //! @brief Checks each VoronoiCell's facets to ensure that every facet's vertices are in the cell's vertex set.
     void checkCellFacets() const;
 
-    //! @brief Helper methods for collapseSmallEdges
-    void processEdges(std::vector<int>& mapto, double D);
-    void mergeCloseVertices(double mergeTolerance, std::vector<int> &mapto);
-    void compressMapping(std::vector<int> &mapto);
-    void rebuildVertices(const std::vector<int> &mapto);
-    void rebuildEdges();
 
     //! @brief Helper methods for checkAdvanced
     void checkFacetVertexCount() const;
@@ -204,6 +202,11 @@ private:
     bool haveSameOrientation(const std::vector<int>& f1,
                              const std::vector<int>& f2) const;
 };
+
+
+// Add standalone function declaration at the end of vdc_voronoi.h
+VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& vd, double D, const CGAL::Epick::Iso_cuboid_3& bbox);
+
 
 //! @brief Represents an isosurface in the domain.
 /*!
