@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -rdynamic CMakeFiles/dmr.dir/dmr.cpp.o -o dmr  -lgmpxx -lmpfr -lgmp 

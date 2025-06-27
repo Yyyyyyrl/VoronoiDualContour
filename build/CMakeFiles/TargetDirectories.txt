@@ -1,3 +1,0 @@
-/home/ruilin/Documents/DMR/build/CMakeFiles/dmr.dir
-/home/ruilin/Documents/DMR/build/CMakeFiles/edit_cache.dir
-/home/ruilin/Documents/DMR/build/CMakeFiles/rebuild_cache.dir
