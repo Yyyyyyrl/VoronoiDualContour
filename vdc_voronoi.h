@@ -174,7 +174,7 @@ struct VoronoiDiagram
     std::vector<VoronoiCell> cells;                     //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiFacet> facets;                   //!< List of facets in the diagram.
 
-    std::unordered_map<std::tuple<int, int, int>, std::vector<int>, TupleHash> vertexMap;
+    std::unordered_map<std::tuple<int, int, int>, std::vector<int>, TupleHash> vertexMap;   //!< A hash map with keys are a computed tuple of a Point(x,y,z) and value being the index of the Voronoi vertex in vertices with coordinates(x,y,z)
 
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
     std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
