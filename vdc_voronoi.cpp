@@ -153,7 +153,7 @@ static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto) {
 // Helper function to rebuild edges with duplicate removal
 static void rebuildEdges(VoronoiDiagram& vd) {
     std::map<std::pair<int, int>, int> segmentMap;
-    std::set<CGAL::Object, ObjectComparator> rayLineSet;
+    std::set<VoronoiEdge> rayLineSet;
 
     // Process all edges to identify unique ones
     for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx) {
@@ -162,7 +162,7 @@ static void rebuildEdges(VoronoiDiagram& vd) {
         Ray3 ray;
         Line3 line;
 
-        if (CGAL::assign(seg, edge)) {
+        if (CGAL::assign(seg, edge.edgeObject)) {
             // Handle segments using vertex indices
             int oldIdx1 = vd.edgeVertexIndices[edgeIdx].first;
             int oldIdx2 = vd.edgeVertexIndices[edgeIdx].second;
@@ -177,19 +177,19 @@ static void rebuildEdges(VoronoiDiagram& vd) {
                     }
                 }
             }
-        } else if (CGAL::assign(ray, edge) || CGAL::assign(line, edge)) {
+        } else if (CGAL::assign(ray, edge.edgeObject) || CGAL::assign(line, edge.edgeObject)) {
             // Handle rays and lines with geometric comparison
             rayLineSet.insert(edge);
         }
     }
 
     // Rebuild the edges and edgeVertexIndices vectors
-    std::vector<Object> newEdges;
+    std::vector<VoronoiEdge> newEdges;
     std::vector<std::pair<int, int>> newEdgeVertexIndices;
     newEdges.reserve(segmentMap.size() + rayLineSet.size());
     newEdgeVertexIndices.reserve(segmentMap.size());
 
-    for (const auto& kv : segmentMap) {
+    for (auto& kv : segmentMap) {
         size_t edgeIdx = kv.second;
         newEdges.push_back(vd.edges[edgeIdx]);
         int oldIdx1 = vd.edgeVertexIndices[edgeIdx].first;
@@ -198,7 +198,7 @@ static void rebuildEdges(VoronoiDiagram& vd) {
         int newIdx2 = vd.oldToNewVertexIndex[oldIdx2];
         newEdgeVertexIndices.emplace_back(newIdx1, newIdx2);
     }
-    for (const auto& edge : rayLineSet) {
+    for (auto& edge : rayLineSet) {
         newEdges.push_back(edge);
         newEdgeVertexIndices.emplace_back(-1, -1); // Rays and lines have no vertex indices
     }

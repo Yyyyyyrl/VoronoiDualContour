@@ -6,6 +6,7 @@
 
 #include "vdc_type.h"
 #include "vdc_delaunay.h"
+#include <utility>             // for std::make_tuple
 
 //! @brief Represents a vertex in a Voronoi diagram.
 /*!
@@ -29,17 +30,36 @@ struct VoronoiVertex
 struct VoronoiEdge
 {
     CGAL::Object edgeObject;
-    int vertex1;    //!< Index of the first vertex ( -1 if infinite )
-    int vertex2;    //!< Index of the second vertex ( -1 if infinite )
-    int type;       //!< 0 for segment, 1 for ray and 2 for lines; -1 for unknown
-    Point source;   //!< Source point for rays and lines; empty for segments
-    Vector3 direction;  //!< Direction vector for rays and lines; empty for segments
+    int vertex1;          //!< Index of the first vertex ( -1 if infinite )
+    int vertex2;          //!< Index of the second vertex ( -1 if infinite )
+    int type;             //!< 0 for segment, 1 for ray and 2 for lines; -1 for unknown
+    Point source;         //!< Source point for rays and lines; empty for segments
+    Vector3 direction;    //!< Direction vector for rays and lines; empty for segments
+    std::vector<Facet> delaunayFacets; //!< Facet indices in the Delaunay triangulation that correspond to this edge
     //! @brief constructor
     /*!
      * @param obj instance of the edge in CGAL::Object
      */
-    VoronoiEdge(CGAL::Object obj) : edgeObject(obj) {}
-    VoronoiEdge(int v1, int v2, int t) : vertex1(v1), vertex2(v2), type(t) {}
+    VoronoiEdge(CGAL::Object obj) : edgeObject(obj), vertex1(-1), vertex2(-1), type(-1), source(), direction(), delaunayFacets()
+    {
+    }
+
+    //! @brief operator< for sorting Voronoi edges
+    bool operator<(VoronoiEdge const& other) const {
+      if (type != other.type) {
+        return type < other.type;}
+      if (type == 0) {
+        // compare segment by its endpoint-indices
+        return std::tie(vertex1, vertex2)
+             < std::tie(other.vertex1, other.vertex2);
+      }
+      // for rays/lines: lexicographic on (source, direction)
+      auto t1 = std::make_tuple(source.x(), source.y(), source.z(),
+                                direction.x(), direction.y(), direction.z());
+      auto t2 = std::make_tuple(other.source.x(), other.source.y(), other.source.z(),
+                                other.direction.x(), other.direction.y(), other.direction.z());
+      return t1 < t2;
+    }
 };
 
 //! @brief Represents a midpoint of an edge in a Voronoi diagram.
@@ -65,10 +85,8 @@ struct MidpointNode
 struct VoronoiFacet
 {
     std::vector<int> vertices_indices; //!< Indices of vertices forming this facet, ordered.
-    std::vector<float> vertex_values;       //!< Scalar values at the facet's vertices.
-    std::vector<int> vertex_values_indices; //!< The locations in voronoiDiagram.vertexValues for vertices in the facet
-    int mirror_facet_index = -1; //!< Index of the mirror facet in the adjacent cell
-    
+    int mirror_facet_index = -1;       //!< Index of the mirror facet in the adjacent cell
+
     //! @brief Default constructor.
     VoronoiFacet() = default;
 };
@@ -131,8 +149,10 @@ struct VoronoiCellEdge
     int nextCellEdge;              //!< Index of next cell edge around the Voronoi Edge ( VoronoiDiagram.edges[edgeIndex])
 };
 
-struct TupleHash {
-    std::size_t operator()(const std::tuple<int, int, int>& t) const {
+struct TupleHash
+{
+    std::size_t operator()(const std::tuple<int, int, int> &t) const
+    {
         std::size_t seed = 0;
         seed ^= std::hash<int>{}(std::get<0>(t)) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
         seed ^= std::hash<int>{}(std::get<1>(t)) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
@@ -141,24 +161,21 @@ struct TupleHash {
     }
 };
 
-
 //! @brief Represents the overall Voronoi diagram.
 /*!
  * The Voronoi diagram consists of vertices, edges, cells, facets, and isosurface data.
  */
 struct VoronoiDiagram
 {
-    std::vector<VoronoiVertex> vertices;    //!< List of Voronoi vertices in the diagram.
-    std::vector<Object> edges;              //!< List of edges in the diagram (e.g., line segments).
-    std::vector<VoronoiEdge> vEdges;
+    std::vector<VoronoiVertex> vertices;                //!< List of Voronoi vertices in the diagram.
+    std::vector<VoronoiEdge> edges;                    //!< List of edges in the diagram
     std::vector<std::pair<int, int>> edgeVertexIndices; //!< where each pair corresponds to an edge in edges. For segments, both indices are valid (>=0); for rays, one is -1; for lines, both are -1.
-    std::vector<VoronoiCellEdge> cellEdges; //!< List of Cell Edges in the diagram
-    std::vector<float> vertexValues;        //!< Scalar values at the Voronoi vertices.
-    std::vector<VoronoiCell> cells;         //!< List of Voronoi cells in the diagram.
-    std::vector<VoronoiFacet> facets;       //!< List of facets in the diagram.
-    std::vector<int> oldToNewVertexIndex;  //!< Mapping from old to new vertex indices after collapse
+    std::vector<VoronoiCellEdge> cellEdges;             //!< List of Cell Edges in the diagram
+    std::vector<VoronoiCell> cells;                     //!< List of Voronoi cells in the diagram.
+    std::vector<VoronoiFacet> facets;                   //!< List of facets in the diagram.
+    std::vector<int> oldToNewVertexIndex;               //!< Mapping from old to new vertex indices after collapse
 
-    std::vector<std::vector<Facet>> edgeToDelaunayFacets;       //!< Mapping from the index of a voronoi edge in the diagram to its corresponding delaunay facet
+    std::vector<std::vector<Facet>> edgeToDelaunayFacets; //!< Mapping from the index of a voronoi edge in the diagram to its corresponding delaunay facet
     std::unordered_map<std::tuple<int, int, int>, std::vector<int>, TupleHash> vertexMap;
 
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
@@ -182,7 +199,6 @@ private:
     //! @brief Checks each VoronoiCell's facets to ensure that every facet's vertices are in the cell's vertex set.
     void checkCellFacets() const;
 
-
     //! @brief Helper methods for checkAdvanced
     void checkFacetVertexCount() const;
     void checkCellFacetCount() const;
@@ -196,17 +212,15 @@ private:
     void checkEdgeCycles() const;
 
     /// Hash a facet by its three smallest vertex indices (for “at most two cells” check)
-    std::tuple<int,int,int> getFacetHashKey(const std::vector<int>& verts) const;
+    std::tuple<int, int, int> getFacetHashKey(const std::vector<int> &verts) const;
 
     /// Do two facet‐vertex‐sequences represent the same cyclic orientation?
-    bool haveSameOrientation(const std::vector<int>& f1,
-                             const std::vector<int>& f2) const;
+    bool haveSameOrientation(const std::vector<int> &f1,
+                             const std::vector<int> &f2) const;
 };
 
-
 // Add standalone function declaration at the end of vdc_voronoi.h
-VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& vd, double D, const CGAL::Epick::Iso_cuboid_3& bbox);
-
+VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox);
 
 //! @brief Represents an isosurface in the domain.
 /*!
@@ -260,12 +274,16 @@ struct PointComparator
     }
 };
 
-struct RayKeyComparator {
-    bool operator()(const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>>& a,
-                    const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>>& b) const {
+struct RayKeyComparator
+{
+    bool operator()(const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>> &a,
+                    const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>> &b) const
+    {
         // Compare points first
-        if (a.first < b.first) return true;
-        if (b.first < a.first) return false;
+        if (a.first < b.first)
+            return true;
+        if (b.first < a.first)
+            return false;
         // If points are equal, compare vectors lexicographically
         auto a_begin = a.second.cartesian_begin();
         auto a_end = a.second.cartesian_end();
@@ -275,12 +293,16 @@ struct RayKeyComparator {
     }
 };
 
-struct LineKeyComparator {
-    bool operator()(const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>>& a,
-                    const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>>& b) const {
+struct LineKeyComparator
+{
+    bool operator()(const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>> &a,
+                    const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>> &b) const
+    {
         // Compare points first
-        if (a.first < b.first) return true;
-        if (b.first < a.first) return false;
+        if (a.first < b.first)
+            return true;
+        if (b.first < a.first)
+            return false;
         // If points are equal, compare vectors lexicographically
         auto a_begin = a.second.cartesian_begin();
         auto a_end = a.second.cartesian_end();
@@ -300,10 +322,6 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiFacet &vf)
         os << idx << " ";
     os << "\n";
 
-    os << "  Vertex values: ";
-    for (const float val : vf.vertex_values)
-        os << val << " ";
-    os << "\n";
 
     return os;
 }
@@ -390,15 +408,15 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
         Line3 line;
         Ray3 ray;
 
-        if (CGAL::assign(segment, edge))
+        if (CGAL::assign(segment, edge.edgeObject))
         {
             os << "Segment(" << segment.source() << " - " << segment.target() << ")\n";
         }
-        else if (CGAL::assign(line, edge))
+        else if (CGAL::assign(line, edge.edgeObject))
         {
             os << "Line(" << line.point(0) << " - " << line.point(1) << ")\n";
         }
-        else if (CGAL::assign(ray, edge))
+        else if (CGAL::assign(ray, edge.edgeObject))
         {
             os << "Ray(" << ray.source() << ", direction: " << ray.direction() << ")\n";
         }
@@ -410,9 +428,9 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
 
     // 3. Voronoi Vertex Values
     os << "\nvertexValues:\n";
-    for (size_t i = 0; i < vd.vertexValues.size(); ++i)
+    for (size_t i = 0; i < vd.vertices.size(); ++i)
     {
-        os << "  Index " << i << ": " << vd.vertexValues[i] << "\n";
+        os << "  Index " << i << ": " << vd.vertices[i].value << "\n";
     }
 
     // 4. Voronoi Facets
@@ -490,6 +508,28 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiCellEdge &ce)
         os << " }";
     }
     os << "\n";
+    return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, IsoSurface const& iso) {
+    os << "IsoSurface: "
+       << iso.isosurfaceVertices.size() << " verts, "
+       << iso.isosurfaceTrianglesMulti.size() << " tris\n";
+
+    os << "  Vertices:\n";
+    for (auto const& p : iso.isosurfaceVertices) {
+        // CGAL::Point_3 already has operator<<, prints e.g. "(x,y,z)"
+        os << "    " << p << "\n";
+    }
+
+    os << "  Multi-triangles:\n";
+    for (auto const& t : iso.isosurfaceTrianglesMulti) {
+        os << "    ("
+           << std::get<0>(t) << ", "
+           << std::get<1>(t) << ", "
+           << std::get<2>(t) << ")\n";
+    }
+
     return os;
 }
 

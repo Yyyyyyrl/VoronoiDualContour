@@ -22,8 +22,17 @@
  * @param isovalue The isovalue used for computing.
  * @param point_index_map The map between points in the Delaunay triangulation to their indices.
  */
-void computeDualTriangles(IsoSurface &iso_surface, std::vector<CGAL::Object> &voronoi_edges, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map, Delaunay &dt, ScalarGrid &grid, float isovalue, std::map<Point, int> &point_index_map);
+void computeDualTriangles(
+    IsoSurface &iso_surface,
+    VoronoiDiagram &vd,
+    std::map<Point, float> &vertexValueMap,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    Delaunay &dt,
+    ScalarGrid &grid,
+    float isovalue,
+    std::map<Point, int> &pointToIndexMap);
 
+    
 //! @brief Computes the dual triangles for the final mesh in the multi-isovertex case.
 /*!
  * This function calculates the Delaunay triangles dual to bipolar edges in
@@ -39,7 +48,6 @@ void computeDualTriangles(IsoSurface &iso_surface, std::vector<CGAL::Object> &vo
 void computeDualTrianglesMulti(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
     ScalarGrid &grid,
     float isovalue,
     IsoSurface &iso_surface);
@@ -157,12 +165,10 @@ void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, st
  * Derives the edges of the Voronoi diagram by processing the facets of the Delaunay triangulation.
  *
  * @param voronoiDiagram The Voronoi diagram to populate with edges.
- * @param delaunay_facet_to_voronoi_edge_map Map linking Delaunay facets to Voronoi edges.
  * @param dt The Delaunay triangulation corresponding (dual) to the Voronoi diagram.
  */
 void construct_voronoi_edges(
     VoronoiDiagram &voronoiDiagram,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &delaunay_facet_to_voronoi_edge_map,
     Delaunay &dt);
 
 //! @brief Constructs and links Voronoi cell edges in the Voronoi diagram.
@@ -171,12 +177,10 @@ void construct_voronoi_edges(
  * updates edge mappings.
  *
  * @param voronoiDiagram The Voronoi diagram to populate with edges.
- * @param voronoi_edge_to_delaunay_facet_map Map linking Voronoi edges to Delaunay facets.
  * @param bbox The bounding box used for clipping rays and lines.
  * @param dt The Delaunay triangulation corresponding (dual) to the Voronoi diagram.
  */
 void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
-    std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     Delaunay &dt);
 
@@ -199,13 +203,12 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
  *
  * @param vd The Voronoi diagram to construct.
  * @param vdc_param The VDC_PARAM instance containing user input options.
- * @param voronoi_edge_to_delaunay_facet_map Map linking Voronoi edges to Delaunay facets.
  * @param grid Scalar grid containing scalar values.
  * @param vertexValueMap Map of Voronoi vertices to scalar values.
  * @param bbox Bounding box of the computational domain.
  * @param dt The Delaunay triangulation.
  */
-void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, ScalarGrid &grid, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
+void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarGrid &grid, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
 
 //! @brief Wraps up the process of building the isosurface from the Voronoi diagram/Delaunay triangulation.
 /*!
@@ -218,12 +221,11 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::ma
  * @param grid Scalar grid containing scalar values.
  * @param data_grid The grid containing input data.
  * @param activeCubeCenters The list of center points of active cubes.
- * @param voronoi_edge_to_delaunay_facet_map Map linking Voronoi edges to Delaunay facets.
  * @param vertexValueMap Map of Voronoi vertices to scalar values.
  * @param bbox Bounding box of the computational domain.
  * @param point_index_map The map between points in the Delaunay triangulation to their indices.
  */
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &point_index_map);
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &point_index_map);
 
 //! @brief Collapses small edges in a Voronoi diagram and updates the structure.
 /*!
@@ -260,11 +262,15 @@ static void generateTriangle(const Point &p1, const Point &p2, const Point &p3, 
  * @param edge The CGAL object representing the edge.
  * @param vertexValueMap Map of Voronoi vertices to scalar values.
  * @param isovalue The isovalue for bipolarity check.
- * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
  * @param dt The Delaunay triangulation.
  * @param dualTriangles Vector to store generated triangles.
  */
-static void processSegmentEdge(const Segment3 &seg, const CGAL::Object &edge, std::map<Point, float> &vertexValueMap, float isovalue, const std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, Delaunay &dt, std::vector<DelaunayTriangle> &dualTriangles);
+static void processSegmentEdge(
+    VoronoiEdge &edge,
+    VoronoiDiagram &vd,
+    float isovalue,
+    Delaunay &dt,
+    std::vector<DelaunayTriangle> &dualTriangles);
 
 //! @brief Processes a ray edge for dual triangle computation.
 /*!
@@ -277,11 +283,18 @@ static void processSegmentEdge(const Segment3 &seg, const CGAL::Object &edge, st
  * @param bbox The bounding box for intersection.
  * @param grid The scalar grid for interpolation.
  * @param isovalue The isovalue for bipolarity check.
- * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
  * @param dt The Delaunay triangulation.
  * @param dualTriangles Vector to store generated triangles.
  */
-static void processRayEdge(const Ray3 &ray, const CGAL::Object &edge, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, ScalarGrid &grid, float isovalue, const std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, Delaunay &dt, std::vector<DelaunayTriangle> &dualTriangles);
+static void processRayEdge(
+    const Ray3 &ray,
+    VoronoiEdge &edge,
+    VoronoiDiagram &vd,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    ScalarGrid &grid,
+    float isovalue,
+    Delaunay &dt,
+    std::vector<DelaunayTriangle> &dualTriangles);
 
 //! @brief Processes a line edge for dual triangle computation.
 /*!
@@ -293,11 +306,17 @@ static void processRayEdge(const Ray3 &ray, const CGAL::Object &edge, std::map<P
  * @param grid The scalar grid for interpolation.
  * @param isovalue The isovalue for bipolarity check.
  * @param bbox The bounding box for intersection.
- * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
  * @param dt The Delaunay triangulation.
  * @param dualTriangles Vector to store generated triangles.
  */
-static void processLineEdge(const Line3 &line, const CGAL::Object &edge, ScalarGrid &grid, float isovalue, CGAL::Epick::Iso_cuboid_3 &bbox, const std::map<Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, Delaunay &dt, std::vector<DelaunayTriangle> &dualTriangles);
+static void processLineEdge(
+    const Line3 &line,
+    VoronoiEdge &edge,
+    ScalarGrid &grid,
+    float isovalue,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    Delaunay &dt,
+    std::vector<DelaunayTriangle> &dualTriangles);
 
 //! @brief Generates a triangle for the multi-isovertex case.
 /*!
@@ -340,10 +359,13 @@ static bool selectIsovertices(const VoronoiDiagram &voronoiDiagram, const Facet 
  * @param edge The CGAL object representing the edge.
  * @param voronoiDiagram The Voronoi diagram containing edge and cell data.
  * @param isovalue The isovalue for bipolarity check.
- * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
  * @param iso_surface The isosurface to store triangles.
  */
-static void processSegmentEdgeMulti(const Segment3 &seg, const CGAL::Object &edge, VoronoiDiagram &voronoiDiagram, float isovalue, const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, IsoSurface &iso_surface);
+static void processSegmentEdgeMulti(
+    VoronoiEdge edge,
+    VoronoiDiagram &voronoiDiagram,
+    float isovalue,
+    IsoSurface &iso_surface);
 
 //! @brief Processes a ray edge for multi-isovertex triangle computation.
 /*!
@@ -356,10 +378,17 @@ static void processSegmentEdgeMulti(const Segment3 &seg, const CGAL::Object &edg
  * @param grid The scalar grid for interpolation.
  * @param isovalue The isovalue for bipolarity check.
  * @param bbox The bounding box for intersection.
- * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
  * @param iso_surface The isosurface to store triangles.
  */
-static void processRayEdgeMulti(const Ray3 &ray, const CGAL::Object &edge, VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, float isovalue, CGAL::Epick::Iso_cuboid_3 &bbox, const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, IsoSurface &iso_surface);
+static void processRayEdgeMulti(
+    const Ray3 &ray,
+    std::vector<Facet> dualDelaunayFacets,
+    VoronoiDiagram &voronoiDiagram,
+    ScalarGrid &grid,
+    float isovalue,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    IsoSurface &iso_surface);
+
 
 //! @brief Processes a line edge for multi-isovertex triangle computation.
 /*!
@@ -372,10 +401,16 @@ static void processRayEdgeMulti(const Ray3 &ray, const CGAL::Object &edge, Voron
  * @param grid The scalar grid for interpolation.
  * @param isovalue The isovalue for bipolarity check.
  * @param bbox The bounding box for intersection.
- * @param voronoi_edge_to_delaunay_facet_map Map linking edges to Delaunay facets.
  * @param iso_surface The isosurface to store triangles.
  */
-static void processLineEdgeMulti(const Line3 &line, const CGAL::Object &edge, VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, float isovalue, CGAL::Epick::Iso_cuboid_3 &bbox, const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, IsoSurface &iso_surface);
+static void processLineEdgeMulti(
+    const Line3 &line,
+    std::vector<Facet> dualDelaunayFacets,
+    VoronoiDiagram &voronoiDiagram,
+    ScalarGrid &grid,
+    float isovalue,
+    CGAL::Epick::Iso_cuboid_3 &bbox,
+    IsoSurface &iso_surface);
 
 //! @brief Collects midpoints for bipolar edges in a Voronoi cell's facets.
 /*!
@@ -428,10 +463,9 @@ static void computeCycleCentroids(VoronoiCell &vc, VoronoiDiagram &voronoiDiagra
  * from associated Delaunay facets.
  *
  * @param voronoiDiagram The Voronoi diagram to populate with cell edges.
- * @param voronoi_edge_to_delaunay_facet_map Map linking Voronoi edges to Delaunay facets.
  * @param dt The Delaunay triangulation.
  */
-static void buildCellEdges(VoronoiDiagram &voronoiDiagram, const std::map<CGAL::Object, std::vector<Facet>, ObjectComparator> &voronoi_edge_to_delaunay_facet_map, Delaunay &dt);
+static void buildCellEdges(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
 //! @brief Links Voronoi cell edges in a circular ring.
 /*!
