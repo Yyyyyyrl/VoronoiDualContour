@@ -74,9 +74,7 @@ int main(int argc, char *argv[])
         std::cout << "Constructing Voronoi diagram..." << std::endl;
     }
 
-    std::map<Point, float> vertexValueMap;
-
-    construct_voronoi_diagram(vd, vdc_param, grid, vertexValueMap, bbox, dt);
+    construct_voronoi_diagram(vd, vdc_param, grid, bbox, dt);
     if (vdc_param.test_vor) {
         // If test_vor is true means in testing mode for voronoi diagram construction, no need for further move
         return EXIT_SUCCESS;
@@ -87,7 +85,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Iso Surface..." << std::endl;
     }
-    construct_iso_surface(dt, vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters,  vertexValueMap, bbox);
+    construct_iso_surface(dt, vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters, bbox);
 
     write_voronoiDiagram(vd, vdc_param.output_filename);
     // Export the Voronoi diagram to a CSV file if requested.

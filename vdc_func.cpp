@@ -110,7 +110,6 @@ static void processSegmentEdge(
  *
  * @param ray The ray edge to process.
  * @param edge The CGAL object representing the edge.
- * @param vertexValueMap Map of Voronoi vertices to scalar values.
  * @param bbox The bounding box for intersection.
  * @param grid The scalar grid for interpolation.
  * @param isovalue The isovalue for bipolarity check.
@@ -225,7 +224,6 @@ static void processLineEdge(
  *
  * @param iso_surface Instance of IsoSurface to store triangles.
  * @param voronoi_edges Vector of Voronoi edges.
- * @param vertexValueMap Map of Voronoi vertices to scalar values.
  * @param bbox Bounding box of the computational domain.
  * @param dt Delaunay triangulation structure.
  * @param grid Scalar grid containing scalar values.
@@ -234,7 +232,6 @@ static void processLineEdge(
 void computeDualTriangles(
     IsoSurface &iso_surface,
     VoronoiDiagram &vd,
-    std::map<Point, float> &vertexValueMap,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     Delaunay &dt,
     ScalarGrid &grid,
@@ -1183,14 +1180,13 @@ void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
 }
 
 //! @brief Computes Voronoi Vertex values using scalar grid interpolation
-void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, std::map<Point, float> &vertexValueMap)
+void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid)
 {
     for (size_t i = 0; i < voronoiDiagram.vertices.size(); ++i)
     {
         Point vertex = voronoiDiagram.vertices[i].coord;
         voronoiDiagram.vertices[i].value = trilinear_interpolate(vertex, grid);
         float value = trilinear_interpolate(vertex, grid);
-        vertexValueMap[vertex] = value;
     }
 }
 
@@ -1889,12 +1885,12 @@ void construct_voronoi_cell_edges(
 }
 
 //! @brief Wrap up function of constructing voronoi diagram
-void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarGrid &grid, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
+void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
 {
     construct_voronoi_vertices(vd, dt);
     construct_voronoi_edges(vd, dt);
     vd = collapseSmallEdges(vd, 0.001, bbox);
-    compute_voronoi_values(vd, grid, vertexValueMap);
+    compute_voronoi_values(vd, grid);
     if (vdc_param.multi_isov)
     {
         if (vdc_param.convex_hull)
@@ -1924,7 +1920,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarG
 }
 
 // ！@brief Wrap up function for constructing iso surface
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox)
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox)
 {
     if (vdc_param.multi_isov)
     {
@@ -1941,7 +1937,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     }
     else
     {
-        computeDualTriangles(iso_surface, vd, vertexValueMap, bbox, dt, grid, vdc_param.isovalue);
+        computeDualTriangles(iso_surface, vd, bbox, dt, grid, vdc_param.isovalue);
     }
 
     if (debug) {
