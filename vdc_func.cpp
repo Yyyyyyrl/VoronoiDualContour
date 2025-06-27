@@ -5,12 +5,6 @@
 
 //! @brief Helper function - returns the index of the vertex matching p, or -1 if not found.
 
-//! @brief Implementation of collapse_small_voronoi_edges function
-void collapse_small_voronoi_edges(VoronoiDiagram &vd, double D, CGAL::Epick::Iso_cuboid_3 &bbox)
-{
-    // Simply call the member function
-    vd = collapseSmallEdges(vd, D, bbox);
-}
 
 int find_vertex_index(const VoronoiDiagram &vd, const Point &p)
 {

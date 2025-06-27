@@ -208,16 +208,6 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarG
  */
 void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox);
 
-//! @brief Collapses small edges in a Voronoi diagram and updates the structure.
-/*!
- * Identifies edges shorter than a threshold distance D and collapses them,
- * updating vertices, cells, and facets.
- *
- * @param vd The Voronoi diagram to simplify.
- * @param D The threshold distance for edge collapse.
- * @param bbox The bounding box for clipping infinite edges.
- */
-void collapse_small_voronoi_edges(VoronoiDiagram &vd, double D, CGAL::Epick::Iso_cuboid_3 &bbox);
 
 // Helper function declarations (internal linkage)
 //! @brief Generates a Delaunay triangle based on orientation and cell finiteness.
