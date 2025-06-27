@@ -991,35 +991,28 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &da
  * @param delaunay_points Output vector for all points (original + dummy).
  * @param dummy_points Output vector for dummy points.
  */
-static void collectDelaunayPoints(
-    Grid &grid,
-    const std::vector<std::vector<GRID_FACETS>> &grid_facets,
-    const std::vector<Point> &activeCubeCenters,
-    VDC_PARAM &vdc_param,
-    std::vector<Point> &delaunay_points,
-    std::vector<Point> &dummy_points)
+static void collectDelaunayPoints(Grid &grid,
+                                  const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+                                  const std::vector<Point> &activeCubeCenters,
+                                  VDC_PARAM &vdc_param,
+                                  std::vector<Point> &delaunay_points,
+                                  std::vector<int> &dummy_point_indices)
 {
-    if (vdc_param.multi_isov)
-    {
-        for (const auto &p : activeCubeCenters)
-        {
-            delaunay_points.push_back(p);
-        }
+    // Start with active cube centers
+    delaunay_points = activeCubeCenters;
+    dummy_point_indices.clear();
 
-        for (int d = 0; d < 3; d++)
-        {
-            for (const auto &f : grid_facets[d])
-            {
-                std::vector<Point> pointsf = add_dummy_from_facet(f, grid);
-                dummy_points.insert(dummy_points.end(), pointsf.begin(), pointsf.end());
+    if (vdc_param.multi_isov) {
+        // For each facet, generate dummy points and record their indices
+        for (size_t d = 0; d < grid_facets.size(); ++d) {
+            for (const auto &f : grid_facets[d]) {
+                auto pointsf = add_dummy_from_facet(f, grid);
+                for (const auto &p : pointsf) {
+                    delaunay_points.push_back(p);
+                    dummy_point_indices.push_back(static_cast<int>(delaunay_points.size()) - 1);
+                }
             }
         }
-
-        delaunay_points.insert(delaunay_points.end(), dummy_points.begin(), dummy_points.end());
-    }
-    else
-    {
-        delaunay_points = activeCubeCenters;
     }
 }
 
@@ -1032,62 +1025,19 @@ static void collectDelaunayPoints(
  * @param activeCubeCenters The list of center points of active cubes.
  * @param vdc_param The VDC_PARAM instance containing user input options.
  */
-static void insertPointsIntoTriangulation(
-    Delaunay &dt,
-    std::vector<Point> &delaunay_points,
-    std::vector<Point> &activeCubeCenters,
-    VDC_PARAM &vdc_param)
+static Vertex_handle insertPointIntoTriangulation(Delaunay &dt,
+                                                  const Point &p,
+                                                  int index,
+                                                  bool is_dummy)
 {
-    dt.insert(delaunay_points.begin(), delaunay_points.end());
-
-    if (vdc_param.multi_isov)
-    {
-        write_triangulation(dt, activeCubeCenters, vdc_param.output_filename);
-    }
+    // Insert point and retrieve handle
+    Vertex_handle vh = dt.insert(p);
+    // Immediately assign index and dummy status
+    vh->info().index    = index;
+    vh->info().is_dummy = is_dummy;
+    return vh;
 }
 
-//! @brief Sets vertex info for the Delaunay triangulation.
-/*!
- * Marks vertices as dummy or regular based on their presence in the dummy points list.
- *
- * @param dt The Delaunay triangulation to update.
- * @param dummy_points The list of dummy points.
- */
-static void setVertexInfo(Delaunay &dt, const std::vector<Point> &dummy_points)
-{
-    for (auto delaunay_vertex = dt.finite_vertices_begin(); delaunay_vertex != dt.finite_vertices_end(); ++delaunay_vertex)
-    {
-        Point p = delaunay_vertex->point();
-        delaunay_vertex->info().is_dummy = (std::find(dummy_points.begin(), dummy_points.end(), p) != dummy_points.end());
-    }
-}
-
-//! @brief Assigns indices to points in the point index map.
-/*!
- * Builds the point index map for multi-isovertex or single-isovertex mode.
- *
- * @param dt The Delaunay triangulation.
- * @param activeCubeCenters The list of center points of active cubes.
- * @param vdc_param The VDC_PARAM instance containing user input options.
- */
-static void assignPointIndices(
-    Delaunay &dt,
-    const std::vector<Point> &activeCubeCenters,
-    VDC_PARAM &vdc_param)
-{
-    int i = 0;
-    if (vdc_param.multi_isov)
-    {
-        for (auto delaunay_vertex = dt.finite_vertices_begin(); delaunay_vertex != dt.finite_vertices_end(); ++delaunay_vertex)
-        {
-            if (delaunay_vertex->info().is_dummy)
-            {
-                continue;
-            }
-            Point p = delaunay_vertex->point();
-        }
-    }
-}
 
 //! @brief Constructs a Delaunay triangulation from a grid and grid facets.
 /*!
@@ -1100,61 +1050,30 @@ static void assignPointIndices(
  * @param vdc_param The VDC_PARAM instance holding user input options.
  * @param activeCubeCenters The list of center points of active cubes.
  */
-void construct_delaunay_triangulation(
-    Delaunay &dt,
-    Grid &grid,
-    const std::vector<std::vector<GRID_FACETS>> &grid_facets,
-    VDC_PARAM &vdc_param,
-    std::vector<Point> &activeCubeCenters)
+void construct_delaunay_triangulation(Delaunay &dt,
+                                      Grid &grid,
+                                      const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+                                      VDC_PARAM &vdc_param,
+                                      std::vector<Point> &activeCubeCenters)
 {
+    // Build point list and dummy indices
     std::vector<Point> delaunay_points;
-    std::vector<Point> dummy_points;
+    std::vector<int>   dummy_point_indices;
+    collectDelaunayPoints(grid, grid_facets, activeCubeCenters,
+                           vdc_param, delaunay_points, dummy_point_indices);
 
-    collectDelaunayPoints(grid, grid_facets, activeCubeCenters, vdc_param, delaunay_points, dummy_points);
 
-    if (vdc_param.multi_isov && debug)
-    {
-        write_dummy_points(grid, dummy_points);
-    }
+    // Clear existing triangulation
+    dt.clear();
 
-    insertPointsIntoTriangulation(dt, delaunay_points, activeCubeCenters, vdc_param);
-
-    if (vdc_param.multi_isov)
-    {
-        setVertexInfo(dt, dummy_points);
-    }
-
-    assign_indices_dt(dt);
-    assignPointIndices(dt, activeCubeCenters, vdc_param);
-}
-
-/**
- * @brief Assigns unique indices to vertices and tetrahedra in a Delaunay Triangulation (DT)
- *
- * This function assigns unique indices to all vertices and tetrahedra in the given
- * Delaunay triangulation and maps these indices to the specified mapping.
- *
- * @param dt The Delaunay triangulation object
- */
-void assign_indices_dt(Delaunay &dt)
-{
-    // First, assign unique indices to all vertices
-    int vertex_counter = 0;
-    for (auto vertex = dt.finite_vertices_begin(); vertex != dt.finite_vertices_end(); ++vertex)
-    {
-        vertex->info().index = vertex_counter++;
-        vertex->info().voronoiCellIndex = -1; // Initialize voronoi cell index
-    }
-
-    // Then, assign unique indices to all cells (tetrahedra)
-    int cell_counter = 0;
-    for (auto cell = dt.finite_cells_begin(); cell != dt.finite_cells_end(); ++cell)
-    {
-        cell->info().index = cell_counter++;
-        cell->info().dualVoronoiVertexIndex = -1; // Initialize dual voronoi vertex index
+    // Insert each point using the helper
+    for (int i = 0; i < static_cast<int>(delaunay_points.size()); ++i) {
+        bool is_dummy = (std::find(dummy_point_indices.begin(), dummy_point_indices.end(), i) != dummy_point_indices.end());
+        insertPointIntoTriangulation(dt,delaunay_points[i],i,is_dummy);
     }
 
 }
+
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
 void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt)

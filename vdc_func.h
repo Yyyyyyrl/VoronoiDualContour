@@ -87,17 +87,6 @@ void Compute_Isosurface_Vertices_Single(ScalarGrid &grid, float isovalue, IsoSur
  */
 void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters);
 
-//! @brief Assigns unique indices to vertices and cells in a Delaunay triangulation.
-/*!
- * Assigns unique indices to all vertices and cells in the Delaunay triangulation,
- * stored in their info() structures.
- *
- * @param dt The Delaunay triangulation to index.
- * @note For vertices, info().index stores the unique vertex index.
- * @note For cells, info().index stores the unique cell index.
- */
-void assign_indices_dt(Delaunay &dt);
-
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 /*!
  * Adds dummy points to ensure the Voronoi diagram is bounded within the computational domain.
@@ -523,7 +512,12 @@ static void processIncidentEdges(Delaunay &dt, Vertex_handle delaunay_vertex, Vo
  * @param delaunay_points Output vector for all points (original + dummy).
  * @param dummy_points Output vector for dummy points.
  */
-static void collectDelaunayPoints(Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, const std::vector<Point> &activeCubeCenters, VDC_PARAM &vdc_param, std::vector<Point> &delaunay_points, std::vector<Point> &dummy_points);
+static void collectDelaunayPoints(Grid &grid,
+                                  const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+                                  const std::vector<Point> &activeCubeCenters,
+                                  VDC_PARAM &vdc_param,
+                                  std::vector<Point> &delaunay_points,
+                                  std::vector<int> &dummy_point_indices);
 
 //! @brief Inserts points into the Delaunay triangulation.
 /*!
@@ -534,27 +528,10 @@ static void collectDelaunayPoints(Grid &grid, const std::vector<std::vector<GRID
  * @param activeCubeCenters The list of center points of active cubes.
  * @param vdc_param The VDC_PARAM instance containing user input options.
  */
-static void insertPointsIntoTriangulation(Delaunay &dt, std::vector<Point> &delaunay_points, std::vector<Point> &activeCubeCenters, VDC_PARAM &vdc_param);
-
-//! @brief Sets vertex info for the Delaunay triangulation.
-/*!
- * Marks vertices as dummy or regular based on their presence in the dummy points list.
- *
- * @param dt The Delaunay triangulation to update.
- * @param dummy_points The list of dummy points.
- */
-static void setVertexInfo(Delaunay &dt, const std::vector<Point> &dummy_points);
-
-//! @brief Assigns indices to points in the point index map.
-/*!
- * Builds the point index map for multi-isovertex or single-isovertex mode.
- *
- * @param dt The Delaunay triangulation.
- * @param activeCubeCenters The list of center points of active cubes.
- * @param vdc_param The VDC_PARAM instance containing user input options.
- * @param point_index_map The map to store point-to-index mappings.
- */
-static void assignPointIndices(Delaunay &dt, const std::vector<Point> &activeCubeCenters, VDC_PARAM &vdc_param, std::map<Point, int> &point_index_map);
+static Vertex_handle insertPointIntoTriangulation(Delaunay &dt,
+                                                  const Point &p,
+                                                  int index,
+                                                  bool is_dummy);
 
 //! @brief Finds the index of a vertex in the Voronoi diagram matching a point.
 /*!
