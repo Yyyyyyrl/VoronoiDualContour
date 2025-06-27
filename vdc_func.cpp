@@ -289,7 +289,7 @@ static inline int selectIsovertexFromCellEdge(
     int starting = ceIdx;
     VoronoiCellEdge cellEdge = voronoiDiagram.cellEdges[ceIdx];
 
-    // If no cycleIndex was assigned, access its next cellEdge or return -1 if already traversed through all 3 cells surrounding the vEdge
+
     while (cellEdge.cycleIndices.empty())
     {
         if (cellEdge.nextCellEdge == starting)
@@ -302,7 +302,6 @@ static inline int selectIsovertexFromCellEdge(
         }
     }
 
-    // The cell in question:
     const VoronoiCell &vc = voronoiDiagram.cells[cellIndex];
     // The final isosurface vertex index in iso_surface.isosurfaceVertices:
     int isoVtxIndex = vc.isoVertexStartIndex + cellEdge.cycleIndices[0];
@@ -1196,7 +1195,6 @@ void assign_indices_dt(Delaunay &dt, std::map<Point, int> &pointToIndexMap)
         cell->info().dualVoronoiVertexIndex = -1; // Initialize dual voronoi vertex index
     }
 
-    std::cout << " Stat of DT: # of vertices: " << vertex_counter << " # of cells: " << cell_counter << std::endl;
 }
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
@@ -1394,7 +1392,6 @@ static VoronoiCell createVoronoiCell(Vertex_handle delaunay_vertex, int cellInde
 {
     VoronoiCell vc(delaunay_vertex);
     vc.cellIndex = cellIndex;
-    std::cout << "[DEBUG] Created VoronoiCell with index " << cellIndex << "\n";
     return vc;
 }
 
@@ -1416,7 +1413,6 @@ static void collectCellVertices(
 {
     std::vector<Cell_handle> incidentCells;
     dt.finite_incident_cells(delaunay_vertex, std::back_inserter(incidentCells));
-    std::cout << "[DEBUG] Found " << incidentCells.size() << " incident cells\n";
 
     std::set<int> uniqueVertexIndices;
     for (Cell_handle c : incidentCells)
@@ -1442,7 +1438,6 @@ static void collectCellVertices(
         }
     }
     vertices_indices.assign(uniqueVertexIndices.begin(), uniqueVertexIndices.end());
-    std::cout << "[DEBUG] Collected " << vertices_indices.size() << " unique vertex indices\n";
 }
 
 //! @brief Builds a facet from an incident edge using cell circulators.
@@ -1489,9 +1484,7 @@ static VoronoiFacet buildFacetFromEdge(
         ++cc;
     } while (cc != start);
 
-    std::cerr << "[DEBUG] Edge has " << cell_count << " finite incident cells\n";
     std::set<int> unique_vertices(facetVertexIndices.begin(), facetVertexIndices.end());
-    std::cerr << "[DEBUG] Facet has " << unique_vertices.size() << " unique vertices\n";
 
     // Remove consecutive duplicates while preserving order
     std::vector<int> uniqueFacetVertices;
@@ -1567,7 +1560,6 @@ static void processIncidentEdges(
 {
     std::vector<Edge> incidentEdges;
     dt.incident_edges(delaunay_vertex, std::back_inserter(incidentEdges));
-    std::cerr << "[DEBUG] Processing " << incidentEdges.size() << " incident edges for cell " << vc.cellIndex << "\n";
 
     for (const Edge &ed : incidentEdges)
     {
@@ -1578,11 +1570,9 @@ static void processIncidentEdges(
             if (std::find(vc.facet_indices.begin(), vc.facet_indices.end(), facetIndex) == vc.facet_indices.end())
             {
                 vc.facet_indices.push_back(facetIndex);
-                std::cerr << "[DEBUG] Added facet " << facetIndex << " with " << facet.vertices_indices.size() << " vertices to cell " << vc.cellIndex << "\n";
             }
         }
     }
-    std::cerr << "[DEBUG] Cell " << vc.cellIndex << " has " << vc.facet_indices.size() << " facets\n";
 }
 
 //! @brief Constructs Voronoi cells without using Convex_Hull_3 (in development).
@@ -1611,18 +1601,11 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Del
         if (vc.facet_indices.size() < 4)
         {
             std::cerr << "[WARNING] Cell " << cellIndex << " has only " << vc.facet_indices.size() << " facets, skipping\n";
-            std::cerr << "[DEBUG] Facet indices: ";
-            for (int fi : vc.facet_indices)
-            {
-                std::cerr << fi << " (" << voronoiDiagram.facets[fi].vertices_indices.size() << " vertices) ";
-            }
-            std::cerr << "\n";
         }
         else
         {
             voronoiDiagram.cells.push_back(vc);
             v->info().voronoiCellIndex = cellIndex;
-            std::cerr << "[INFO] Cell " << cellIndex << " constructed with " << vc.facet_indices.size() << " facets\n";
             cellIndex++;
         }
     }
@@ -1651,95 +1634,11 @@ void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Del
         {
             int f = facets[0];
             voronoiDiagram.facets[f].mirror_facet_index = -1; // Boundary facet
-            std::cerr << "[INFO] Facet " << f << " identified as a boundary facet\n";
-        }
-        else
-        {
-            std::cerr << "[ERROR] Edge has " << facets.size() << " facets, expected 1 or 2\n";
         }
     }
 
-    std::cout << "[INFO] Constructed " << voronoiDiagram.cells.size() << " finite Voronoi cells\n";
 }
 
-//! @brief Constructs Voronoi cells from the Delaunay triangulation without using convex hull computation.
-void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
-{
-    int index = 0;
-    // Iterate through all finite Delaunay vertices.
-    for (auto delaunay_vertex = dt.finite_vertices_begin(); delaunay_vertex != dt.finite_vertices_end(); ++delaunay_vertex)
-    {
-        // Exclude dummy points.
-        if (delaunay_vertex->info().is_dummy)
-        {
-            continue;
-        }
-        VoronoiCell vc(delaunay_vertex);
-        vc.cellIndex = index;
-
-        // For each Delaunay vertex, the Voronoi cell is the intersection of
-        // the half-spaces defined by the perpendicular bisectors between delaunay_vertex and each neighbor.
-        std::vector<Vertex_handle> neighbors;
-        dt.finite_adjacent_vertices(delaunay_vertex, std::back_inserter(neighbors));
-
-        std::vector<Plane_3> halfspaces;
-        for (auto neighbor : neighbors)
-        {
-            // Get the two Delaunay points, their midpoint and normal
-            Point p = delaunay_vertex->point();
-            Point q = neighbor->point();
-            Point mid = CGAL::midpoint(p, q);
-            Vector3 normal = q - p;
-
-            // Construct the bisector plane.
-            // With this construction, delaunay_vertex->point() lies in the negative half-space:
-            //   (q - p) · (delaunay_vertex->point() - mid) < 0,
-            // so the desired half-space is: (q - p) · (x - mid) <= 0.
-            Plane_3 bisector(mid, normal);
-            halfspaces.push_back(bisector);
-        }
-
-        // Use delaunay_vertex->point() as an interior point of the Voronoi cell.
-        Point interior = delaunay_vertex->point();
-        Polyhedron_3 poly;
-        // Compute the intersection of the halfspaces.
-        CGAL::halfspace_intersection_3(halfspaces.begin(), halfspaces.end(), poly, interior);
-        vc.polyhedron = poly;
-
-        // Extract the vertex indices from the computed polyhedron.
-        vc.vertices_indices.clear();
-        for (auto vit = vc.polyhedron.vertices_begin(); vit != vc.polyhedron.vertices_end(); ++vit)
-        {
-            Point p = vit->point();
-            int vertex_index = find_vertex_index(voronoiDiagram, p);
-            vc.vertices_indices.push_back(vertex_index);
-        }
-
-        // Extract the facets from the polyhedron. For each facet, record the list of vertex indices (and associated scalar values) that form its boundary.
-        for (auto facet_it = vc.polyhedron.facets_begin(); facet_it != vc.polyhedron.facets_end(); ++facet_it)
-        {
-            VoronoiFacet vf;
-            auto h = facet_it->facet_begin();
-            do
-            {
-                Point p = h->vertex()->point();
-                int vertex_index = find_vertex_index(voronoiDiagram, p);
-                vf.vertices_indices.push_back(vertex_index);
-                float value = voronoiDiagram.vertexValues[vertex_index];
-                vf.vertex_values.push_back(value);
-                ++h;
-            } while (h != facet_it->facet_begin());
-            int facet_index = voronoiDiagram.facets.size();
-            voronoiDiagram.facets.push_back(vf);
-            vc.facet_indices.push_back(facet_index);
-        }
-
-        // Add the newly constructed cell to the diagram and update the mapping.
-        voronoiDiagram.cells.push_back(vc);
-        delaunay_vertex->info().voronoiCellIndex = index;
-        index++;
-    }
-}
 
 //! @brief Constructs Voronoi edges from Delaunay facets.
 void construct_voronoi_edges(
@@ -2036,6 +1935,19 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, std::ma
         construct_voronoi_cell_edges(vd, voronoi_edge_to_delaunay_facet_map, bbox, dt);
     }
     vd.check();
+
+    if (debug) {
+        Point hole_center(52, 34, 35);
+        double threshold = 2.0;
+        std::cout << "===========\n[DEBUG] Voronoi vertices near hole:\n";
+        for (size_t i = 0; i < vd.vertices.size(); ++i) {
+            const Point& p = vd.vertices[i].vertex;
+            if (CGAL::squared_distance(p, hole_center) < threshold * threshold) {
+                std::cout << "[DEBUG] Voronoi vertex " << i << ": " << p << "\n";
+            }
+        }
+        std::cout << "===========\n";
+    }
 }
 
 // ！@brief Wrap up function for constructing iso surface
@@ -2058,7 +1970,47 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     {
         computeDualTriangles(iso_surface, vd.edges, vertexValueMap, bbox, voronoi_edge_to_delaunay_facet_map, dt, grid, vdc_param.isovalue, pointToIndexMap);
     }
+
+    if (debug) {
+        std::set<int> problem_vertices = {1730, 1554, 1731, 1553};
+        std::cout << "[DEBUG] Cell assignments for isovertices:\n";
+        for (size_t cell_idx = 0; cell_idx < vd.cells.size(); ++cell_idx) {
+            const VoronoiCell& vc = vd.cells[cell_idx];
+            int start = vc.isoVertexStartIndex;
+            int end = start + vc.numIsoVertices;
+            for (int idx = start; idx < end; ++idx) {
+                if (problem_vertices.count(idx) > 0) {
+                    int cycle_idx = idx - start;
+                    std::cout << "[DEBUG] Problematic Isovertex " << idx << " in Cell " << cell_idx 
+                            << ", Cycle " << cycle_idx << "\n";
+                    if (cycle_idx < vc.cycles.size()) {
+                        const Cycle& cycle = vc.cycles[cycle_idx];
+                        std::cout << "[DEBUG] Cycle midpoints: ";
+                        for (int mid_idx : cycle.midpoint_indices) {
+                            std::cout << mid_idx << " ";
+                        }
+                        std::cout << "\n";
+                    }
+                }
+            }
+        }
+    }
+
+    if (debug) {
+    Point hole_center(52, 34, 35);
+    double threshold = 2.0;
+    std::cout << "[DEBUG] Isovertices near hole region:\n";
+    for (size_t i = 0; i < iso_surface.isosurfaceVertices.size(); ++i) {
+        const Point& p = iso_surface.isosurfaceVertices[i];
+        if (CGAL::squared_distance(p, hole_center) < threshold * threshold) {
+            std::cout << "[DEBUG] Isovertex " << i << ": " << p << "\n";
+        }
+    }
+
 }
+}
+
+
 //! @brief Handles output mesh generation.
 int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, std::map<Point, int> &pointToIndexMap)
 {
