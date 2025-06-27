@@ -164,21 +164,21 @@ void export_voronoi_to_csv(const VoronoiDiagram &voronoiDiagram, const std::stri
         Line3 line;
         Ray3 ray;
 
-        if (CGAL::assign(segment, edge))
+        if (CGAL::assign(segment, edge.edgeObject))
         {
             Point p1 = segment.source();
             Point p2 = segment.target();
             file << "Segment3," << p1.x() << "," << p1.y() << "," << p1.z() << ","
                  << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
         }
-        else if (CGAL::assign(line, edge))
+        else if (CGAL::assign(line, edge.edgeObject))
         {
             Point p1 = line.point(0);
             Point p2 = line.point(1);
             file << "Line3," << p1.x() << "," << p1.y() << "," << p1.z() << ","
                  << p2.x() << "," << p2.y() << "," << p2.z() << "\n";
         }
-        else if (CGAL::assign(ray, edge))
+        else if (CGAL::assign(ray, edge.edgeObject))
         {
             Point p1 = ray.source();
             Vector3 direction = ray.direction().vector();
