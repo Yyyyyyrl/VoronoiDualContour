@@ -75,30 +75,31 @@ int main(int argc, char *argv[])
         std::cout << "Constructing Voronoi diagram..." << std::endl;
     }
 
-    std::map<Object, std::vector<Facet>, ObjectComparator> voronoi_edge_to_delaunay_facet_map;
     std::map<Point, float> vertexValueMap;
 
-    construct_voronoi_diagram(vd, vdc_param, voronoi_edge_to_delaunay_facet_map, grid, vertexValueMap, bbox, dt);
+    construct_voronoi_diagram(vd, vdc_param, grid, vertexValueMap, bbox, dt);
     if (vdc_param.test_vor) {
         // If test_vor is true means in testing mode for voronoi diagram construction, no need for further move
         return EXIT_SUCCESS;
     }
 
 
-    write_voronoiDiagram(vd, vdc_param.output_filename);
-
     if (indicator)
     {
         std::cout << "Constructing Iso Surface..." << std::endl;
     }
-    construct_iso_surface(dt, vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters, voronoi_edge_to_delaunay_facet_map, vertexValueMap, bbox, pointToIndexMap);
+    construct_iso_surface(dt, vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters,  vertexValueMap, bbox, pointToIndexMap);
 
+    write_voronoiDiagram(vd, vdc_param.output_filename);
     // Export the Voronoi diagram to a CSV file if requested.
+
     if (vdc_param.out_csv)
     {
         std::cout << "Export Voronoi Diagram" << std::endl;
         export_voronoi_to_csv(vd, vdc_param.out_csv_name);
     }
+
+    std::cout << "[DEBUG]" << iso_surface;
 
     // Handle the output mesh generation and return the appropriate status.
     bool retFlag;
