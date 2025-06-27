@@ -142,16 +142,6 @@ void construct_voronoi_cells_NCH(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
  */
 void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
-//! @brief Constructs Voronoi cells as the intersection of halfspaces (in development).
-/*!
- * Populates the Voronoi diagram with polyhedral cells by computing the intersection
- * of halfspaces defined by Delaunay vertices.
- *
- * @param voronoiDiagram The Voronoi diagram to populate with cells.
- * @param dt The Delaunay triangulation corresponding (dual) to the Voronoi diagram.
- */
-void construct_voronoi_cells_halfspace(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
-
 //! @brief Computes Voronoi vertex values using scalar grid interpolation.
 /*!
  * Interpolates scalar values from the grid to each vertex of the Voronoi diagram.
