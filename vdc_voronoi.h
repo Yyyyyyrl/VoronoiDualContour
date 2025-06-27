@@ -179,6 +179,15 @@ struct VoronoiDiagram
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
     std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
 
+
+    // Member Functions
+    int AddVertex(const Point& p, float value = 0.0f);
+    int AddSegmentEdge(int v1, int v2, const Segment3& seg);
+    int AddRayEdge(const Ray3& ray);
+    int AddLineEdge(const Line3& line);
+    int AddFacet(const std::vector<int>& vertices_indices);
+    int AddCell(Vertex_handle delaunay_vertex);
+    
     //! @brief Checks internal consistency of the VoronoiDiagram.
     void check() const;
 

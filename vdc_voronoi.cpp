@@ -1,24 +1,90 @@
 #include "vdc_voronoi.h"
 
-int VoronoiDiagram::find_vertex(const Point &p) const
-{
+int VoronoiDiagram::find_vertex(const Point& p) const {
     const double SCALE_FACTOR = 1e6;
     int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
     int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
     int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
     std::tuple<int, int, int> key(ix, iy, iz);
     auto it = vertexMap.find(key);
-    if (it != vertexMap.end())
-    {
-        for (int idx : it->second)
-        {
-            if (PointApproxEqual()(vertices[idx].coord, p))
-            {
-                return idx;
-            }
+    if (it != vertexMap.end()) {
+        for (int idx : it->second) {
+            if (PointApproxEqual()(vertices[idx].coord, p)) return idx;
         }
     }
     return -1;
+}
+
+int VoronoiDiagram::AddVertex(const Point& p, float value) {
+    int idx = vertices.size();
+    VoronoiVertex v(p);
+    v.index = idx;
+    v.value = value;
+    v.cellIndices = {};
+    vertices.push_back(v);
+    const double SCALE_FACTOR = 1e6;
+    int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
+    int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
+    int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
+    std::tuple<int, int, int> key(ix, iy, iz);
+    vertexMap[key].push_back(idx);
+    return idx;
+}
+
+int VoronoiDiagram::AddSegmentEdge(int v1, int v2, const Segment3& seg) {
+    int minV = std::min(v1, v2);
+    int maxV = std::max(v1, v2);
+    auto it = segmentVertexPairToEdgeIndex.find({minV, maxV});
+    if (it != segmentVertexPairToEdgeIndex.end()) return it->second;
+    VoronoiEdge edge(CGAL::make_object(seg));
+    edge.vertex1 = v1;
+    edge.vertex2 = v2;
+    edge.type = 0;
+    int edgeIdx = edges.size();
+    edges.push_back(edge);
+    segmentVertexPairToEdgeIndex[{minV, maxV}] = edgeIdx;
+    return edgeIdx;
+}
+
+int VoronoiDiagram::AddRayEdge(const Ray3& ray) {
+    VoronoiEdge edge(CGAL::make_object(ray));
+    edge.vertex1 = -1;
+    edge.vertex2 = -1;
+    edge.type = 1;
+    edge.source = ray.source();
+    edge.direction = ray.direction().vector();
+    int edgeIdx = edges.size();
+    edges.push_back(edge);
+    return edgeIdx;
+}
+
+int VoronoiDiagram::AddLineEdge(const Line3& line) {
+    VoronoiEdge edge(CGAL::make_object(line));
+    edge.vertex1 = -1;
+    edge.vertex2 = -1;
+    edge.type = 2;
+    edge.source = line.point(0);
+    edge.direction = line.to_vector();
+    int edgeIdx = edges.size();
+    edges.push_back(edge);
+    return edgeIdx;
+}
+
+int VoronoiDiagram::AddFacet(const std::vector<int>& vertices_indices) {
+    VoronoiFacet facet;
+    facet.vertices_indices = vertices_indices;
+    facet.mirror_facet_index = -1;
+    int facetIdx = facets.size();
+    facets.push_back(facet);
+    return facetIdx;
+}
+
+int VoronoiDiagram::AddCell(Vertex_handle delaunay_vertex) {
+    VoronoiCell cell(delaunay_vertex);
+    cell.cellIndex = cells.size();
+    int cellIdx = cells.size();
+    cells.push_back(cell);
+    return cellIdx;
 }
 //! @brief Computes the centroid of a cycle using the associated midpoints.
 /*!
@@ -102,23 +168,6 @@ static void processEdges(const VoronoiDiagram& vd, std::vector<int>& mapto, doub
     }
 }
 
-// Helper function to merge vertices within a small tolerance
-static void mergeCloseVertices(const VoronoiDiagram& vd, double mergeTolerance, std::vector<int>& mapto) {
-    for (size_t i = 0; i < vd.vertices.size(); ++i) {
-        for (size_t j = i + 1; j < vd.vertices.size(); ++j) {
-            double dist = CGAL::sqrt(CGAL::squared_distance(vd.vertices[i].coord, vd.vertices[j].coord));
-            if (dist <= mergeTolerance) {
-                int v1 = i, v2 = j;
-                while (mapto[v1] != v1) v1 = mapto[v1];
-                while (mapto[v2] != v2) v2 = mapto[v2];
-                if (v1 < v2)
-                    mapto[v2] = v1;
-                else
-                    mapto[v1] = v2;
-            }
-        }
-    }
-}
 
 // Helper function to perform path compression
 static void compressMapping(std::vector<int>& mapto) {
