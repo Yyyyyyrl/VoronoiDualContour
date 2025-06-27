@@ -15,7 +15,7 @@
  */
 struct VoronoiVertex
 {
-    Point vertex;                 //!< Geometric coordinates of the vertex.
+    Point coord;                 //!< Geometric coordinates of the vertex.
     int index;                    //!< The index of the vertex in the Voronoi diagram
     float value;                  //!< The scalar value of the vertex, used for isosurface extraction
     std::vector<int> cellIndices; //!< Indices of Voronoi cells that contain this vertex.
@@ -24,7 +24,7 @@ struct VoronoiVertex
     /*!
      * @param p Coordinates of the vertex.
      */
-    VoronoiVertex(Point p) : vertex(p) {}
+    VoronoiVertex(Point p) : coord(p) {}
 };
 
 struct VoronoiEdge
@@ -173,9 +173,7 @@ struct VoronoiDiagram
     std::vector<VoronoiCellEdge> cellEdges;             //!< List of Cell Edges in the diagram
     std::vector<VoronoiCell> cells;                     //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiFacet> facets;                   //!< List of facets in the diagram.
-    std::vector<int> oldToNewVertexIndex;               //!< Mapping from old to new vertex indices after collapse
 
-    std::vector<std::vector<Facet>> edgeToDelaunayFacets; //!< Mapping from the index of a voronoi edge in the diagram to its corresponding delaunay facet
     std::unordered_map<std::tuple<int, int, int>, std::vector<int>, TupleHash> vertexMap;
 
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
@@ -352,7 +350,7 @@ template <typename OSTREAM_TYPE>
 OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiVertex &vv)
 {
     os << "VoronoiVertex:\n";
-    os << "  Vertex: " << vv.vertex << "\n";
+    os << "  Vertex: " << vv.coord << "\n";
 
     return os;
 }

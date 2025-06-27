@@ -12,20 +12,18 @@
  * @param filename The output file path.
  * @param vertices The list of vertices in the mesh.
  * @param triangles The list of Delaunay triangles forming the mesh.
- * @param pointIndexMap A mapping from vertices to their indices.
  */
 void writeOFFSingle(const std::string &filename, const std::vector<Point> &vertices,
-                    const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap);
+                    const std::vector<DelaunayTriangle> &triangles);
 
 //! @brief Writes an isosurface mesh in PLY format (single-isovalue case).
 /*!
  * @param filename The output file path.
  * @param vertices The list of vertices in the mesh.
  * @param triangles The list of Delaunay triangles forming the mesh.
- * @param pointIndexMap A mapping from vertices to their indices.
  */
 void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices,
-                    const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap);
+                    const std::vector<DelaunayTriangle> &triangles);
 
 //! @brief Writes an isosurface mesh in OFF format (multi-isovalue case).
 /*!

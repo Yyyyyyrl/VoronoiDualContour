@@ -12,7 +12,7 @@ int VoronoiDiagram::find_vertex(const Point &p) const
     {
         for (int idx : it->second)
         {
-            if (PointApproxEqual()(vertices[idx].vertex, p))
+            if (PointApproxEqual()(vertices[idx].coord, p))
             {
                 return idx;
             }
@@ -53,7 +53,7 @@ void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
     double sumX = 0, sumY = 0, sumZ = 0;
     for (int idx : midpoint_indices)
     {
-        const Point &p = voronoiVertices[idx].vertex;
+        const Point &p = voronoiVertices[idx].coord;
         sumX += p.x();
         sumY += p.y();
         sumZ += p.z();
@@ -86,8 +86,8 @@ static void processEdges(const VoronoiDiagram& vd, std::vector<int>& mapto, doub
         if (root1 == root2) continue;
 
         // Compute the distance between the vertex positions
-        Point p1 = vd.vertices[v1].vertex;
-        Point p2 = vd.vertices[v2].vertex;
+        Point p1 = vd.vertices[v1].coord;
+        Point p2 = vd.vertices[v2].coord;
         double dist = CGAL::sqrt(CGAL::squared_distance(p1, p2));
 
         // Merge vertices if the distance is less than or equal to threshold D
@@ -106,7 +106,7 @@ static void processEdges(const VoronoiDiagram& vd, std::vector<int>& mapto, doub
 static void mergeCloseVertices(const VoronoiDiagram& vd, double mergeTolerance, std::vector<int>& mapto) {
     for (size_t i = 0; i < vd.vertices.size(); ++i) {
         for (size_t j = i + 1; j < vd.vertices.size(); ++j) {
-            double dist = CGAL::sqrt(CGAL::squared_distance(vd.vertices[i].vertex, vd.vertices[j].vertex));
+            double dist = CGAL::sqrt(CGAL::squared_distance(vd.vertices[i].coord, vd.vertices[j].coord));
             if (dist <= mergeTolerance) {
                 int v1 = i, v2 = j;
                 while (mapto[v1] != v1) v1 = mapto[v1];
@@ -130,7 +130,7 @@ static void compressMapping(std::vector<int>& mapto) {
 }
 
 // Helper function to rebuild vertices
-static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto) {
+static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto, std::vector<int> &oldToNewVertexIndex) {
     std::map<int, int> oldToNewIndex;
     std::vector<VoronoiVertex> newVertices;
     for (size_t i = 0; i < vd.vertices.size(); ++i) {
@@ -144,14 +144,14 @@ static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto) {
     }
     vd.vertices = std::move(newVertices);
 
-    vd.oldToNewVertexIndex.resize(mapto.size());
+    oldToNewVertexIndex.resize(mapto.size());
     for (size_t i = 0; i < mapto.size(); ++i) {
-        vd.oldToNewVertexIndex[i] = oldToNewIndex[mapto[i]];
+        oldToNewVertexIndex[i] = oldToNewIndex[mapto[i]];
     }
 }
 
 // Helper function to rebuild edges with duplicate removal
-static void rebuildEdges(VoronoiDiagram& vd) {
+static void rebuildEdges(VoronoiDiagram& vd, std::vector<int> &oldToNewVertexIndex) {
     std::map<std::pair<int, int>, int> segmentMap;
     std::set<VoronoiEdge> rayLineSet;
 
@@ -167,8 +167,8 @@ static void rebuildEdges(VoronoiDiagram& vd) {
             int oldIdx1 = vd.edgeVertexIndices[edgeIdx].first;
             int oldIdx2 = vd.edgeVertexIndices[edgeIdx].second;
             if (oldIdx1 >= 0 && oldIdx2 >= 0) {
-                int newIdx1 = vd.oldToNewVertexIndex[oldIdx1];
-                int newIdx2 = vd.oldToNewVertexIndex[oldIdx2];
+                int newIdx1 = oldToNewVertexIndex[oldIdx1];
+                int newIdx2 = oldToNewVertexIndex[oldIdx2];
                 if (newIdx1 != newIdx2) { // Skip collapsed edges (same vertex)
                     int v1 = std::min(newIdx1, newIdx2);
                     int v2 = std::max(newIdx1, newIdx2);
@@ -194,8 +194,8 @@ static void rebuildEdges(VoronoiDiagram& vd) {
         newEdges.push_back(vd.edges[edgeIdx]);
         int oldIdx1 = vd.edgeVertexIndices[edgeIdx].first;
         int oldIdx2 = vd.edgeVertexIndices[edgeIdx].second;
-        int newIdx1 = vd.oldToNewVertexIndex[oldIdx1];
-        int newIdx2 = vd.oldToNewVertexIndex[oldIdx2];
+        int newIdx1 = oldToNewVertexIndex[oldIdx1];
+        int newIdx2 = oldToNewVertexIndex[oldIdx2];
         newEdgeVertexIndices.emplace_back(newIdx1, newIdx2);
     }
     for (auto& edge : rayLineSet) {
@@ -229,16 +229,17 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, cons
     std::cout << "[DEBUG] Performing path compression\n";
     compressMapping(mapto);
 
+    std::vector<int> oldToNewVertexIndex;
     // Rebuild vertices
     std::cout << "[DEBUG] Rebuilding vertices\n";
-    rebuildVertices(vd, mapto);
+    rebuildVertices(vd, mapto, oldToNewVertexIndex);
     std::cout << "[DEBUG] New vertex count: " << vd.vertices.size() << "\n";
 
     // Rebuild vertexMap
     vd.vertexMap.clear();
     const double SCALE_FACTOR = 1e6;
     for (size_t i = 0; i < vd.vertices.size(); ++i) {
-        const Point& p = vd.vertices[i].vertex;
+        const Point& p = vd.vertices[i].coord;
         int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
         int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
         int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
@@ -248,7 +249,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, cons
 
     // Rebuild edges
     std::cout << "[DEBUG] Rebuilding edges with duplicate removal\n";
-    rebuildEdges(vd);
+    rebuildEdges(vd, oldToNewVertexIndex);
     std::cout << "[DEBUG] New edge count: " << vd.edges.size() << "\n";
     std::cout << "[DEBUG] Cleared segmentVertexPairToEdgeIndex\n";
 
@@ -542,9 +543,9 @@ void VoronoiDiagram::checkFacetNormals() const
         for (int fi : cell.facet_indices)
         {
             auto const &V = facets[fi].vertices_indices;
-            const auto &P1 = vertices[V[0]].vertex;
-            const auto &P2 = vertices[V[1]].vertex;
-            const auto &P3 = vertices[V[2]].vertex;
+            const auto &P1 = vertices[V[0]].coord;
+            const auto &P2 = vertices[V[1]].coord;
+            const auto &P3 = vertices[V[2]].coord;
             if (CGAL::orientation(P1, P2, P3, p) != CGAL::NEGATIVE)
                 throw std::runtime_error("Facet " + std::to_string(fi) +
                                          " in cell " + std::to_string(cell.cellIndex) +

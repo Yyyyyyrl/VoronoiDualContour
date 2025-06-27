@@ -1,7 +1,7 @@
 #include "vdc_io.h"
 
 //! Writes a single-isovalue isosurface mesh in OFF format.
-void writeOFFSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
+void writeOFFSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles)
 {
     std::ofstream out(filename);
     if (!out)
@@ -23,7 +23,7 @@ void writeOFFSingle(const std::string &filename, const std::vector<Point> &verti
     // Write the faces
     for (const auto &triangle : triangles)
     {
-        out << "3 " << pointIndexMap[triangle.vertex1] << " " << pointIndexMap[triangle.vertex2] << " " << pointIndexMap[triangle.vertex3] << "\n";
+        out << "3 " << triangle.vertex1->info().index << " " << triangle.vertex2->info().index << " " << triangle.vertex3->info().index << "\n";
     }
 
     out.close();
@@ -62,7 +62,7 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
 }
 
 //! Writes a single-isovalue isosurface mesh in PLY format.
-void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles, std::map<Point, int> &pointIndexMap)
+void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles)
 {
     std::ofstream out(filename);
     if (!out)
@@ -91,7 +91,7 @@ void writePLYSingle(const std::string &filename, const std::vector<Point> &verti
     // Write faces
     for (const auto &triangle : triangles)
     {
-        out << "3 " << pointIndexMap[triangle.vertex1] << " " << pointIndexMap[triangle.vertex2] << " " << pointIndexMap[triangle.vertex3] << "\n";
+        out << "3 " << triangle.vertex1->info().index << " " << triangle.vertex2->info().index << " " << triangle.vertex3->info().index << "\n";
     }
 
     out.close();
@@ -152,7 +152,7 @@ void export_voronoi_to_csv(const VoronoiDiagram &voronoiDiagram, const std::stri
     file << "vertices\n";
     for (const auto &vVertex : voronoiDiagram.vertices)
     {
-        Point vertex = vVertex.vertex;
+        Point vertex = vVertex.coord;
         file << vertex.x() << "," << vertex.y() << "," << vertex.z() << "\n";
     }
 

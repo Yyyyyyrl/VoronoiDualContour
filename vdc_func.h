@@ -86,9 +86,8 @@ void Compute_Isosurface_Vertices_Single(ScalarGrid &grid, float isovalue, IsoSur
  * @param grid_facets The grid facets to use in constructing the triangulation.
  * @param vdc_param The VDC_PARAM instance holding user input options.
  * @param activeCubeCenters The list of center points of active cubes.
- * @param point_index_map The map between points in the Delaunay triangulation to their indices (used in single isovertex case only).
  */
-void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters, std::map<Point, int> &point_index_map);
+void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters);
 
 //! @brief Assigns unique indices to vertices and cells in a Delaunay triangulation.
 /*!
@@ -96,11 +95,10 @@ void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vecto
  * stored in their info() structures.
  *
  * @param dt The Delaunay triangulation to index.
- * @param pointToIndexMap Map to store the mapping between points and their indices.
  * @note For vertices, info().index stores the unique vertex index.
  * @note For cells, info().index stores the unique cell index.
  */
-void assign_indices_dt(Delaunay &dt, std::map<Point, int> &pointToIndexMap);
+void assign_indices_dt(Delaunay &dt);
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 /*!
@@ -192,10 +190,9 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
  * @param vd The Voronoi diagram containing mesh data.
  * @param vdc_param The VDC_PARAM instance containing user input options.
  * @param iso_surface The instance of IsoSurface containing the vertices and faces of the isosurface.
- * @param point_index_map The map between points in the Delaunay triangulation to their indices (used in single isovertex case only).
  * @return An integer representing the exit status.
  */
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, std::map<Point, int> &point_index_map);
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface);
 
 //! @brief Wraps up the process of building the Voronoi diagram from the Delaunay triangulation.
 /*!
@@ -223,9 +220,8 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarG
  * @param activeCubeCenters The list of center points of active cubes.
  * @param vertexValueMap Map of Voronoi vertices to scalar values.
  * @param bbox Bounding box of the computational domain.
- * @param point_index_map The map between points in the Delaunay triangulation to their indices.
  */
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox, std::map<Point, int> &point_index_map);
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, std::map<Point, float> &vertexValueMap, CGAL::Epick::Iso_cuboid_3 &bbox);
 
 //! @brief Collapses small edges in a Voronoi diagram and updates the structure.
 /*!

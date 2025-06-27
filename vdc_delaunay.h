@@ -6,25 +6,15 @@
 
 #include "vdc_type.h"
 
-//! @brief Structure to store additional information about Delaunay vertices.
-/*!
- * This structure can be extended to include other metadata, such as indices
- * or flags for specific purposes.
- */
-struct DelaunayVertexInfo {
-    bool is_dummy; //!< Flag indicating if the vertex is a dummy point (used for bounding).
-    // Additional fields can be added here if needed, e.g., index or status flags.
-};
-
 //! @brief Represents a triangle in the Delaunay triangulation.
 /*!
  * This structure is used to store the geometric representation of a triangle,
  * defined by three vertices.
  */
 struct DelaunayTriangle {
-    Point vertex1; //!< First vertex of the triangle.
-    Point vertex2; //!< Second vertex of the triangle.
-    Point vertex3; //!< Third vertex of the triangle.
+    Vertex_handle vertex1; //!< First vertex of the triangle.
+    Vertex_handle vertex2; //!< Second vertex of the triangle.
+    Vertex_handle vertex3; //!< Third vertex of the triangle.
 
     //! @brief Constructor to initialize a DelaunayTriangle.
     /*!
@@ -32,7 +22,7 @@ struct DelaunayTriangle {
      * @param v2 Coordinates of the second vertex.
      * @param v3 Coordinates of the third vertex.
      */
-    DelaunayTriangle(Point v1, Point v2, Point v3) 
+    DelaunayTriangle(Vertex_handle v1, Vertex_handle v2, Vertex_handle v3) 
         : vertex1(v1), vertex2(v2), vertex3(v3) {}
 };
 
