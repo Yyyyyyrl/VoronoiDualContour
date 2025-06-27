@@ -1195,7 +1195,7 @@ void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid, st
 }
 
 //! @brief Constructs Voronoi cells from the Delaunay triangulation.
-void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
+void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
 {
     int index = 0;
     for (auto delaunay_vertex = dt.finite_vertices_begin(); delaunay_vertex != dt.finite_vertices_end(); ++delaunay_vertex)
@@ -1538,7 +1538,7 @@ static void processIncidentEdges(
  * @param voronoiDiagram The Voronoi diagram to populate with cells.
  * @param dt The Delaunay triangulation corresponding (dual) to the Voronoi diagram.
  */
-void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
+void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
 {
     std::map<std::pair<int, int>, std::vector<int>> edge_to_facets;
     int cellIndex = 0;
@@ -1899,11 +1899,11 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarG
     {
         if (vdc_param.convex_hull)
         {
-            construct_voronoi_cells(vd, dt);
+            construct_voronoi_cells_as_convex_hull(vd, dt);
         }
         else
         {
-            construct_voronoi_cells_non_convex_hull(vd, dt);
+            construct_voronoi_cells_from_delaunay_triangulation(vd, dt);
         }
         construct_voronoi_cell_edges(vd, bbox, dt);
     }

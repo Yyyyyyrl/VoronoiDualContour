@@ -126,17 +126,7 @@ void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
  * @param voronoiDiagram The Voronoi diagram to populate with cells.
  * @param dt The Delaunay triangulation corresponding (dual) to the Voronoi diagram.
  */
-void construct_voronoi_cells(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
-
-//! @brief Constructs Voronoi cells from the Delaunay triangulation (placeholder).
-/*!
- * Placeholder function for constructing Voronoi cells (not implemented).
- *
- * @param voronoiDiagram The Voronoi diagram to populate with cells.
- * @param dt The Delaunay triangulation corresponding (dual) to the Voronoi diagram.
- */
-void construct_voronoi_cells_NCH(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
-
+void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
 //! @brief Constructs Voronoi cells without using Convex_Hull_3 (in development).
 /*!
@@ -146,7 +136,7 @@ void construct_voronoi_cells_NCH(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
  * @param voronoiDiagram The Voronoi diagram to populate with cells.
  * @param dt The Delaunay triangulation corresponding (dual) to the Voronoi diagram.
  */
-void construct_voronoi_cells_non_convex_hull(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
+void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
 //! @brief Computes Voronoi vertex values using scalar grid interpolation.
 /*!
