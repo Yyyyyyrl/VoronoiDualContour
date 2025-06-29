@@ -1892,12 +1892,23 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
 
 
 //! @brief Handles output mesh generation.
+/*!
+ * Writes the final isosurface mesh to file in the specified format (OFF or PLY).
+ * Supports both single and multi-isovertex modes.
+ *
+ * @param retFlag Output parameter indicating success/failure
+ * @param vd The Voronoi diagram
+ * @param vdc_param Configuration parameters
+ * @param iso_surface The isosurface to output
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE on error
+ */
 int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface)
 {
     retFlag = true;
 
     std::cout << "Result file at: " << vdc_param.output_filename << std::endl;
-    // Use locations of isosurface vertices as vertices of Delaunay triangles and write the output mesh
+    
+    // Multi-isovertex mode output
     if (vdc_param.multi_isov)
     {
         if (vdc_param.output_format == "off")
@@ -1914,6 +1925,7 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
             return EXIT_FAILURE;
         }
     }
+    // Single-isovertex mode output
     else
     {
         if (vdc_param.output_format == "off")
@@ -1930,6 +1942,7 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
             return EXIT_FAILURE;
         }
     }
+    
     retFlag = false;
-    return {};
+    return EXIT_SUCCESS;
 }
