@@ -48,32 +48,35 @@
  */
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 
+
+//! @brief Information associated with a vertex in the Delaunay triangulation.
+/*!
+ * Stores metadata for vertices in the Delaunay triangulation.
+ */
 struct VERTEX_INFO
 {
-    bool is_dummy;        // indicator of whether this delaunay vertex is added for bounding ( dummy )
-    int voronoiCellIndex; // Index of the voronoi Cell that is dual to the vertex
-    int index;            // Index of the delaunay vertex in the triangulation
+    bool is_dummy;        //!< Flag indicating if this is a dummy vertex added for bounding
+    int voronoiCellIndex; //!< Index of the Voronoi cell dual to this vertex
+    int index;            //!< Unique index of this vertex in the triangulation
 };
 
+//! @brief Information associated with a cell in the Delaunay triangulation.
+/*!
+ * Stores metadata for cells (tetrahedra) in the Delaunay triangulation.
+ */
 struct CELL_INFO
 {
-    int dualVoronoiVertexIndex; // Index of the voronoi vertex that is dual to this cell
-    int index;                  // Index of this delaunay cell in the triangulation
+    int dualVoronoiVertexIndex; //!< Index of the Voronoi vertex dual to this cell
+    int index;                  //!< Unique index of this cell in the triangulation
 };
 
 //! @brief Vertex base for triangulations with additional information.
-/*!
- * The boolean value in the vertex base can be used to store metadata
- * (e.g., whether a vertex is marked or visited).
- */
 typedef CGAL::Triangulation_vertex_base_with_info_3<VERTEX_INFO, K> Vb;
 
 //! @brief Cell base for Delaunay triangulations.
-/*!
- * This base provides support for calculating circumcenters of cells.
- */
 typedef CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K> Cb2;
 
+//! @brief Cell base for Delaunay triangulations with additional information.
 typedef CGAL::Triangulation_cell_base_with_info_3<CELL_INFO, K, Cb2> Cb;
 
 //! @brief Data structure for triangulations.
@@ -251,17 +254,19 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Cell_circulator &cc)
     return os;
 }
 
-//! @brief Output operator for Delaunay triangulation
+//! @brief Output operator for Delaunay triangulation.
 /*!
- * This operator allows printing of Delaunay triangulation objects to output streams.
- * It displays basic statistics about the triangulation including:
- * - Number of vertices
- * - Number of finite cells
- * - Number of infinite cells
- * - Dimension of the triangulation
+ * Prints comprehensive information about a Delaunay triangulation including:
+ * - Basic statistics (dimension, validity)
+ * - Vertex statistics (total, regular, dummy)
+ * - Cell statistics (finite, infinite)
+ * - Sample cell details (limited to 5 cells)
+ * - Vertex degree distribution
+ * - Sample vertex details (limited to 10 vertices)
  *
- * @param os The output stream to write to
- * @param dt The Delaunay triangulation to output
+ * @tparam OSTREAM_TYPE Output stream type (e.g. std::ostream, std::ofstream)
+ * @param os Output stream to write to
+ * @param dt Delaunay triangulation to print
  * @return Reference to the output stream
  */
 template <typename OSTREAM_TYPE>
@@ -363,14 +368,15 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Delaunay &dt)
     return os;
 }
 
-//! @brief Helper function to print all cells in a Cell_circulator
+//! @brief Helper function to print all cells in a Cell_circulator.
 /*!
- * This function iterates through all cells in a Cell_circulator and prints them.
- * It's useful for debugging purposes to see all cells around a vertex.
- *
- * @param os The output stream to write to
- * @param start The Cell_circulator to start from
- * @param vertex_index The index of the vertex being circulated around (for information)
+ * Iterates through all cells in a circulator and prints detailed information
+ * about each cell. Includes safety checks to prevent infinite loops.
+ * 
+ * @tparam OSTREAM_TYPE Type of output stream (e.g. std::ostream, std::ofstream)
+ * @param os Output stream to write to
+ * @param start Starting cell circulator to begin iteration
+ * @param vertex_index Index of the vertex being circulated around (for context)
  */
 template <typename OSTREAM_TYPE>
 void print_cell_circuit(OSTREAM_TYPE &os, Cell_circulator start, int vertex_index)
@@ -404,16 +410,18 @@ void print_cell_circuit(OSTREAM_TYPE &os, Cell_circulator start, int vertex_inde
 //! @brief Structure for comparing points for approximate equality.
 /*!
  * This structure defines a custom comparator for points, allowing comparison
- * with a small epsilon tolerance.
+ * with a small epsilon tolerance to handle floating-point precision issues.
  */
 struct PointApproxEqual
 {
-
     //! @brief Compares two points for approximate equality.
     /*!
-     * @param p1 First point.
-     * @param p2 Second point.
-     * @return `true` if the points are approximately equal, `false` otherwise.
+     * Uses squared distance comparison with a small epsilon (1e-6) threshold
+     * to determine if points are effectively the same location.
+     * 
+     * @param p1 First point to compare
+     * @param p2 Second point to compare
+     * @return true if points are within epsilon distance, false otherwise
      */
     bool operator()(const Point &p1, const Point &p2) const
     {
@@ -453,11 +461,22 @@ struct Direction3Comparator
 
 //! @brief Comparator for CGAL::Object types.
 /*!
- * This structure provides a custom comparison operator to order CGAL::Object types.
- * It specifically handles Segment3, Ray3, and Line3 by comparing their geometric properties.
+ * Provides a strict weak ordering for CGAL::Object types containing geometric primitives.
+ * Used for sorting and storing objects in ordered containers.
  */
 struct ObjectComparator
 {
+    //! @brief Compares two CGAL::Object instances for ordering.
+    /*!
+     * Handles comparison of Segment3, Ray3 and Line3 objects with consistent ordering:
+     * 1. Segments (ordered by normalized endpoints)
+     * 2. Rays (ordered by source point then direction)
+     * 3. Lines (ordered by point then normalized direction)
+     *
+     * @param a First object to compare
+     * @param b Second object to compare
+     * @return true if a should be ordered before b, false otherwise
+     */
     bool operator()(const CGAL::Object &a, const CGAL::Object &b) const
     {
         // Extract and compare geometric properties based on type
