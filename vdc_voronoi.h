@@ -149,6 +149,11 @@ struct VoronoiCellEdge
     int nextCellEdge;              //!< Index of next cell edge around the Voronoi Edge ( VoronoiDiagram.edges[edgeIndex])
 };
 
+//! @brief Hash function for std::tuple<int,int,int>
+/*!
+ * Provides a hash function for tuples of three integers,
+ * used for vertex indexing in Voronoi diagrams.
+ */
 struct TupleHash
 {
     std::size_t operator()(const std::tuple<int, int, int> &t) const
@@ -181,11 +186,49 @@ struct VoronoiDiagram
 
 
     // Member Functions
+    //! @brief Adds a vertex to the Voronoi diagram.
+    /*!
+     * @param p The point coordinates of the vertex
+     * @param value The scalar value associated with the vertex
+     * @return Index of the newly added vertex
+     */
     int AddVertex(const Point& p, float value = 0.0f);
+
+    //! @brief Adds a segment edge to the Voronoi diagram.
+    /*!
+     * @param v1 Index of the first vertex
+     * @param v2 Index of the second vertex
+     * @param seg The CGAL segment object
+     * @return Index of the newly added edge
+     */
     int AddSegmentEdge(int v1, int v2, const Segment3& seg);
+
+    //! @brief Adds a ray edge to the Voronoi diagram.
+    /*!
+     * @param ray The CGAL ray object
+     * @return Index of the newly added edge
+     */
     int AddRayEdge(const Ray3& ray);
+
+    //! @brief Adds a line edge to the Voronoi diagram.
+    /*!
+     * @param line The CGAL line object
+     * @return Index of the newly added edge
+     */
     int AddLineEdge(const Line3& line);
+
+    //! @brief Adds a facet to the Voronoi diagram.
+    /*!
+     * @param vertices_indices Indices of vertices forming the facet
+     * @return Index of the newly added facet
+     */
     int AddFacet(const std::vector<int>& vertices_indices);
+
+    //! @brief Adds a cell to the Voronoi diagram.
+    /*!
+     * @param delaunay_vertex Handle to the corresponding Delaunay vertex
+     * @return Index of the newly added cell
+     */
     int AddCell(Vertex_handle delaunay_vertex);
     
     //! @brief Checks internal consistency of the VoronoiDiagram.
@@ -194,6 +237,11 @@ struct VoronoiDiagram
     //! @brief Comprehensive checker for Voronoi diagram consistency.
     void checkAdvanced() const;
 
+    //! @brief Finds the index of a vertex given its coordinates.
+    /*!
+     * @param p The point coordinates to search for
+     * @return Index of the vertex if found, -1 otherwise
+     */
     int find_vertex(const Point &p) const;
 
 private:
@@ -264,6 +312,11 @@ struct DelaunayVertex
  * This comparator allows points to be compared with a small tolerance
  * (epsilon) to account for floating-point inaccuracies.
  */
+//! @brief Comparator for approximate point equality
+/*!
+ * Compares points with a tolerance (epsilon) to account for
+ * floating-point inaccuracies in geometric computations.
+ */
 struct PointComparator
 {
     //! @brief Compares two points for approximate equality.
@@ -281,6 +334,11 @@ struct PointComparator
     }
 };
 
+//! @brief Comparator for ray keys (point + direction)
+/*!
+ * Used to order rays lexicographically by their source point
+ * and direction vector for efficient storage and retrieval.
+ */
 struct RayKeyComparator
 {
     bool operator()(const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>> &a,
@@ -300,6 +358,11 @@ struct RayKeyComparator
     }
 };
 
+//! @brief Comparator for line keys (point + direction)
+/*!
+ * Used to order lines lexicographically by their point and
+ * direction vector for efficient storage and retrieval.
+ */
 struct LineKeyComparator
 {
     bool operator()(const std::pair<CGAL::Point_3<CGAL::Epick>, CGAL::Vector_3<CGAL::Epick>> &a,

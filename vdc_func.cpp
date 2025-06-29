@@ -77,8 +77,6 @@ static void processSegmentEdge(
 
     if (is_bipolar(v1_val, v2_val, isovalue))
     {
-        Point positive = (v1_val >= v2_val) ? v1 : v2;
-
         for (const auto &facet : edge.delaunayFacets)
         {
             int iFacet = facet.second;
@@ -1802,19 +1800,19 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarG
 {
     construct_voronoi_vertices(vd, dt);
     construct_voronoi_edges(vd, dt);
-    vd = collapseSmallEdges(vd, 0.001, bbox);
-    compute_voronoi_values(vd, grid);
+    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox);
+    compute_voronoi_values(vd2, grid);
     if (vdc_param.multi_isov)
     {
         if (vdc_param.convex_hull)
         {
-            construct_voronoi_cells_as_convex_hull(vd, dt);
+            construct_voronoi_cells_as_convex_hull(vd2, dt);
         }
         else
         {
-            construct_voronoi_cells_from_delaunay_triangulation(vd, dt);
+            construct_voronoi_cells_from_delaunay_triangulation(vd2, dt);
         }
-        construct_voronoi_cell_edges(vd, bbox, dt);
+        construct_voronoi_cell_edges(vd2, bbox, dt);
     }
     vd.check();
 

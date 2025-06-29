@@ -1,5 +1,12 @@
 #include "vdc_voronoi.h"
 
+//! @brief Finds the index of the vertex corresponding to the given point in the Voronoi diagram.
+/*!
+ * Scales the point coordinates and uses a hash map to quickly find the vertex index.
+ *
+ * @param p The point to find in the Voronoi diagram.
+ * @return The index of the vertex if found, otherwise -1.
+ */
 int VoronoiDiagram::find_vertex(const Point& p) const {
     const double SCALE_FACTOR = 1e6;
     int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
@@ -15,6 +22,14 @@ int VoronoiDiagram::find_vertex(const Point& p) const {
     return -1;
 }
 
+//! @brief Adds a vertex to the Voronoi diagram with the given point and value.
+/*!
+ * Scales the point coordinates and updates the vertex map and vertex list.
+ *
+ * @param p The point to add as a vertex.
+ * @param value The associated scalar value at the vertex.
+ * @return The index of the newly added vertex.
+ */
 int VoronoiDiagram::AddVertex(const Point& p, float value) {
     int idx = vertices.size();
     VoronoiVertex v(p);
@@ -31,6 +46,15 @@ int VoronoiDiagram::AddVertex(const Point& p, float value) {
     return idx;
 }
 
+//! @brief Adds a segment edge to the Voronoi diagram.
+/*!
+ * Checks for existing edges and adds a new edge if not found.
+ *
+ * @param v1 The index of the first vertex of the segment.
+ * @param v2 The index of the second vertex of the segment.
+ * @param seg The CGAL segment object representing the edge.
+ * @return The index of the newly added edge.
+ */
 int VoronoiDiagram::AddSegmentEdge(int v1, int v2, const Segment3& seg) {
     int minV = std::min(v1, v2);
     int maxV = std::max(v1, v2);
@@ -46,6 +70,13 @@ int VoronoiDiagram::AddSegmentEdge(int v1, int v2, const Segment3& seg) {
     return edgeIdx;
 }
 
+//! @brief Adds a ray edge to the Voronoi diagram.
+/*!
+ * Adds a new ray edge to the edge list.
+ *
+ * @param ray The CGAL ray object representing the edge.
+ * @return The index of the newly added edge.
+ */
 int VoronoiDiagram::AddRayEdge(const Ray3& ray) {
     VoronoiEdge edge(CGAL::make_object(ray));
     edge.vertex1 = -1;
@@ -58,6 +89,13 @@ int VoronoiDiagram::AddRayEdge(const Ray3& ray) {
     return edgeIdx;
 }
 
+//! @brief Adds a line edge to the Voronoi diagram.
+/*!
+ * Adds a new line edge to the edge list.
+ *
+ * @param line The CGAL line object representing the edge.
+ * @return The index of the newly added edge.
+ */
 int VoronoiDiagram::AddLineEdge(const Line3& line) {
     VoronoiEdge edge(CGAL::make_object(line));
     edge.vertex1 = -1;
@@ -70,6 +108,13 @@ int VoronoiDiagram::AddLineEdge(const Line3& line) {
     return edgeIdx;
 }
 
+//! @brief Adds a facet to the Voronoi diagram.
+/*!
+ * Adds a new facet with the given vertex indices.
+ *
+ * @param vertices_indices The indices of the vertices comprising the facet.
+ * @return The index of the newly added facet.
+ */
 int VoronoiDiagram::AddFacet(const std::vector<int>& vertices_indices) {
     VoronoiFacet facet;
     facet.vertices_indices = vertices_indices;
@@ -79,6 +124,13 @@ int VoronoiDiagram::AddFacet(const std::vector<int>& vertices_indices) {
     return facetIdx;
 }
 
+//! @brief Adds a cell to the Voronoi diagram.
+/*!
+ * Initializes a new cell with the given Delaunay vertex handle.
+ *
+ * @param delaunay_vertex The Delaunay vertex handle associated with the cell.
+ * @return The index of the newly added cell.
+ */
 int VoronoiDiagram::AddCell(Vertex_handle delaunay_vertex) {
     VoronoiCell cell(delaunay_vertex);
     cell.cellIndex = cells.size();
@@ -113,7 +165,13 @@ void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
 }
 
 
-// Compute centroid of the cycle using the positions in voronoiVertices.
+//! @brief Computes centroid using Voronoi vertex positions.
+/*!
+ * Calculates the geometric center of a cycle by averaging
+ * the coordinates of its constituent Voronoi vertices.
+ * 
+ * @param voronoiVertices List of all Voronoi vertices in the diagram
+ */
 void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
 {
     double sumX = 0, sumY = 0, sumZ = 0;
@@ -132,12 +190,24 @@ void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
  * Small Edge Collapsing Routines
  */
 
- // Helper function to process edges and mark vertices for merging
+ //! @brief Processes edges and marks vertices for merging based on distance threshold.
+/*!
+ * Iterates through all edges in the Voronoi diagram and marks vertices for merging
+ * if their distance is less than or equal to the threshold D.
+ *
+ * @param vd The Voronoi diagram containing edges to process
+ * @param mapto Union-find structure tracking vertex merges
+ * @param D Distance threshold for merging vertices
+ */
 static void processEdges(const VoronoiDiagram& vd, std::vector<int>& mapto, double D) {
     for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx) {
+
+        const auto& edge = vd.edges[edgeIdx];
+
+
         // Get vertex indices for the current edge
-        int v1 = vd.edgeVertexIndices[edgeIdx].first;
-        int v2 = vd.edgeVertexIndices[edgeIdx].second;
+        int v1 = edge.vertex1;
+        int v2 = edge.vertex2;
 
         // Skip edges that are not finite segments (rays or lines)
         if (v1 < 0 || v2 < 0) continue;
@@ -169,7 +239,13 @@ static void processEdges(const VoronoiDiagram& vd, std::vector<int>& mapto, doub
 }
 
 
-// Helper function to perform path compression
+//! @brief Performs path compression on the union-find structure.
+/*!
+ * Compresses paths in the union-find structure to make future lookups faster.
+ * Updates each entry to point directly to its root ancestor.
+ *
+ * @param mapto Union-find structure to compress
+ */
 static void compressMapping(std::vector<int>& mapto) {
     for (size_t i = 0; i < mapto.size(); ++i) {
         int root = i;
@@ -178,7 +254,15 @@ static void compressMapping(std::vector<int>& mapto) {
     }
 }
 
-// Helper function to rebuild vertices
+//! @brief Rebuilds vertex list after edge collapsing.
+/*!
+ * Creates new vertex list by keeping only root vertices from the union-find structure.
+ * Also builds mapping from old vertex indices to new ones.
+ *
+ * @param vd Voronoi diagram to modify
+ * @param mapto Union-find structure tracking vertex merges
+ * @param oldToNewVertexIndex Output mapping from old to new vertex indices
+ */
 static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto, std::vector<int> &oldToNewVertexIndex) {
     std::map<int, int> oldToNewIndex;
     std::vector<VoronoiVertex> newVertices;
@@ -199,7 +283,14 @@ static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto, s
     }
 }
 
-// Helper function to rebuild edges with duplicate removal
+//! @brief Rebuilds edge list after vertex collapsing.
+/*!
+ * Processes edges to remove duplicates and update vertex references.
+ * Handles segment edges, ray edges and line edges separately.
+ *
+ * @param vd Voronoi diagram to modify
+ * @param oldToNewVertexIndex Mapping from old to new vertex indices
+ */
 static void rebuildEdges(VoronoiDiagram& vd, std::vector<int> &oldToNewVertexIndex) {
     std::map<std::pair<int, int>, int> segmentMap;
     std::set<VoronoiEdge> rayLineSet;
@@ -213,8 +304,8 @@ static void rebuildEdges(VoronoiDiagram& vd, std::vector<int> &oldToNewVertexInd
 
         if (CGAL::assign(seg, edge.edgeObject)) {
             // Handle segments using vertex indices
-            int oldIdx1 = vd.edgeVertexIndices[edgeIdx].first;
-            int oldIdx2 = vd.edgeVertexIndices[edgeIdx].second;
+            int oldIdx1 = edge.vertex1;
+            int oldIdx2 = edge.vertex2;
             if (oldIdx1 >= 0 && oldIdx2 >= 0) {
                 int newIdx1 = oldToNewVertexIndex[oldIdx1];
                 int newIdx2 = oldToNewVertexIndex[oldIdx2];
@@ -234,30 +325,46 @@ static void rebuildEdges(VoronoiDiagram& vd, std::vector<int> &oldToNewVertexInd
 
     // Rebuild the edges and edgeVertexIndices vectors
     std::vector<VoronoiEdge> newEdges;
-    std::vector<std::pair<int, int>> newEdgeVertexIndices;
     newEdges.reserve(segmentMap.size() + rayLineSet.size());
-    newEdgeVertexIndices.reserve(segmentMap.size());
 
     for (auto& kv : segmentMap) {
         size_t edgeIdx = kv.second;
-        newEdges.push_back(vd.edges[edgeIdx]);
-        int oldIdx1 = vd.edgeVertexIndices[edgeIdx].first;
-        int oldIdx2 = vd.edgeVertexIndices[edgeIdx].second;
-        int newIdx1 = oldToNewVertexIndex[oldIdx1];
-        int newIdx2 = oldToNewVertexIndex[oldIdx2];
-        newEdgeVertexIndices.emplace_back(newIdx1, newIdx2);
+        VoronoiEdge edge = vd.edges[edgeIdx];
+
+        edge.vertex1 = oldToNewVertexIndex[vd.edges[edgeIdx].vertex1];
+        edge.vertex2 = oldToNewVertexIndex[vd.edges[edgeIdx].vertex2];
+
+        newEdges.push_back(edge);
     }
     for (auto& edge : rayLineSet) {
         newEdges.push_back(edge);
-        newEdgeVertexIndices.emplace_back(-1, -1); // Rays and lines have no vertex indices
     }
 
     vd.edges = std::move(newEdges);
-    vd.edgeVertexIndices = std::move(newEdgeVertexIndices);
     vd.segmentVertexPairToEdgeIndex.clear();
+
+    // Rebuild segmentVertexPairToEdgeIndex
+    for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx) {
+        const auto& edge = vd.edges[edgeIdx];
+        if (edge.type == 0 && edge.vertex1 >= 0 && edge.vertex2 >= 0) {
+            int v1 = std::min(edge.vertex1, edge.vertex2);
+            int v2 = std::max(edge.vertex1, edge.vertex2);
+            vd.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
+        }
+    }
 }
 
 // Standalone function to collapse small edges
+//! @brief Collapses small edges in a Voronoi diagram.
+/*!
+ * Processes a Voronoi diagram to merge vertices connected by edges shorter than D.
+ * Uses union-find data structure to track vertex merges.
+ *
+ * @param input_vd Input Voronoi diagram
+ * @param D Distance threshold for edge collapsing
+ * @param bbox Bounding box of the diagram (unused)
+ * @return New Voronoi diagram with small edges collapsed
+ */
 VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, const CGAL::Epick::Iso_cuboid_3& bbox) {
     // Create a copy of the input VoronoiDiagram
     VoronoiDiagram vd = input_vd;
@@ -353,6 +460,14 @@ void VoronoiDiagram::checkCellEdgeLookup() const
     }
 }
 
+//! @brief Verifies validity of nextCellEdge pointers.
+/*!
+ * Checks that all nextCellEdge pointers in VoronoiCellEdge objects:
+ * - Point to valid indices within cellEdges vector
+ * - Reference edges with matching edgeIndex values
+ *
+ * @throws std::runtime_error if invalid pointers are found
+ */
 void VoronoiDiagram::checkNextCellEdgeValidity() const
 {
     for (int ceIdx = 0; ceIdx < static_cast<int>(cellEdges.size()); ++ceIdx)
@@ -381,6 +496,13 @@ void VoronoiDiagram::checkNextCellEdgeValidity() const
 }
 
 // Helper function to check edge cycles
+//! @brief Verifies edge cycles form complete rings.
+/*!
+ * Checks that edges sharing the same edgeIndex form complete cycles
+ * through nextCellEdge pointers without breaks or sub-loops.
+ *
+ * @throws std::runtime_error if cycles are incomplete or malformed
+ */
 void VoronoiDiagram::checkEdgeCycles() const
 {
     std::unordered_map<int, std::vector<int>> edgeIndexToCellEdges;
@@ -433,6 +555,11 @@ void VoronoiDiagram::checkEdgeCycles() const
     }
 }
 
+//! @brief Verifies consistency of nextCellEdge relationships.
+/*!
+ * Combines checks for nextCellEdge validity and edge cycles
+ * to ensure the complete consistency of edge relationships.
+ */
 void VoronoiDiagram::checkNextCellEdgeConsistency() const
 {
     checkNextCellEdgeValidity();
@@ -475,6 +602,14 @@ void VoronoiDiagram::checkCellFacets() const
 // Helper implementations for checks
 // ————————————————————————————————————————————————————————————————
 
+//! @brief Generates a hash key for a facet based on its vertices.
+/*!
+ * Creates a unique identifier for a facet by sorting and selecting
+ * the three smallest vertex indices.
+ *
+ * @param verts Vector of vertex indices comprising the facet
+ * @return Tuple containing the three smallest vertex indices
+ */
 std::tuple<int, int, int> VoronoiDiagram::getFacetHashKey(const std::vector<int> &verts) const
 {
     // pick three smallest indices
@@ -485,6 +620,14 @@ std::tuple<int, int, int> VoronoiDiagram::getFacetHashKey(const std::vector<int>
     return std::make_tuple(a[0], a[1], a[2]);
 }
 
+//! @brief Checks if two facets have the same vertex ordering.
+/*!
+ * Compares two facets' vertex orderings by checking all cyclic permutations.
+ *
+ * @param f1 First facet's vertex indices
+ * @param f2 Second facet's vertex indices
+ * @return True if facets have identical vertex ordering, false otherwise
+ */
 bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1,
                                          const std::vector<int> &f2) const
 {
@@ -510,6 +653,13 @@ bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1,
 }
 
 // Helper function to check facet vertex count
+//! @brief Verifies all facets have at least 3 vertices.
+/*!
+ * Checks that no facet in the diagram has fewer than 3 vertices,
+ * which would make it geometrically invalid.
+ *
+ * @throws std::runtime_error if any facet has <3 vertices
+ */
 void VoronoiDiagram::checkFacetVertexCount() const
 {
     for (size_t fi = 0; fi < facets.size(); ++fi)
@@ -522,6 +672,13 @@ void VoronoiDiagram::checkFacetVertexCount() const
 }
 
 // Helper function to check cell facet count
+//! @brief Verifies all cells have at least 4 facets.
+/*!
+ * Checks that no cell in the diagram has fewer than 4 facets,
+ * which is the minimum for a 3D polyhedron.
+ *
+ * @throws std::runtime_error if any cell has <4 facets
+ */
 void VoronoiDiagram::checkCellFacetCount() const
 {
     for (size_t ci = 0; ci < cells.size(); ++ci)
@@ -533,6 +690,13 @@ void VoronoiDiagram::checkCellFacetCount() const
 }
 
 // Helper function to check facet cell count
+//! @brief Verifies facet sharing between cells.
+/*!
+ * Ensures that each facet is shared by at most 2 cells,
+ * as expected in a proper cell complex.
+ *
+ * @throws std::runtime_error if any facet is shared by >2 cells
+ */
 void VoronoiDiagram::checkFacetCellCount() const
 {
     std::map<std::tuple<int, int, int>, std::vector<int>> hashToFacets;
@@ -548,6 +712,13 @@ void VoronoiDiagram::checkFacetCellCount() const
 }
 
 // Helper function to check edge facet count
+//! @brief Verifies edge-facet relationships.
+/*!
+ * Checks that edges appear exactly twice in cell facets,
+ * once in each direction, forming proper boundaries.
+ *
+ * @throws std::runtime_error if edge counts are incorrect
+ */
 void VoronoiDiagram::checkEdgeFacetCount() const
 {
     for (const auto &cell : cells)
@@ -584,6 +755,13 @@ void VoronoiDiagram::checkEdgeFacetCount() const
 }
 
 // Helper function to check facet normals
+//! @brief Verifies facet normals point outward.
+/*!
+ * Ensures all facet normals in cells point away from
+ * the cell's Delaunay vertex, as required for proper orientation.
+ *
+ * @throws std::runtime_error if any normal points inward
+ */
 void VoronoiDiagram::checkFacetNormals() const
 {
     for (const auto &cell : cells)
@@ -604,6 +782,13 @@ void VoronoiDiagram::checkFacetNormals() const
 }
 
 // Helper function to check paired facet orientations
+//! @brief Verifies paired facets have opposite orientations.
+/*!
+ * Checks that facets shared between two cells have
+ * opposite vertex orderings (clockwise vs counter-clockwise).
+ *
+ * @throws std::runtime_error if orientations match
+ */
 void VoronoiDiagram::checkPairedFacetOrientations() const
 {
     std::map<std::tuple<int, int, int>, std::vector<int>> hashToFacets;
