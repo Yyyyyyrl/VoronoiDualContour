@@ -1074,19 +1074,36 @@ void construct_delaunay_triangulation(Delaunay &dt,
 
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
-void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
-{
+void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt) {
     voronoiDiagram.vertices.clear();
-    int vertex_index = 0;
-    for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin();
-         cit != dt.finite_cells_end(); ++cit)
-    {
-        Point voronoi_vertex = dt.dual(cit);
-        VoronoiVertex vVertex(voronoi_vertex);
-        vVertex.index = vertex_index;
-        voronoiDiagram.vertices.push_back(vVertex);
+    const double EPSILON = 1e-6;
+    const double SCALE_FACTOR = 1e6;
+
+    for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit) {
+        Point P = dt.dual(cit);
+        int ix = static_cast<int>(std::round(P.x() * SCALE_FACTOR));
+        int iy = static_cast<int>(std::round(P.y() * SCALE_FACTOR));
+        int iz = static_cast<int>(std::round(P.z() * SCALE_FACTOR));
+        std::tuple<int, int, int> key(ix, iy, iz);
+
+        auto it = voronoiDiagram.vertexMap.find(key);
+        int vertex_index = -1;
+        if (it != voronoiDiagram.vertexMap.end()) {
+            for (int idx : it->second) {
+                if (CGAL::squared_distance(P, voronoiDiagram.vertices[idx].coord) < EPSILON * EPSILON) {
+                    vertex_index = idx;
+                    break;
+                }
+            }
+        }
+        if (vertex_index == -1) {
+            vertex_index = voronoiDiagram.vertices.size();
+            VoronoiVertex vVertex(P);
+            vVertex.index = vertex_index;
+            voronoiDiagram.vertices.push_back(vVertex);
+            voronoiDiagram.vertexMap[key].push_back(vertex_index);
+        }
         cit->info().dualVoronoiVertexIndex = vertex_index;
-        vertex_index++;
     }
 }
 
@@ -1501,78 +1518,87 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
 
 }
 
+// Helper function to check if two directions are approximately equal
+bool directionsEqual(const Vector3& d1, const Vector3& d2, double epsilon) {
+    Vector3 n1 = d1 / std::sqrt(d1.squared_length()); // Normalize d1
+    Vector3 n2 = d2 / std::sqrt(d2.squared_length()); // Normalize d2
+    return (n1 - n2).squared_length() < epsilon * epsilon; // Compare squared distance of normalized vectors
+}
 
 //! @brief Constructs Voronoi edges from Delaunay facets.
-void construct_voronoi_edges(
-    VoronoiDiagram &voronoiDiagram,
-    Delaunay &dt)
-{
+void construct_voronoi_edges(VoronoiDiagram &voronoiDiagram, Delaunay &dt) {
     voronoiDiagram.edges.clear();
-    for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin();
-         fit != dt.finite_facets_end(); ++fit)
-    {
+    std::map<std::pair<int, int>, int> segmentMap; // Maps sorted vertex pairs to edge indices
+    std::map<int, std::vector<std::pair<Vector3, int>>> rayMap; // Maps vertex index to (direction, edgeIdx) pairs
+    const double EPSILON = 1e-6;
+
+    for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit) {
+        Facet facet = *fit;
+        CGAL::Object edgeobj = dt.dual(facet);
         Segment3 seg;
         Ray3 ray;
-        Line3 line;
-        Facet facet = *fit;
-        Cell_handle c1 = facet.first;
-        int i = facet.second;
-        Cell_handle c2 = c1->neighbor(i);
-        CGAL::Object edgeobj = dt.dual(facet);
-        /*         if (isDegenerate(vEdge))
-                {
-                    continue; // Skip edges where source == target, though rare with distinct indices
-                } */
-        int idx1 = -1;
-        int idx2 = -1;
-        if (!dt.is_infinite(c1))
-            idx1 = c1->info().dualVoronoiVertexIndex;
-        if (!dt.is_infinite(c2))
-            idx2 = c2->info().dualVoronoiVertexIndex;
 
-        // TODO: Duplicate check
-        if (idx1 != -1 && idx2 != -1)
-        {
-            voronoiDiagram.edgeVertexIndices.push_back(std::make_pair(idx1, idx2));
-        }
-        else if (idx1 != -1)
-        {
-            voronoiDiagram.edgeVertexIndices.push_back(std::make_pair(idx1, -1));
-        }
-        else if (idx2 != -1)
-        {
-            voronoiDiagram.edgeVertexIndices.push_back(std::make_pair(idx2, -1));
-        }
-        else
-        {
-            std::cerr << "Error: finite facet with both adjacent cells infinite.\n";
-        }
+        if (CGAL::assign(seg, edgeobj)) {
+            Cell_handle c1 = facet.first;
+            Cell_handle c2 = c1->neighbor(facet.second);
+            int idx1 = dt.is_infinite(c1) ? -1 : c1->info().dualVoronoiVertexIndex;
+            int idx2 = dt.is_infinite(c2) ? -1 : c2->info().dualVoronoiVertexIndex;
 
-        VoronoiEdge vEdge(edgeobj);
-        if (CGAL::assign(seg,edgeobj)) {
-            vEdge.type = 0;
-            vEdge.vertex1 = find_vertex_index(voronoiDiagram, seg.source());
-            vEdge.vertex2 = find_vertex_index(voronoiDiagram, seg.target());
+            if (idx1 != -1 && idx2 != -1 && idx1 != idx2) { // Finite segment
+                int v1 = std::min(idx1, idx2);
+                int v2 = std::max(idx1, idx2);
+                auto it = segmentMap.find({v1, v2});
+                if (it != segmentMap.end()) {
+                    voronoiDiagram.edges[it->second].delaunayFacets.push_back(facet);
+                } else {
+                    VoronoiEdge vEdge(edgeobj);
+                    vEdge.type = 0;
+                    vEdge.vertex1 = v1;
+                    vEdge.vertex2 = v2;
+                    int edgeIdx = voronoiDiagram.edges.size();
+                    vEdge.delaunayFacets.push_back(facet);
+                    voronoiDiagram.edges.push_back(vEdge);
+                    segmentMap[{v1, v2}] = edgeIdx;
+                    voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
+                }
+            }
+        } else if (CGAL::assign(ray, edgeobj)) {
+            Cell_handle c1 = facet.first;
+            Cell_handle c2 = c1->neighbor(facet.second);
+            int vertex1 = -1;
+            if (!dt.is_infinite(c1)) {
+                vertex1 = c1->info().dualVoronoiVertexIndex;
+            } else if (!dt.is_infinite(c2)) {
+                vertex1 = c2->info().dualVoronoiVertexIndex;
+            }
+            if (vertex1 != -1) {
+                Vector3 dir = ray.direction().vector();
+                bool found = false;
+                auto it = rayMap.find(vertex1);
+                if (it != rayMap.end()) {
+                    for (const auto& pair : it->second) {
+                        if (directionsEqual(pair.first, dir, EPSILON)) {
+                            voronoiDiagram.edges[pair.second].delaunayFacets.push_back(facet);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (!found) {
+                    VoronoiEdge vEdge(edgeobj);
+                    vEdge.type = 1;
+                    vEdge.vertex1 = vertex1;
+                    vEdge.vertex2 = -1;
+                    vEdge.source = ray.source();
+                    vEdge.direction = dir;
+                    int edgeIdx = voronoiDiagram.edges.size();
+                    vEdge.delaunayFacets.push_back(facet);
+                    voronoiDiagram.edges.push_back(vEdge);
+                    rayMap[vertex1].push_back({dir, edgeIdx});
+                }
+            }
         }
-        else if (CGAL::assign(ray, edgeobj)) {
-            vEdge.type = 1;
-            vEdge.source = ray.source();
-            vEdge.direction = ray.direction().vector();
-            vEdge.vertex1 = find_vertex_index(voronoiDiagram, ray.source());
-            vEdge.vertex2 = -1; // Infinite endpoint
-        }
-        else if (CGAL::assign(line, edgeobj)) {
-            vEdge.type = 2;
-            vEdge.source = line.point();
-            vEdge.direction = line.to_vector();
-            vEdge.vertex1 = find_vertex_index(voronoiDiagram, line.point());
-            vEdge.vertex2 = -1; // Infinite endpoint
-        }
-        else {
-            vEdge.type = -1; //Unknown object type
-        }
-        vEdge.delaunayFacets.push_back(facet);
-        voronoiDiagram.edges.push_back(vEdge);
+        // Lines are not expected for finite facets, so we skip them
     }
 }
 
@@ -1719,7 +1745,12 @@ static void processEdgeMapping(
     {
         int idx1 = find_vertex_index(voronoiDiagram, p1);
         int idx2 = find_vertex_index(voronoiDiagram, p2);
-        if (idx1 != -1 && idx2 != -1)
+        std::cout << "[DEBUG] Processing edge " << edgeIdx << " with vertices: (" << idx1 << ", " << idx2 << ") with edge index: " << edgeIdx << std::endl;
+        if (idx1 == -1) {
+            std::cout << "[WARNING] Failed to find vertex index for point: " << p1 << std::endl;
+        } else if (idx2 == -1 ){
+            std::cout << "[WARNING] Failed to find vertex index for point: " << p2 << std::endl;
+        } else
         {
             int v1 = std::min(idx1, idx2);
             int v2 = std::max(idx1, idx2);
@@ -1814,7 +1845,8 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarG
         }
         construct_voronoi_cell_edges(vd2, bbox, dt);
     }
-    vd.check();
+    vd2.check();
+    vd = std::move(vd2);
 
     if (debug) {
         Point hole_center(52, 34, 35);

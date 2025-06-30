@@ -437,11 +437,11 @@ static void linkCellEdges(VoronoiDiagram &voronoiDiagram);
  * after intersecting with the bounding box.
  *
  * @param voronoiDiagram The Voronoi diagram to update.
- * @param edgeObj The CGAL object representing the edge.
+ * @param edge The VoronoiEdge representing the edge.
  * @param edgeIdx The index of the edge in the diagram.
  * @param bbox The bounding box for intersection.
  */
-static void processEdgeMapping(VoronoiDiagram &voronoiDiagram, const CGAL::Object &edgeObj, int edgeIdx, CGAL::Epick::Iso_cuboid_3 &bbox);
+static void processEdgeMapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &edge, int edgeIdx, CGAL::Epick::Iso_cuboid_3 &bbox);
 
 //! @brief Updates edge mappings for all Voronoi edges.
 /*!

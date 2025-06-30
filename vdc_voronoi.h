@@ -174,7 +174,6 @@ struct VoronoiDiagram
 {
     std::vector<VoronoiVertex> vertices;                //!< List of Voronoi vertices in the diagram.
     std::vector<VoronoiEdge> edges;                    //!< List of edges in the diagram
-    std::vector<std::pair<int, int>> edgeVertexIndices; //!< where each pair corresponds to an edge in edges. For segments, both indices are valid (>=0); for rays, one is -1; for lines, both are -1.
     std::vector<VoronoiCellEdge> cellEdges;             //!< List of Cell Edges in the diagram
     std::vector<VoronoiCell> cells;                     //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiFacet> facets;                   //!< List of facets in the diagram.
@@ -307,11 +306,7 @@ struct DelaunayVertex
     bool is_dummy; //!< Flag indicating whether the vertex is a dummy point.
 };
 
-//! @brief Comparator for points with approximate equality.
-/*!
- * This comparator allows points to be compared with a small tolerance
- * (epsilon) to account for floating-point inaccuracies.
- */
+
 //! @brief Comparator for approximate point equality
 /*!
  * Compares points with a tolerance (epsilon) to account for
