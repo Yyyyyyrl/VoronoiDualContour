@@ -312,11 +312,6 @@ struct DelaunayVertex
  * This comparator allows points to be compared with a small tolerance
  * (epsilon) to account for floating-point inaccuracies.
  */
-//! @brief Comparator for approximate point equality
-/*!
- * Compares points with a tolerance (epsilon) to account for
- * floating-point inaccuracies in geometric computations.
- */
 struct PointComparator
 {
     //! @brief Compares two points for approximate equality.

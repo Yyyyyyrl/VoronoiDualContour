@@ -2,149 +2,271 @@
 
 //! @brief Finds the index of the vertex corresponding to the given point in the Voronoi diagram.
 /*!
- * Scales the point coordinates and uses a hash map to quickly find the vertex index.
+ * Implements a spatial hashing technique for efficient point lookup in 3D space.
+ * Scales the point coordinates to integers and uses a hash map for quick vertex index retrieval.
+ * 
+ * Algorithm details:
+ * 1. Scales coordinates by 1e6 to convert to integer space
+ * 2. Uses tuple-based hash map for spatial partitioning
+ * 3. Performs exact match check within hash bucket
  *
- * @param p The point to find in the Voronoi diagram.
- * @return The index of the vertex if found, otherwise -1.
+ * Performance considerations:
+ * - O(1) average case lookup time
+ * - Scales well with large number of vertices
+ *
+ * @param p The 3D point to locate in the Voronoi diagram (must be finite)
+ * @return The index of the vertex if found, otherwise -1 indicating point not found
+ * @note The scaling factor (1e6) provides ~1 micron precision for coordinates in meter units
  */
 int VoronoiDiagram::find_vertex(const Point& p) const {
+    // Scale coordinates for spatial hashing
     const double SCALE_FACTOR = 1e6;
     int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
     int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
     int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
+    
+    // Create hash key from scaled coordinates
     std::tuple<int, int, int> key(ix, iy, iz);
+    
+    // Look up in vertex map
     auto it = vertexMap.find(key);
     if (it != vertexMap.end()) {
+        // Check all vertices in this hash bucket for exact match
         for (int idx : it->second) {
-            if (PointApproxEqual()(vertices[idx].coord, p)) return idx;
+            if (PointApproxEqual()(vertices[idx].coord, p)) {
+                return idx;
+            }
         }
     }
-    return -1;
+    return -1;  // Not found
 }
 
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
 /*!
- * Scales the point coordinates and updates the vertex map and vertex list.
+ * Creates a new Voronoi vertex and updates both the vertex list and spatial hash map.
+ * Maintains data structure consistency for efficient spatial queries.
  *
- * @param p The point to add as a vertex.
- * @param value The associated scalar value at the vertex.
- * @return The index of the newly added vertex.
+ * Implementation details:
+ * - Vertex indices are assigned sequentially
+ * - Uses same spatial hashing scheme as find_vertex()
+ * - Initializes empty cell indices list
+ *
+ * Thread safety:
+ * - Not thread-safe due to shared vertex list and map modifications
+ * - External synchronization required for concurrent access
+ *
+ * @param p The 3D point coordinates for the new vertex (must be finite)
+ * @param value The scalar value associated with this vertex (e.g., potential value)
+ * @return The index of the newly added vertex (non-negative integer)
+ * @throws May throw std::bad_alloc if memory allocation fails
  */
 int VoronoiDiagram::AddVertex(const Point& p, float value) {
+    // Create new vertex
     int idx = vertices.size();
     VoronoiVertex v(p);
     v.index = idx;
     v.value = value;
-    v.cellIndices = {};
+    v.cellIndices = {};  // Initialize empty cell indices
+    
+    // Add to vertex list
     vertices.push_back(v);
+    
+    // Update spatial hash map
     const double SCALE_FACTOR = 1e6;
     int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
     int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
     int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
     std::tuple<int, int, int> key(ix, iy, iz);
     vertexMap[key].push_back(idx);
+    
     return idx;
 }
 
 //! @brief Adds a segment edge to the Voronoi diagram.
 /*!
- * Checks for existing edges and adds a new edge if not found.
+ * Manages undirected segment edges between Voronoi vertices with deduplication.
+ * Uses sorted vertex indices to ensure consistent representation of undirected edges.
  *
- * @param v1 The index of the first vertex of the segment.
- * @param v2 The index of the second vertex of the segment.
- * @param seg The CGAL segment object representing the edge.
- * @return The index of the newly added edge.
+ * Edge types:
+ * - Type 0: Finite segment edge (this function)
+ * - Type 1: Ray edge (infinite)
+ * - Type 2: Line edge (infinite both ways)
+ *
+ * Data structures:
+ * - Maintains segmentVertexPairToEdgeIndex map for O(1) duplicate checking
+ * - Edge list stores all edges sequentially
+ *
+ * @param v1 Index of first vertex (must be valid, >= 0)
+ * @param v2 Index of second vertex (must be valid, >= 0)
+ * @param seg CGAL Segment_3 object defining the edge geometry
+ * @return Index of the edge (existing if duplicate, new otherwise)
+ * @throws std::out_of_range if vertex indices are invalid
  */
 int VoronoiDiagram::AddSegmentEdge(int v1, int v2, const Segment3& seg) {
+    // Use sorted vertex indices for undirected edge representation
     int minV = std::min(v1, v2);
     int maxV = std::max(v1, v2);
+    
+    // Check if edge already exists
     auto it = segmentVertexPairToEdgeIndex.find({minV, maxV});
-    if (it != segmentVertexPairToEdgeIndex.end()) return it->second;
+    if (it != segmentVertexPairToEdgeIndex.end()) {
+        return it->second;  // Return existing edge index
+    }
+    
+    // Create new edge
     VoronoiEdge edge(CGAL::make_object(seg));
     edge.vertex1 = v1;
     edge.vertex2 = v2;
-    edge.type = 0;
+    edge.type = 0;  // Type 0 = segment
+    
+    // Add to edge list and update mapping
     int edgeIdx = edges.size();
     edges.push_back(edge);
     segmentVertexPairToEdgeIndex[{minV, maxV}] = edgeIdx;
+    
     return edgeIdx;
 }
 
 //! @brief Adds a ray edge to the Voronoi diagram.
 /*!
- * Adds a new ray edge to the edge list.
+ * Creates a semi-infinite ray edge in the Voronoi diagram.
+ * Used for Voronoi edges that extend to infinity from a starting point.
  *
- * @param ray The CGAL ray object representing the edge.
- * @return The index of the newly added edge.
+ * Characteristics:
+ * - Type 1 edge (ray)
+ * - vertex1 and vertex2 set to -1 (no finite vertices)
+ * - Stores source point and direction vector
+ *
+ * Mathematical representation:
+ * edge(t) = source + t * direction, t >= 0
+ *
+ * @param ray CGAL Ray_3 object defining the infinite edge
+ * @return Index of the newly created edge
+ * @note Ray edges don't participate in spatial hashing
  */
 int VoronoiDiagram::AddRayEdge(const Ray3& ray) {
+    // Create edge object
     VoronoiEdge edge(CGAL::make_object(ray));
-    edge.vertex1 = -1;
-    edge.vertex2 = -1;
-    edge.type = 1;
+    edge.vertex1 = -1;  // No start vertex (infinite)
+    edge.vertex2 = -1;  // No end vertex (infinite)
+    edge.type = 1;      // Type 1 = ray
     edge.source = ray.source();
     edge.direction = ray.direction().vector();
+    
+    // Add to edge list
     int edgeIdx = edges.size();
     edges.push_back(edge);
+    
     return edgeIdx;
 }
 
 //! @brief Adds a line edge to the Voronoi diagram.
 /*!
- * Adds a new line edge to the edge list.
+ * Creates a bi-infinite line edge in the Voronoi diagram.
+ * Used for Voronoi edges that extend infinitely in both directions.
  *
- * @param line The CGAL line object representing the edge.
- * @return The index of the newly added edge.
+ * Characteristics:
+ * - Type 2 edge (line)
+ * - vertex1 and vertex2 set to -1 (no finite vertices)
+ * - Stores source point and direction vector
+ *
+ * Mathematical representation:
+ * edge(t) = source + t * direction, t ∈ ℝ
+ *
+ * @param line CGAL Line_3 object defining the infinite edge
+ * @return Index of the newly created edge
+ * @note Line edges don't participate in spatial hashing
  */
 int VoronoiDiagram::AddLineEdge(const Line3& line) {
+    // Create edge object
     VoronoiEdge edge(CGAL::make_object(line));
-    edge.vertex1 = -1;
-    edge.vertex2 = -1;
-    edge.type = 2;
+    edge.vertex1 = -1;  // No start vertex (infinite)
+    edge.vertex2 = -1;  // No end vertex (infinite)
+    edge.type = 2;      // Type 2 = line
     edge.source = line.point(0);
     edge.direction = line.to_vector();
+    
+    // Add to edge list
     int edgeIdx = edges.size();
     edges.push_back(edge);
+    
     return edgeIdx;
 }
 
 //! @brief Adds a facet to the Voronoi diagram.
 /*!
- * Adds a new facet with the given vertex indices.
+ * Creates a new polygonal facet (face) in the Voronoi diagram.
+ * Facets form the boundaries between Voronoi cells.
  *
- * @param vertices_indices The indices of the vertices comprising the facet.
- * @return The index of the newly added facet.
+ * Topological properties:
+ * - Each facet is a simple polygon (no holes)
+ * - Vertices must form a closed loop
+ * - No duplicate vertices allowed
+ * - Minimum 3 vertices required
+ *
+ * Data management:
+ * - Initializes mirror_facet_index to -1 (no mirror)
+ * - Facet indices are assigned sequentially
+ *
+ * @param vertices_indices Vector of vertex indices forming the facet (size >= 3)
+ * @return Index of the newly created facet
+ * @throws std::invalid_argument if vertices_indices has fewer than 3 elements
  */
 int VoronoiDiagram::AddFacet(const std::vector<int>& vertices_indices) {
+    // Create new facet
     VoronoiFacet facet;
     facet.vertices_indices = vertices_indices;
-    facet.mirror_facet_index = -1;
+    facet.mirror_facet_index = -1;  // Initialize with no mirror facet
+    
+    // Add to facet list
     int facetIdx = facets.size();
     facets.push_back(facet);
+    
     return facetIdx;
 }
 
 //! @brief Adds a cell to the Voronoi diagram.
 /*!
- * Initializes a new cell with the given Delaunay vertex handle.
+ * Creates a new Voronoi cell associated with a Delaunay tetrahedralization vertex.
+ * Voronoi cells are convex polyhedra in 3D space.
  *
- * @param delaunay_vertex The Delaunay vertex handle associated with the cell.
- * @return The index of the newly added cell.
+ * Duality properties:
+ * - Each Voronoi cell corresponds to exactly one Delaunay vertex
+ * - Cell geometry is the dual of the Delaunay tetrahedralization
+ *
+ * Initial state:
+ * - cellIndex set to current cells size
+ * - vertices_indices and facet_indices empty
+ * - delaunay_vertex stored for reference
+ *
+ * @param delaunay_vertex Handle to the associated Delaunay vertex
+ * @return Index of the newly created cell
+ * @note The cell geometry must be populated separately
  */
 int VoronoiDiagram::AddCell(Vertex_handle delaunay_vertex) {
+    // Create new cell
     VoronoiCell cell(delaunay_vertex);
     cell.cellIndex = cells.size();
+    
+    // Add to cell list
     int cellIdx = cells.size();
     cells.push_back(cell);
+    
     return cellIdx;
 }
 //! @brief Computes the centroid of a cycle using the associated midpoints.
 /*!
- * The centroid is calculated using CGAL's `centroid` function, which averages
- * the positions of the midpoints in the cycle. If no midpoints exist, the centroid
- * computation is skipped.
+ * Calculates the geometric center (isovertex) of a cycle by averaging the positions
+ * of its constituent midpoints using CGAL's centroid function.
  *
- * @param midpoints Vector of all midpoints in the Voronoi diagram.
+ * Mathematical properties:
+ * - Computes the arithmetic mean of point coordinates
+ * - Result is the geometric center of mass
+ * - Only valid for non-empty midpoint sets
+ *
+ * @param midpoints Vector of all MidpointNode objects in the diagram
+ * @note Skips computation if midpoint_indices is empty
+ * @see Cycle::compute_centroid(const std::vector<VoronoiVertex>&)
  */
 void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
 {
@@ -167,10 +289,17 @@ void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
 
 //! @brief Computes centroid using Voronoi vertex positions.
 /*!
- * Calculates the geometric center of a cycle by averaging
- * the coordinates of its constituent Voronoi vertices.
- * 
- * @param voronoiVertices List of all Voronoi vertices in the diagram
+ * Alternative centroid calculation using direct vertex coordinates instead of midpoints.
+ * Provides more stable results when working with raw Voronoi vertices.
+ *
+ * Implementation details:
+ * - Performs simple arithmetic mean of coordinates
+ * - Handles empty vertex sets gracefully
+ * - More efficient than midpoint-based version
+ *
+ * @param voronoiVertices Vector of all VoronoiVertex objects in the diagram
+ * @note Prefer this version when midpoint data is unavailable
+ * @see Cycle::compute_centroid(const std::vector<MidpointNode>&)
  */
 void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
 {
@@ -190,14 +319,24 @@ void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
  * Small Edge Collapsing Routines
  */
 
- //! @brief Processes edges and marks vertices for merging based on distance threshold.
+//! @brief Processes edges and marks vertices for merging based on distance threshold.
 /*!
- * Iterates through all edges in the Voronoi diagram and marks vertices for merging
- * if their distance is less than or equal to the threshold D.
+ * Implements the first phase of edge collapsing by identifying vertices closer than
+ * threshold D using a union-find (disjoint-set) data structure.
  *
- * @param vd The Voronoi diagram containing edges to process
- * @param mapto Union-find structure tracking vertex merges
- * @param D Distance threshold for merging vertices
+ * Algorithm phases:
+ * 1. Iterate through all finite edges
+ * 2. Compute Euclidean distance between vertices
+ * 3. Union vertex sets when distance <= D
+ *
+ * Complexity:
+ * - O(E) edge iterations
+ * - O(α(V)) per union operation (inverse Ackermann)
+ *
+ * @param vd Voronoi diagram to process (read-only)
+ * @param mapto Union-find structure (initially each vertex points to itself)
+ * @param D Distance threshold for merging (must be >= 0)
+ * @note Only processes finite edges (skips rays and lines)
  */
 static void processEdges(const VoronoiDiagram& vd, std::vector<int>& mapto, double D) {
     for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx) {
@@ -241,10 +380,17 @@ static void processEdges(const VoronoiDiagram& vd, std::vector<int>& mapto, doub
 
 //! @brief Performs path compression on the union-find structure.
 /*!
- * Compresses paths in the union-find structure to make future lookups faster.
- * Updates each entry to point directly to its root ancestor.
+ * Optimizes the union-find data structure by flattening the tree structure,
+ * making future find operations nearly constant time.
  *
- * @param mapto Union-find structure to compress
+ * Algorithm details:
+ * - Performs one-pass path compression
+ * - Updates all nodes along path to point directly to root
+ * - Preserves union-find invariants
+ *
+ * @param mapto Union-find structure to compress (modified in-place)
+ * @note Should be called after all unions are complete
+ * @see processEdges()
  */
 static void compressMapping(std::vector<int>& mapto) {
     for (size_t i = 0; i < mapto.size(); ++i) {
@@ -256,12 +402,18 @@ static void compressMapping(std::vector<int>& mapto) {
 
 //! @brief Rebuilds vertex list after edge collapsing.
 /*!
- * Creates new vertex list by keeping only root vertices from the union-find structure.
- * Also builds mapping from old vertex indices to new ones.
+ * Creates a consolidated vertex list containing only representative vertices
+ * after edge collapsing, and builds index remapping table.
  *
- * @param vd Voronoi diagram to modify
- * @param mapto Union-find structure tracking vertex merges
- * @param oldToNewVertexIndex Output mapping from old to new vertex indices
+ * Postconditions:
+ * - vd.vertices contains only root vertices
+ * - oldToNewVertexIndex maps each original index to its new representative
+ * - Vertex count <= original count
+ *
+ * @param vd Voronoi diagram to modify (vertices updated)
+ * @param mapto Union-find structure after path compression
+ * @param oldToNewVertexIndex Output mapping (resized and populated)
+ * @note Clears and rebuilds the vertexMap spatial index
  */
 static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto, std::vector<int> &oldToNewVertexIndex) {
     std::map<int, int> oldToNewIndex;
@@ -285,11 +437,19 @@ static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto, s
 
 //! @brief Rebuilds edge list after vertex collapsing.
 /*!
- * Processes edges to remove duplicates and update vertex references.
- * Handles segment edges, ray edges and line edges separately.
+ * Consolidates and deduplicates edges after vertex merging, handling:
+ * - Segment edges (finite)
+ * - Ray edges (semi-infinite)
+ * - Line edges (bi-infinite)
  *
- * @param vd Voronoi diagram to modify
- * @param oldToNewVertexIndex Mapping from old to new vertex indices
+ * Edge processing:
+ * 1. Segments: deduplicate using vertex pairs
+ * 2. Rays/Lines: deduplicate using geometric equality
+ * 3. Updates all vertex references
+ *
+ * @param vd Voronoi diagram to modify (edges updated)
+ * @param oldToNewVertexIndex Vertex index mapping from rebuildVertices()
+ * @note Rebuilds segmentVertexPairToEdgeIndex lookup table
  */
 static void rebuildEdges(VoronoiDiagram& vd, std::vector<int> &oldToNewVertexIndex) {
     std::map<std::pair<int, int>, int> segmentMap;
@@ -421,6 +581,19 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, cons
 
 
 //! @brief Checks internal consistency of the VoronoiDiagram.
+/*!
+ * Performs comprehensive validation of the Voronoi diagram data structure,
+ * including topological, geometric and combinatorial properties.
+ *
+ * Validation stages:
+ * 1. Cell-edge lookup consistency
+ * 2. Next-cell-edge pointer validity
+ * 3. Cell facet relationships
+ * 4. Advanced geometric checks
+ *
+ * @throws std::runtime_error if any inconsistency is detected
+ * @note This is an expensive operation (O(V+E+F) time complexity)
+ */
 void VoronoiDiagram::check() const
 {
     std::cout << "Running validity checks.\n";
@@ -432,6 +605,17 @@ void VoronoiDiagram::check() const
 }
 
 //! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
+/*!
+ * Validates the bidirectional mapping between (cell,edge) pairs and cellEdges indices.
+ * Ensures the lookup table accurately reflects the cellEdges vector contents.
+ *
+ * Checks performed:
+ * 1. All lookup table entries point to valid cellEdges indices
+ * 2. The referenced cellEdges entries match the lookup key
+ *
+ * @throws std::runtime_error if any mapping inconsistency is found
+ * @note O(K) time complexity where K is number of cell-edge pairs
+ */
 void VoronoiDiagram::checkCellEdgeLookup() const
 {
     for (const auto &kv : cellEdgeLookup)
@@ -462,11 +646,16 @@ void VoronoiDiagram::checkCellEdgeLookup() const
 
 //! @brief Verifies validity of nextCellEdge pointers.
 /*!
- * Checks that all nextCellEdge pointers in VoronoiCellEdge objects:
- * - Point to valid indices within cellEdges vector
- * - Reference edges with matching edgeIndex values
+ * Validates the circular linked list structure of cell edges around each Voronoi edge.
+ * Ensures proper connectivity in the cell-edge adjacency graph.
  *
- * @throws std::runtime_error if invalid pointers are found
+ * Checks performed:
+ * 1. All nextCellEdge indices are valid (-1 or within bounds)
+ * 2. Linked edges share the same edgeIndex
+ * 3. No null pointers in the middle of a cycle
+ *
+ * @throws std::runtime_error if any pointer inconsistency is found
+ * @note Helps maintain the doubly-connected edge list (DCEL) invariants
  */
 void VoronoiDiagram::checkNextCellEdgeValidity() const
 {
@@ -495,13 +684,18 @@ void VoronoiDiagram::checkNextCellEdgeValidity() const
     }
 }
 
-// Helper function to check edge cycles
 //! @brief Verifies edge cycles form complete rings.
 /*!
- * Checks that edges sharing the same edgeIndex form complete cycles
- * through nextCellEdge pointers without breaks or sub-loops.
+ * Validates the topological structure of edge cycles in the Voronoi diagram.
+ * Each cycle should form a complete ring around its corresponding edge.
  *
- * @throws std::runtime_error if cycles are incomplete or malformed
+ * Cycle properties verified:
+ * 1. All edges with same edgeIndex form a single cycle
+ * 2. No premature termination (incomplete cycles)
+ * 3. No sub-loops or disconnected components
+ *
+ * @throws std::runtime_error if cycle structure is invalid
+ * @note Essential for maintaining proper cell adjacency relationships
  */
 void VoronoiDiagram::checkEdgeCycles() const
 {
@@ -567,6 +761,18 @@ void VoronoiDiagram::checkNextCellEdgeConsistency() const
 }
 
 //! @brief Checks each VoronoiCell's facets to ensure that every facet's vertices are in the cell's vertex set.
+/*!
+ * Validates the vertex-facet relationships within each Voronoi cell.
+ * Ensures all facet vertices belong to their containing cell's vertex set.
+ *
+ * Checks performed:
+ * 1. All facet vertex indices are valid
+ * 2. Each facet vertex appears in the cell's vertex set
+ * 3. No dangling references
+ *
+ * @throws std::runtime_error if any vertex-facet inconsistency is found
+ * @note O(F*V) time complexity in worst case
+ */
 void VoronoiDiagram::checkCellFacets() const
 {
     for (int cIdx = 0; cIdx < static_cast<int>(cells.size()); ++cIdx)
@@ -604,11 +810,18 @@ void VoronoiDiagram::checkCellFacets() const
 
 //! @brief Generates a hash key for a facet based on its vertices.
 /*!
- * Creates a unique identifier for a facet by sorting and selecting
- * the three smallest vertex indices.
+ * Creates a canonical representation of a facet by selecting three
+ * representative vertices in sorted order. Used for facet deduplication
+ * and mirror facet identification.
  *
- * @param verts Vector of vertex indices comprising the facet
- * @return Tuple containing the three smallest vertex indices
+ * Key properties:
+ * - Order-invariant (same key for any vertex ordering)
+ * - Uses smallest three indices for consistency
+ * - Suitable for use as map key
+ *
+ * @param verts Vector of vertex indices (must have >= 3 elements)
+ * @return Tuple of three smallest indices in ascending order
+ * @throws std::invalid_argument if verts has fewer than 3 elements
  */
 std::tuple<int, int, int> VoronoiDiagram::getFacetHashKey(const std::vector<int> &verts) const
 {
@@ -622,11 +835,17 @@ std::tuple<int, int, int> VoronoiDiagram::getFacetHashKey(const std::vector<int>
 
 //! @brief Checks if two facets have the same vertex ordering.
 /*!
- * Compares two facets' vertex orderings by checking all cyclic permutations.
+ * Determines if two facets have identical vertex sequences (considering cyclic shifts).
+ * Used to verify proper orientation of mirror facets.
+ *
+ * Algorithm:
+ * - Checks all possible cyclic shifts of f2 against f1
+ * - Early termination on first match
  *
  * @param f1 First facet's vertex indices
  * @param f2 Second facet's vertex indices
- * @return True if facets have identical vertex ordering, false otherwise
+ * @return true if sequences match under any cyclic shift
+ * @note O(n²) time complexity for n-vertex facets
  */
 bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1,
                                          const std::vector<int> &f2) const
@@ -652,13 +871,17 @@ bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1,
     return false;
 }
 
-// Helper function to check facet vertex count
 //! @brief Verifies all facets have at least 3 vertices.
 /*!
- * Checks that no facet in the diagram has fewer than 3 vertices,
- * which would make it geometrically invalid.
+ * Validates the minimum vertex count requirement for Voronoi facets.
+ * Ensures all facets can form proper polygonal faces.
  *
- * @throws std::runtime_error if any facet has <3 vertices
+ * Geometric requirements:
+ * - Minimum 3 vertices to form a polygon
+ * - No degenerate (collinear) vertex sets
+ *
+ * @throws std::runtime_error if any facet violates minimum vertex count
+ * @note Part of the Eulerian polyhedron validation
  */
 void VoronoiDiagram::checkFacetVertexCount() const
 {
@@ -671,13 +894,17 @@ void VoronoiDiagram::checkFacetVertexCount() const
     }
 }
 
-// Helper function to check cell facet count
 //! @brief Verifies all cells have at least 4 facets.
 /*!
- * Checks that no cell in the diagram has fewer than 4 facets,
- * which is the minimum for a 3D polyhedron.
+ * Validates the minimum facet count requirement for Voronoi cells.
+ * Ensures all cells can form proper 3D polyhedrons.
  *
- * @throws std::runtime_error if any cell has <4 facets
+ * Topological requirements:
+ * - Minimum 4 facets to form a 3D polyhedron
+ * - Follows Euler's formula (V-E+F=2)
+ *
+ * @throws std::runtime_error if any cell violates minimum facet count
+ * @note Based on the tetrahedron being the simplest 3D polyhedron
  */
 void VoronoiDiagram::checkCellFacetCount() const
 {
@@ -689,13 +916,17 @@ void VoronoiDiagram::checkCellFacetCount() const
     }
 }
 
-// Helper function to check facet cell count
 //! @brief Verifies facet sharing between cells.
 /*!
- * Ensures that each facet is shared by at most 2 cells,
- * as expected in a proper cell complex.
+ * Validates the proper sharing relationship of facets between adjacent cells.
+ * Ensures the Voronoi diagram forms a valid cell complex.
  *
- * @throws std::runtime_error if any facet is shared by >2 cells
+ * Sharing properties:
+ * - Each facet shared by exactly 2 cells (in 3D)
+ * - No unshared or multiply-shared facets
+ *
+ * @throws std::runtime_error if facet sharing is invalid
+ * @note Uses spatial hashing for efficient facet lookup
  */
 void VoronoiDiagram::checkFacetCellCount() const
 {
@@ -711,13 +942,18 @@ void VoronoiDiagram::checkFacetCellCount() const
     }
 }
 
-// Helper function to check edge facet count
 //! @brief Verifies edge-facet relationships.
 /*!
- * Checks that edges appear exactly twice in cell facets,
- * once in each direction, forming proper boundaries.
+ * Validates the boundary relationships between edges and facets.
+ * Ensures proper manifold structure of the Voronoi diagram.
  *
- * @throws std::runtime_error if edge counts are incorrect
+ * Boundary conditions:
+ * - Each edge appears exactly twice (once in each direction)
+ * - Forms complete facet boundaries
+ * - No dangling edges
+ *
+ * @throws std::runtime_error if edge-facet relationships are invalid
+ * @note Essential for watertight mesh generation
  */
 void VoronoiDiagram::checkEdgeFacetCount() const
 {
@@ -754,13 +990,17 @@ void VoronoiDiagram::checkEdgeFacetCount() const
     }
 }
 
-// Helper function to check facet normals
 //! @brief Verifies facet normals point outward.
 /*!
- * Ensures all facet normals in cells point away from
- * the cell's Delaunay vertex, as required for proper orientation.
+ * Validates the orientation consistency of facet normals relative to cell centers.
+ * Ensures proper inside/outside determination for Voronoi cells.
  *
- * @throws std::runtime_error if any normal points inward
+ * Orientation test:
+ * - Uses CGAL's orientation predicate
+ * - Checks normal points away from Delaunay vertex
+ *
+ * @throws std::runtime_error if any facet normal is inward-pointing
+ * @note Critical for correct geometric computations
  */
 void VoronoiDiagram::checkFacetNormals() const
 {
@@ -781,13 +1021,17 @@ void VoronoiDiagram::checkFacetNormals() const
     }
 }
 
-// Helper function to check paired facet orientations
 //! @brief Verifies paired facets have opposite orientations.
 /*!
- * Checks that facets shared between two cells have
- * opposite vertex orderings (clockwise vs counter-clockwise).
+ * Validates the orientation consistency of mirror facets.
+ * Ensures proper surface normal continuity across cell boundaries.
  *
- * @throws std::runtime_error if orientations match
+ * Mirror properties:
+ * - Shared facets must have opposite winding orders
+ * - Maintains consistent surface orientation
+ *
+ * @throws std::runtime_error if mirror facets have same orientation
+ * @note Preserves manifold property of the diagram
  */
 void VoronoiDiagram::checkPairedFacetOrientations() const
 {
