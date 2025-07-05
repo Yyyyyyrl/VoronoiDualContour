@@ -6,7 +6,6 @@
 
 #include "vdc_debug.h"
 #include "vdc_type.h"
-#include "vdc_cube.h"
 #include "vdc_grid.h"
 #include "vdc_voronoi.h"
 #include "vdc_delaunay.h"

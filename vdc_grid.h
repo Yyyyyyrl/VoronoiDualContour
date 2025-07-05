@@ -3,25 +3,35 @@
 #ifndef VDC_GRID_H
 #define VDC_GRID_H
 
-#include "vdc_cube.h"
 #include "vdc_type.h"
 
 // DIM = 3 for a 3D grid
 static const int DIM3 = 3;
 
+//! @brief Represents a cube in 3D space.
+struct Cube {
+    Point repVertex; //!< Representative vertex (world coordinates).
+    Point center;    //!< Center of the cube (world coordinates).
+    int i, j, k;     //!< Grid indices of the cube.
+
+    Cube() : repVertex(0, 0, 0), center(0, 0, 0), i(0), j(0), k(0) {}
+    Cube(Point v, Point c, int ix, int iy, int iz)
+        : repVertex(v), center(c), i(ix), j(iy), k(iz) {}
+};
+
 //! @brief A structure representing a 3D grid for storing scalar data.
 /*!
- * This structure is designed for loading and processing NRRD (nearly raw raster data) format data.
- * It stores the scalar values in a 1D vector and provides metadata about the grid dimensions
- * and voxel spacing.
+ * Combines the functionality of the previous Grid and ScalarGrid structures.
+ * Stores scalar values in both a flattened vector (for NRRD compatibility) and
+ * a 3D array (for efficient access), along with grid dimensions, spacings, and bounds.
  */
-struct Grid
+struct UnifiedGrid
 {
-    //! @brief 1D vector storing the scalar values of the grid.
-    /*!
-     * The values are stored in a flattened format for efficiency.
-     */
-    std::vector<float> data;
+    //! @brief 1D vector storing the scalar values for NRRD compatibility.
+    std::vector<float> flat_data;
+
+    //! @brief 3D vector storing scalar values for efficient access.
+    std::vector<std::vector<std::vector<float>>> data;
 
     //! @brief Number of grid cells along the x, y, and z axes.
     int nx, ny, nz;
@@ -29,84 +39,33 @@ struct Grid
     //! @brief Spacing of the grid cells along the x, y, and z axes.
     float dx, dy, dz;
 
-    //! @brief Print the grid's metadata and data.
-    /*!
-     * This function outputs the grid's dimensions, voxel spacing, and scalar data in a human-readable format.
-     */
-    void print_grid();
-};
-
-//! @brief The Scalar Grid Data structure used in the algorithm.
-/*!
- * This structure represents a 3D grid of scalar values. It provides methods
- * to manipulate and query the scalar data at different grid points.
- */
-struct ScalarGrid
-{
-    //! @brief 3D vector to store scalar values.
-    std::vector<std::vector<std::vector<float>>> data;
-
-    //! @brief Dimensions of the grid along the x, y, and z axes.
-    int nx, ny, nz;
-
-    //! @brief Voxel dimensions along the x, y, and z axes.
-    float dx, dy, dz;
-
     //! @brief Minimum and maximum coordinates of the grid.
     float min_x, min_y, min_z, max_x, max_y, max_z;
 
-    //! @brief Constructor to initialize a scalar grid.
-    /*!
-     * @param nx Number of grid cells along the x-axis.
-     * @param ny Number of grid cells along the y-axis.
-     * @param nz Number of grid cells along the z-axis.
-     * @param dx Voxel size along the x-axis.
-     * @param dy Voxel size along the y-axis.
-     * @param dz Voxel size along the z-axis.
-     * @param min_x Minimum x-coordinate of the grid.
-     * @param min_y Minimum y-coordinate of the grid.
-     * @param min_z Minimum z-coordinate of the grid.
-     */
-    ScalarGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z);
+    //! @brief Constructor to initialize an empty grid.
+    UnifiedGrid() : nx(0), ny(0), nz(0), dx(1.0f), dy(1.0f), dz(1.0f),
+                    min_x(0.0f), min_y(0.0f), min_z(0.0f),
+                    max_x(0.0f), max_y(0.0f), max_z(0.0f) {}
+
+    //! @brief Constructor to initialize a grid with specified dimensions and spacings.
+    UnifiedGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z);
 
     //! @brief Get a scalar value at the specified grid index.
-    /*!
-     * @param x Grid index along the x-axis.
-     * @param y Grid index along the y-axis.
-     * @param z Grid index along the z-axis.
-     * @return Scalar value at the specified index. Returns 0 if the index is out of bounds.
-     */
     float get_value(int x, int y, int z) const;
 
     //! @brief Set a scalar value at the specified grid index.
-    /*!
-     * @param x Grid index along the x-axis.
-     * @param y Grid index along the y-axis.
-     * @param z Grid index along the z-axis.
-     * @param value Scalar value to set at the specified index.
-     */
     void set_value(int x, int y, int z, float value);
 
-    //! @brief Load scalar grid data from an external source.
-    /*!
-     * @param source A 3D vector containing scalar values to load into the grid.
-     */
-    void load_from_source(const std::vector<std::vector<std::vector<float>>> &source);
-
-    //! @brief Get the scalar value at a given point in space.
-    /*!
-     * @param point The 3D point at which to retrieve the scalar value.
-     * @return Scalar value at the given point.
-     */
-    float get_scalar_value_at_point(const Point &point);
+    //! @brief Get the scalar value at a given point in space using trilinear interpolation.
+    float get_scalar_value_at_point(const Point &point) const;
 
     //! @brief Convert a 3D point to its corresponding grid index.
-    /*!
-     * @param point The 3D point to convert.
-     * @return A tuple containing the grid indices (x, y, z).
-     */
-    std::tuple<int, int, int> point_to_grid_index(const Point &point);
+    std::tuple<int, int, int> point_to_grid_index(const Point &point) const;
+
+    //! @brief Print the grid's metadata and data.
+    void print_grid() const;
 };
+
 
 
 //! @brief A structure representing a 2D "facet" of a 3D grid, orthogonal to one axis.
@@ -207,23 +166,16 @@ std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size);
  * @param v2 The end point of the segment.
  * @return A point adjusted to lie within the bounds of the grid.
  */
-Point adjust_outside_bound_points(const Point &p, const ScalarGrid &grid, const Point &v1, const Point &v2);
+Point adjust_outside_bound_points(const Point &p, const UnifiedGrid &grid, const Point &v1, const Point &v2);
 
 /*Preprocessing*/
-
-//! @brief Initializes a `ScalarGrid` from a `Grid` object.
-/*!
- * @param grid The scalar grid to initialize.
- * @param nrrdGrid The input grid containing scalar data.
- */
-void initialize_scalar_grid(ScalarGrid &grid, const Grid &nrrdGrid);
 
 //! @brief Loads NRRD data into a `Grid` structure.
 /*!
  * @param file_path The path to the NRRD file.
  * @return A `Grid` object containing the loaded data.
  */
-Grid load_nrrd_data(const std::string &file_path);
+UnifiedGrid load_nrrd_data(const std::string &file_path);
 
 //! @brief Supersamples a `Grid` by a factor of `n`.
 /*!
@@ -231,7 +183,7 @@ Grid load_nrrd_data(const std::string &file_path);
  * @param n The supersampling factor.
  * @return A supersampled `Grid`.
  */
-Grid supersample_grid(const Grid &grid, int n);
+UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n);
 
 //! @brief Checks if a cube is active based on its scalar values.
 /*!
@@ -242,7 +194,7 @@ Grid supersample_grid(const Grid &grid, int n);
  * @param isovalue The isovalue for activity determination.
  * @return `true` if the cube is active; `false` otherwise.
  */
-bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue);
+bool is_cube_active(const UnifiedGrid &grid, int x, int y, int z, float isovalue);
 
 //! @brief Finds all active cubes in the grid based on an isovalue.
 /*!
@@ -250,15 +202,14 @@ bool is_cube_active(const Grid &grid, int x, int y, int z, float isovalue);
  * @param isovalue The isovalue for activity determination.
  * @param cubes A vector to store the active cubes.
  */
-void find_active_cubes(const Grid &grid, float isovalue, std::vector<Cube> &cubes);
-
+void find_active_cubes(const UnifiedGrid &grid, float isovalue, std::vector<Cube> &cubes);
 
 //! @brief Loads the grid points from a `Grid`.
 /*!
  * @param grid The input grid.
  * @return A vector of points representing the grid points.
  */
-std::vector<Point> load_grid_points(const Grid &grid);
+std::vector<Point> load_grid_points(const UnifiedGrid &grid);
 
 //! @brief Checks if a point is inside the bounds of the grid.
 /*!
@@ -266,7 +217,7 @@ std::vector<Point> load_grid_points(const Grid &grid);
  * @param grid The scalar grid defining the bounds.
  * @return `true` if the point is inside the grid; `false` otherwise.
  */
-bool is_point_inside_grid(const Point &p, const ScalarGrid &grid);
+bool is_point_inside_grid(const Point &p, const UnifiedGrid &grid);
 
 //! @brief Interpolates a point on a line segment based on scalar values.
 /*!
@@ -278,7 +229,8 @@ bool is_point_inside_grid(const Point &p, const ScalarGrid &grid);
  * @param data_grid The grid containing the scalar data.
  * @return The interpolated point.
  */
-Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const Grid &data_grid);
+Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const UnifiedGrid &grid);
+
 
 //! @brief Performs trilinear interpolation at a given point in a scalar grid.
 /*!
@@ -286,15 +238,8 @@ Point interpolate(const Point &p1, const Point &p2, float val1, float val2, floa
  * @param grid The scalar grid containing the data.
  * @return The interpolated scalar value.
  */
-float trilinear_interpolate(const Point &p, const ScalarGrid &grid);
+float trilinear_interpolate(const Point &p, const UnifiedGrid &grid);
 
-//! @brief Performs trilinear interpolation at a given point in a regular grid.
-/*!
- * @param p The point for interpolation.
- * @param grid The regular grid containing the data.
- * @return The interpolated scalar value.
- */
-float trilinear_interpolate(const Point &p, const Grid &grid);
 
 //! @brief Creates grid facets for a given set of active cubes.
 /*!
@@ -302,5 +247,26 @@ float trilinear_interpolate(const Point &p, const Grid &grid);
  * @return A 3D vector of `GRID_FACETS`, grouped by direction and side.
  */
 std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube> &activeCubes);
+
+
+
+
+// Check if two cubes are adjacent in grid space
+bool is_adjacent(const Cube &cubeA, const Cube &cubeB, const UnifiedGrid &grid);
+
+// Calculate unique cube index
+int get_cube_index(const Point &repVertex, const UnifiedGrid &grid);
+
+// Find neighbor indices in grid space
+std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid &grid);
+
+// Get cube centers
+std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes);
+
+// Separate active cubes using greedy approach
+std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes, const UnifiedGrid &grid);
+
+// Separate active cubes using graph-based approach
+std::vector<Cube> separate_active_cubes_graph(std::vector<Cube> &activeCubes, const UnifiedGrid &grid);
 
 #endif

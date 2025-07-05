@@ -43,6 +43,6 @@ void print_cell(Delaunay::Cell c);
  * @param grid The grid containing the dimensions and spacing information.
  * @param dummy_points A vector of points to be written to the CSV file.
  */
-void write_dummy_points(Grid &grid, std::vector<Point> dummy_points);
+void write_dummy_points(UnifiedGrid &grid, std::vector<Point> dummy_points);
 
 #endif // VDC_DEBUG_H

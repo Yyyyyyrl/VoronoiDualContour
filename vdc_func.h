@@ -25,7 +25,7 @@ void computeDualTriangles(
     VoronoiDiagram &vd,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     Delaunay &dt,
-    ScalarGrid &grid,
+    UnifiedGrid &grid,
     float isovalue,
     std::map<Point, int> &pointToIndexMap);
 
@@ -44,7 +44,7 @@ void computeDualTriangles(
 void computeDualTrianglesMulti(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
-    ScalarGrid &grid,
+    UnifiedGrid &grid,
     float isovalue,
     IsoSurface &iso_surface);
 
@@ -70,7 +70,7 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
  * @param data_grid The grid containing input data.
  * @param activeCubeCenters The list of center points of active cubes.
  */
-void Compute_Isosurface_Vertices_Single(ScalarGrid &grid, float isovalue, IsoSurface &iso_surface, Grid &data_grid, std::vector<Point> &activeCubeCenters);
+void Compute_Isosurface_Vertices_Single(UnifiedGrid &grid, float isovalue, IsoSurface &iso_surface, std::vector<Point> &activeCubeCenters);
 
 //! @brief Constructs a Delaunay triangulation from a grid and grid facets.
 /*!
@@ -83,7 +83,7 @@ void Compute_Isosurface_Vertices_Single(ScalarGrid &grid, float isovalue, IsoSur
  * @param vdc_param The VDC_PARAM instance holding user input options.
  * @param activeCubeCenters The list of center points of active cubes.
  */
-void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters);
+void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters);
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 /*!
@@ -93,7 +93,7 @@ void construct_delaunay_triangulation(Delaunay &dt, Grid &grid, const std::vecto
  * @param grid The grid containing data for point computation.
  * @return A vector of points added from the facet.
  */
-std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const Grid &grid);
+std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedGrid &grid);
 
 //! @brief Constructs Voronoi vertices for the given diagram.
 /*!
@@ -130,7 +130,7 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
  * @param voronoiDiagram The Voronoi diagram to compute values for.
  * @param grid The scalar grid containing data.
  */
-void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, ScalarGrid &grid);
+void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, UnifiedGrid &grid);
 
 //! @brief Constructs Voronoi edges from Delaunay facets.
 /*!
@@ -178,7 +178,7 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
  * @param bbox Bounding box of the computational domain.
  * @param dt The Delaunay triangulation.
  */
-void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
+void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, UnifiedGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
 
 //! @brief Wraps up the process of building the isosurface from the Voronoi diagram/Delaunay triangulation.
 /*!
@@ -193,7 +193,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, ScalarG
  * @param activeCubeCenters Active cube centers for single-isovertex mode
  * @param bbox Bounding box for clipping infinite edges
  */
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, ScalarGrid &grid, Grid &data_grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox);
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox);
 
 
 // Helper function declarations (internal linkage)
@@ -247,7 +247,7 @@ static void processRayEdge(
     VoronoiEdge &edge,
     VoronoiDiagram &vd,
     CGAL::Epick::Iso_cuboid_3 &bbox,
-    ScalarGrid &grid,
+    UnifiedGrid &grid,
     float isovalue,
     Delaunay &dt,
     std::vector<DelaunayTriangle> &dualTriangles);
@@ -268,7 +268,7 @@ static void processRayEdge(
 static void processLineEdge(
     const Line3 &line,
     VoronoiEdge &edge,
-    ScalarGrid &grid,
+    UnifiedGrid &grid,
     float isovalue,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     Delaunay &dt,
@@ -339,7 +339,7 @@ static void processRayEdgeMulti(
     const Ray3 &ray,
     std::vector<Facet> dualDelaunayFacets,
     VoronoiDiagram &voronoiDiagram,
-    ScalarGrid &grid,
+    UnifiedGrid &grid,
     float isovalue,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     IsoSurface &iso_surface);
@@ -362,7 +362,7 @@ static void processLineEdgeMulti(
     const Line3 &line,
     std::vector<Facet> dualDelaunayFacets,
     VoronoiDiagram &voronoiDiagram,
-    ScalarGrid &grid,
+    UnifiedGrid &grid,
     float isovalue,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     IsoSurface &iso_surface);
@@ -487,7 +487,7 @@ static void collectCellVertices(Delaunay &dt, Vertex_handle delaunay_vertex, Vor
  * @param edge_to_facets Map tracking which facets share each edge.
  * @return The constructed Voronoi facet, or an empty facet if invalid.
  */
-static VoronoiFacet buildFacetFromEdge(Delaunay &dt, const Edge &ed, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &facet_indices, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
+static VoronoiCellFacet buildFacetFromEdge(Delaunay &dt, const Edge &ed, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &facet_indices, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
 //! @brief Processes incident edges to build facets for a Voronoi cell.
 /*!
  * Iterates over incident edges to construct facets and add them to the cell.
@@ -511,7 +511,7 @@ static void processIncidentEdges(Delaunay &dt, Vertex_handle delaunay_vertex, Vo
  * @param delaunay_points Output vector for all points (original + dummy).
  * @param dummy_points Output vector for dummy points.
  */
-static void collectDelaunayPoints(Grid &grid,
+static void collectDelaunayPoints(UnifiedGrid &grid,
                                   const std::vector<std::vector<GRID_FACETS>> &grid_facets,
                                   const std::vector<Point> &activeCubeCenters,
                                   VDC_PARAM &vdc_param,

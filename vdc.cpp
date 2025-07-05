@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     parse_arguments(argc, argv, vdc_param);
 
     // Load the NRRD data file into a grid structure.
-    Grid data_grid = load_nrrd_data(vdc_param.file_path);
+    UnifiedGrid data_grid = load_nrrd_data(vdc_param.file_path);
 
     // Apply supersampling if requested.
     if (vdc_param.supersample)
@@ -23,10 +23,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Initialize a ScalarGrid using the dimensions and spacing from the data grid.
-    ScalarGrid grid(data_grid.nx, data_grid.ny, data_grid.nz, data_grid.dx, data_grid.dy, data_grid.dz, 0.0, 0.0, 0.0);
-    initialize_scalar_grid(grid, data_grid); // Populate the scalar grid with data.
-
     // Identify active cubes in the grid based on the given isovalue.
     std::vector<Cube> activeCubes;
     find_active_cubes(data_grid, vdc_param.isovalue, activeCubes);
@@ -34,7 +30,7 @@ int main(int argc, char *argv[])
     // Separate active cubes to ensure non-adjacency if requested.
     if (vdc_param.sep_isov)
     {
-        activeCubes = separate_active_cubes_greedy(activeCubes, data_grid.nx, data_grid.ny, data_grid.nz);
+        activeCubes = separate_active_cubes_greedy(activeCubes, data_grid);
     }
 
     // Create grid facets from the active cubes for further processing.
@@ -42,6 +38,8 @@ int main(int argc, char *argv[])
 
     // Extract the centers of the active cubes.
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
+
+    std::cout << "[DEBUG] Number of active cube centers: " << activeCubeCenters.size() << std::endl;
 
     // Load all grid points into a vector for later use.
     std::vector<Point> gridPoints = load_grid_points(data_grid);
@@ -67,14 +65,14 @@ int main(int argc, char *argv[])
     }
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
 
-    //std::cout << dt << std::endl;
+    std::cout << dt << std::endl;
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
     {
         std::cout << "Constructing Voronoi diagram..." << std::endl;
     }
 
-    construct_voronoi_diagram(vd, vdc_param, grid, bbox, dt);
+    construct_voronoi_diagram(vd, vdc_param, data_grid, bbox, dt);
     if (vdc_param.test_vor) {
         // If test_vor is true means in testing mode for voronoi diagram construction, no need for further move
         return EXIT_SUCCESS;
@@ -85,7 +83,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "Constructing Iso Surface..." << std::endl;
     }
-    construct_iso_surface(dt, vd, vdc_param, iso_surface, grid, data_grid, activeCubeCenters, bbox);
+    construct_iso_surface(dt, vd, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox);
 
     write_voronoiDiagram(vd, vdc_param.output_filename);
     // Export the Voronoi diagram to a CSV file if requested.

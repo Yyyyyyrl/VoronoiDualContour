@@ -78,7 +78,7 @@ void print_facet(Facet f)
  * @param grid The grid containing the dimensions and spacing information.
  * @param dummy_points A vector of points to be written to the CSV file.
  */
-void write_dummy_points(Grid &grid, std::vector<Point> dummy_points)
+void write_dummy_points(UnifiedGrid &grid, std::vector<Point> dummy_points)
 {
     // Temporary method for writing dummy points to a CSV file.
     // This is always executed since the `if (true)` condition is hardcoded.
