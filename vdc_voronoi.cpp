@@ -214,7 +214,7 @@ int VoronoiDiagram::AddLineEdge(const Line3& line) {
  */
 int VoronoiDiagram::AddFacet(const std::vector<int>& vertices_indices) {
     // Create new facet
-    VoronoiFacet facet;
+    VoronoiCellFacet facet;
     facet.vertices_indices = vertices_indices;
     facet.mirror_facet_index = -1;  // Initialize with no mirror facet
     
@@ -789,7 +789,7 @@ void VoronoiDiagram::checkCellFacets() const
                 throw std::runtime_error("Facet index out of range.");
             }
 
-            const VoronoiFacet &facet = facets[fIdx];
+            const VoronoiCellFacet &facet = facets[fIdx];
             for (int vIdx : facet.vertices_indices)
             {
                 if (cellVertexSet.find(vIdx) == cellVertexSet.end())

@@ -82,13 +82,13 @@ struct MidpointNode
  * A Voronoi facet is defined by a list of vertices and their scalar values.
  * Facets are part of Voronoi cells.
  */
-struct VoronoiFacet
+struct VoronoiCellFacet
 {
     std::vector<int> vertices_indices; //!< Indices of vertices forming this facet, ordered.
     int mirror_facet_index = -1;       //!< Index of the mirror facet in the adjacent cell
-
+    int facet_index = -1;              //!< Index of the facet within the VoronoiDiagram
     //! @brief Default constructor.
-    VoronoiFacet() = default;
+    VoronoiCellFacet() = default;
 };
 
 //! @brief Represents a closed cycle in a Voronoi cell formed by midpoints.
@@ -173,10 +173,10 @@ struct TupleHash
 struct VoronoiDiagram
 {
     std::vector<VoronoiVertex> vertices;                //!< List of Voronoi vertices in the diagram.
-    std::vector<VoronoiEdge> edges;                    //!< List of edges in the diagram
+    std::vector<VoronoiEdge> edges;                     //!< List of edges in the diagram
     std::vector<VoronoiCellEdge> cellEdges;             //!< List of Cell Edges in the diagram
     std::vector<VoronoiCell> cells;                     //!< List of Voronoi cells in the diagram.
-    std::vector<VoronoiFacet> facets;                   //!< List of facets in the diagram.
+    std::vector<VoronoiCellFacet> facets;               //!< List of facets in the diagram.
 
     std::unordered_map<std::tuple<int, int, int>, std::vector<int>, TupleHash> vertexMap;   //!< A hash map with keys are a computed tuple of a Point(x,y,z) and value being the index of the Voronoi vertex in vertices with coordinates(x,y,z)
 
@@ -379,7 +379,7 @@ struct LineKeyComparator
 
 //! @brief Overloaded output operator for VoronoiFacet.
 template <typename OSTREAM_TYPE>
-OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiFacet &vf)
+OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiCellFacet &vf)
 {
     os << "VoronoiFacet:\n";
     os << "  Vertices indices: ";
