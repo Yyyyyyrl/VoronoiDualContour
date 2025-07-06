@@ -955,37 +955,36 @@ void VoronoiDiagram::checkFacetCellCount() const
  * @throws std::runtime_error if edge-facet relationships are invalid
  * @note Essential for watertight mesh generation
  */
-void VoronoiDiagram::checkEdgeFacetCount() const
-{
-    for (const auto &cell : cells)
-    {
-        std::map<std::pair<int, int>, int> orientedCount;
-        for (int fi : cell.facet_indices)
-        {
-            auto const &V = facets[fi].vertices_indices;
-            int M = (int)V.size();
-            for (int k = 0; k < M; ++k)
-            {
-                int u = V[k], v = V[(k + 1) % M];
-                orientedCount[{u, v}]++;
+void VoronoiDiagram::checkEdgeFacetCount() const {
+    for (const auto &cell : cells) {
+        std::map<std::pair<int, int>, int> edge_count;
+        for (int facet_idx : cell.facet_indices) {
+            const auto &vertices = facets[facet_idx].vertices_indices;
+            for (size_t i = 0; i < vertices.size(); ++i) {
+                int u = vertices[i];
+                int v = vertices[(i + 1) % vertices.size()];
+                std::pair<int, int> edge = {std::min(u, v), std::max(u, v)};
+                edge_count[edge]++;
             }
         }
-        std::set<std::pair<int, int>> seen;
-        for (auto const &kv : orientedCount)
-        {
-            auto uv = kv.first;
-            auto cnt_uv = kv.second;
-            auto vu = std::make_pair(uv.second, uv.first);
-            if (seen.count(uv) || seen.count(vu))
-                continue;
-            int cnt_vu = orientedCount.count(vu) ? orientedCount.at(vu) : 0;
-            if (cnt_uv + cnt_vu != 2 || cnt_uv != 1 || cnt_vu != 1)
-                throw std::runtime_error("In cell " + std::to_string(cell.cellIndex) +
-                                         " edge {" + std::to_string(uv.first) + "," +
-                                         std::to_string(uv.second) +
-                                         "} does not appear exactly twice with opposite orientations.");
-            seen.insert(uv);
-            seen.insert(vu);
+        for (const auto &[edge, count] : edge_count) {
+            if (count == 2) { // Internal edge
+                int u = edge.first;
+                int v = edge.second;
+                int uv_count = 0, vu_count = 0;
+                for (int facet_idx : cell.facet_indices) {
+                    const auto &vertices = facets[facet_idx].vertices_indices;
+                    for (size_t i = 0; i < vertices.size(); ++i) {
+                        if (vertices[i] == u && vertices[(i + 1) % vertices.size()] == v) uv_count++;
+                        if (vertices[i] == v && vertices[(i + 1) % vertices.size()] == u) vu_count++;
+                    }
+                }
+                if (uv_count != 1 || vu_count != 1) {
+                    throw std::runtime_error("In cell " + std::to_string(cell.cellIndex) + 
+                                             " edge {" + std::to_string(u) + "," + std::to_string(v) + 
+                                             "} does not have opposite orientations.");
+                }
+            }
         }
     }
 }
