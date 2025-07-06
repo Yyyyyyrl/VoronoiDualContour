@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 
     // Define the bounding box of the grid.
     Point p_min(0, 0, 0);
-    Point p_max(data_grid.nx - 1, data_grid.ny - 1, data_grid.nz - 1);
+    Point p_max(data_grid.max_x, data_grid.max_y, data_grid.max_z);
     K::Iso_cuboid_3 bbox(p_min, p_max);
 
     if (debug) // Print the bounding box dimensions if debugging is enabled.
