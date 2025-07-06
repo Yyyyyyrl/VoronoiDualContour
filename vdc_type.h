@@ -425,8 +425,10 @@ struct PointApproxEqual
      */
     bool operator()(const Point &p1, const Point &p2) const
     {
-        const double EPSILON = 1e-6;
-        return (CGAL::squared_distance(p1, p2) < EPSILON * EPSILON);
+        const double eps = 5e-5;
+        return (std::abs(p1.x() - p2.x()) < eps) &&
+           (std::abs(p1.y() - p2.y()) < eps) &&
+           (std::abs(p1.z() - p2.z()) < eps);
     }
 };
 
