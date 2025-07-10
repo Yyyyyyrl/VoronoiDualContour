@@ -39,10 +39,7 @@ int main(int argc, char *argv[])
     // Extract the centers of the active cubes.
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
 
-    std::cout << "[DEBUG] Number of active cube centers: " << activeCubeCenters.size() << std::endl;
-
-    // Load all grid points into a vector for later use.
-    std::vector<Point> gridPoints = load_grid_points(data_grid);
+    std::cout << "[INFO] Number of active cube centers: " << activeCubeCenters.size() << std::endl;
 
     // Define the bounding box of the grid.
     Point p_min(0, 0, 0);
@@ -51,7 +48,7 @@ int main(int argc, char *argv[])
 
     if (debug) // Print the bounding box dimensions if debugging is enabled.
     {
-        std::cout << "Bounding box: ("
+        std::cout << "[DEBUG] Bounding box: ("
                   << bbox.min() << ") to ("
                   << bbox.max() << ")" << std::endl;
     }
@@ -61,7 +58,7 @@ int main(int argc, char *argv[])
     // Construct the Delaunay triangulation using the grid facets.
     if (indicator)
     {
-        std::cout << "Constructing Delaunay triangulation..." << std::endl;
+        std::cout << "[INFO] Constructing Delaunay triangulation..." << std::endl;
     }
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
 
@@ -69,7 +66,7 @@ int main(int argc, char *argv[])
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
     {
-        std::cout << "Constructing Voronoi diagram..." << std::endl;
+        std::cout << "[INFO] Constructing Voronoi diagram..." << std::endl;
     }
 
     construct_voronoi_diagram(vd, vdc_param, data_grid, bbox, dt);
@@ -81,20 +78,11 @@ int main(int argc, char *argv[])
 
     if (indicator)
     {
-        std::cout << "Constructing Iso Surface..." << std::endl;
+        std::cout << "[INFO] Constructing Iso Surface..." << std::endl;
     }
     construct_iso_surface(dt, vd, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox);
 
     write_voronoiDiagram(vd, vdc_param.output_filename);
-    // Export the Voronoi diagram to a CSV file if requested.
-
-    if (vdc_param.out_csv)
-    {
-        std::cout << "Export Voronoi Diagram" << std::endl;
-        export_voronoi_to_csv(vd, vdc_param.out_csv_name);
-    }
-
-    std::cout << "[DEBUG]" << iso_surface;
 
     // Handle the output mesh generation and return the appropriate status.
     bool retFlag;
@@ -102,7 +90,7 @@ int main(int argc, char *argv[])
     if (retFlag)
         return retVal;
 
-    std::cout << "Finished" << std::endl;
+    std::cout << "Finished." << std::endl;
 
     return EXIT_SUCCESS;
 }
