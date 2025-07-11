@@ -274,7 +274,7 @@ private:
 };
 
 // Add standalone function declaration at the end of vdc_voronoi.h
-VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox);
+VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
 
 //! @brief Represents an isosurface in the domain.
 /*!

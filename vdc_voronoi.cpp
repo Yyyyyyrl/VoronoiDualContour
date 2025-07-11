@@ -514,6 +514,21 @@ static void rebuildEdges(VoronoiDiagram& vd, std::vector<int> &oldToNewVertexInd
     }
 }
 
+std::vector<int> update_facet_vertices(const std::vector<int>& old_vertices, const std::vector<int>& oldToNewVertexIndex) {
+    std::vector<int> new_vertices;
+    for (int old_v : old_vertices) {
+        int new_v = oldToNewVertexIndex[old_v];
+        if (new_vertices.empty() || new_v != new_vertices.back()) {
+            new_vertices.push_back(new_v);
+        }
+    }
+    if (new_vertices.size() > 1 && new_vertices.front() == new_vertices.back()) {
+        new_vertices.pop_back();
+    }
+    return new_vertices;
+}
+
+
 // Standalone function to collapse small edges
 //! @brief Collapses small edges in a Voronoi diagram.
 /*!
@@ -525,33 +540,41 @@ static void rebuildEdges(VoronoiDiagram& vd, std::vector<int> &oldToNewVertexInd
  * @param bbox Bounding box of the diagram (unused)
  * @return New Voronoi diagram with small edges collapsed
  */
-VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, const CGAL::Epick::Iso_cuboid_3& bbox) {
-    // Create a copy of the input VoronoiDiagram
+VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, const CGAL::Epick::Iso_cuboid_3& bbox, Delaunay& dt)
+{
     VoronoiDiagram vd = input_vd;
 
     std::cout << "[DEBUG] Starting collapseSmallEdges with D = " << D << "\n";
     std::cout << "[DEBUG] Initial vertex count: " << vd.vertices.size() << ", edge count: " << vd.edges.size() << "\n";
 
-    // Initialize union-find structure
     std::vector<int> mapto(vd.vertices.size());
     for (size_t i = 0; i < mapto.size(); ++i) {
         mapto[i] = i;
     }
 
-    // Process edges to mark vertices for merging
     processEdges(vd, mapto, D);
 
-    // Perform path compression
     std::cout << "[DEBUG] Performing path compression\n";
     compressMapping(mapto);
 
     std::vector<int> oldToNewVertexIndex;
-    // Rebuild vertices
     std::cout << "[DEBUG] Rebuilding vertices\n";
     rebuildVertices(vd, mapto, oldToNewVertexIndex);
     std::cout << "[DEBUG] New vertex count: " << vd.vertices.size() << "\n";
 
-    // Rebuild vertexMap
+    for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
+    {
+        int original_idx = cit->info().dualVoronoiVertexIndex;
+        if (original_idx >= 0 && original_idx < oldToNewVertexIndex.size())
+        {
+            cit->info().dualVoronoiVertexIndex = oldToNewVertexIndex[original_idx];
+        }
+        else
+        {
+            std::cerr << "[ERROR] Invalid original dualVoronoiVertexIndex: " << original_idx << "\n";
+        }
+    }
+
     vd.vertexMap.clear();
     const double SCALE_FACTOR = 1e6;
     for (size_t i = 0; i < vd.vertices.size(); ++i) {
@@ -563,21 +586,46 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, cons
         vd.vertexMap[key].push_back(i);
     }
 
-    // Rebuild edges
     std::cout << "[DEBUG] Rebuilding edges with duplicate removal\n";
     rebuildEdges(vd, oldToNewVertexIndex);
     std::cout << "[DEBUG] New edge count: " << vd.edges.size() << "\n";
-    std::cout << "[DEBUG] Cleared segmentVertexPairToEdgeIndex\n";
 
-    // Clear cell edges and related mappings (since cells/facets may need reconstruction)
+    std::vector<VoronoiCellFacet> new_facets;
+    std::vector<int> old_to_new_facet_index(vd.facets.size(), -1);
+    for (size_t i = 0; i < vd.facets.size(); ++i) {
+        std::vector<int> new_vertices = update_facet_vertices(vd.facets[i].vertices_indices, oldToNewVertexIndex);
+        if (new_vertices.size() >= 3) {
+            VoronoiCellFacet new_facet;
+            new_facet.vertices_indices = new_vertices;
+            new_facet.mirror_facet_index = -1;
+            old_to_new_facet_index[i] = new_facets.size();
+            new_facets.push_back(new_facet);
+        }
+    }
+    vd.facets = std::move(new_facets);
+
+    for (size_t i = 0; i < vd.cells.size(); ++i) {
+        std::vector<int> new_facet_indices;
+        for (int f_idx : vd.cells[i].facet_indices) {
+            int new_f_idx = old_to_new_facet_index[f_idx];
+            if (new_f_idx != -1) {
+                new_facet_indices.push_back(new_f_idx);
+            }
+        }
+        vd.cells[i].facet_indices = new_facet_indices;
+
+        std::set<int> new_vertices;
+        for (int v_idx : vd.cells[i].vertices_indices) {
+            new_vertices.insert(oldToNewVertexIndex[v_idx]);
+        }
+        vd.cells[i].vertices_indices.assign(new_vertices.begin(), new_vertices.end());
+    }
+
     vd.cellEdges.clear();
     vd.cellEdgeLookup.clear();
-    vd.cells.clear();
-    vd.facets.clear();
 
     return vd;
 }
-
 
 
 //! @brief Checks internal consistency of the VoronoiDiagram.
