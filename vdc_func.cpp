@@ -757,6 +757,7 @@ static void connectMidpoints(
     const std::vector<std::vector<int>> &facet_midpoint_indices,
     std::vector<MidpointNode> &midpoints)
 {
+    // Currently No-op here, the connecting is also done in collectMidpoints
 /*     for (const auto &facet_midpoints : facet_midpoint_indices)
     {
         size_t num_midpoints = facet_midpoints.size();
