@@ -1349,57 +1349,52 @@ static VoronoiCellFacet buildFacetFromEdge(
         ++cc;
     } while (cc != start);
 
-    std::set<int> unique_vertices(facetVertexIndices.begin(), facetVertexIndices.end());
-    std::vector<int> uniqueFacetVertices(facetVertexIndices.begin(), facetVertexIndices.end());
-    if (uniqueFacetVertices.size() >= 3)
-    {
-        Point p0 = v1->point();
-        Point p1 = v2->point();
-        orderFacetVertices(uniqueFacetVertices, p0, p1, voronoiDiagram.vertices);
-
-        Point centroid(0, 0, 0);
-        for (int idx : uniqueFacetVertices)
-        {
-            centroid = centroid + (voronoiDiagram.vertices[idx].coord - CGAL::ORIGIN);
-        }
-        centroid = CGAL::ORIGIN + (centroid - CGAL::ORIGIN) / uniqueFacetVertices.size();
-        Point cell_center = delaunay_vertex->point();
-        Vector3 normal = CGAL::cross_product(
-            voronoiDiagram.vertices[uniqueFacetVertices[1]].coord - voronoiDiagram.vertices[uniqueFacetVertices[0]].coord,
-            voronoiDiagram.vertices[uniqueFacetVertices[2]].coord - voronoiDiagram.vertices[uniqueFacetVertices[0]].coord);
-        Vector3 v = centroid - cell_center;
-        if (CGAL::scalar_product(normal, v) < 0)
-        {
-            std::reverse(uniqueFacetVertices.begin() + 1, uniqueFacetVertices.end());
-        }
-
-        VoronoiCellFacet facet;
-        facet.vertices_indices = uniqueFacetVertices;
-
-        int facetIndex = voronoiDiagram.facets.size();
-        voronoiDiagram.facets.push_back(facet);
-        facet_indices.push_back(facetIndex);
-        std::pair<int, int> edge_key = std::make_pair(
-            std::min(v1->info().index, v2->info().index),
-            std::max(v1->info().index, v2->info().index));
-        edge_to_facets[edge_key].push_back(facetIndex);
-        return facet;
-    }
-    else
+    if (facetVertexIndices.size() < 3)
     {
         std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells\n";
-        std::cout << "Original Voronoi vertices:\n";
-        for (const auto &idx : facetVertexIndices)
-        {
-            const auto &v = voronoiDiagram.vertices[idx];
-            std::cout << "  (" << v.coord.x() << ", " << v.coord.y() << ", " << v.coord.z() << ")\n";
-        }
-        std::cout << "Unique indices: ";
-        for (int idx : unique_vertices)
+        std::cout << "Vertex indices: ";
+        for (const int idx : facetVertexIndices)
             std::cout << idx << " ";
         std::cout << "\n";
-        return VoronoiCellFacet();
+        return VoronoiCellFacet(); // Skip degenerate
     }
+
+    // Use the circulator order directly (cyclic)
+    std::vector<int> uniqueFacetVertices = facetVertexIndices;
+
+    // Compute centroid for orientation check
+    Point centroid(0, 0, 0);
+    for (int idx : uniqueFacetVertices)
+    {
+        centroid = centroid + (voronoiDiagram.vertices[idx].coord - CGAL::ORIGIN);
+    }
+    centroid = CGAL::ORIGIN + (centroid - CGAL::ORIGIN) / uniqueFacetVertices.size();
+
+    // Compute normal from first three points
+    Point cell_center = delaunay_vertex->point();
+    const auto &P0 = voronoiDiagram.vertices[uniqueFacetVertices[0]].coord;
+    const auto &P1 = voronoiDiagram.vertices[uniqueFacetVertices[1]].coord;
+    const auto &P2 = voronoiDiagram.vertices[uniqueFacetVertices[2]].coord;
+    Vector3 normal = CGAL::cross_product(P1 - P0, P2 - P0);
+    Vector3 v = centroid - cell_center;
+
+    // If scalar product <0, normal points inward, reverse the order
+    if (CGAL::scalar_product(normal, v) < 0)
+    {
+        std::reverse(uniqueFacetVertices.begin(), uniqueFacetVertices.end());
+    }
+
+    VoronoiCellFacet facet;
+    facet.vertices_indices = uniqueFacetVertices;
+
+    int facetIndex = voronoiDiagram.facets.size();
+    voronoiDiagram.facets.push_back(facet);
+    facet_indices.push_back(facetIndex);
+    std::pair<int, int> edge_key = std::make_pair(
+        std::min(v1->info().index, v2->info().index),
+        std::max(v1->info().index, v2->info().index));
+    edge_to_facets[edge_key].push_back(facetIndex);
+    return facet;
 }
 
 //! @brief Processes incident edges to build facets for a Voronoi cell.
