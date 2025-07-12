@@ -17,7 +17,7 @@ endif()
 find_package(CGAL REQUIRED COMPONENTS Core)
 find_package(ZLIB REQUIRED)
 
-# Teem doesn’t ship a CMake config, so we try:
+# Teem doesn’t ship a CMake config, so try:
 #  1) an optional TEEM_ROOT hint
 #  2) fallback to find_path/find_library
 option(TEEM_ROOT "Root directory of your Teem install" "")
@@ -45,12 +45,16 @@ message(STATUS "Found Teem lib:     ${TEEM_LIBRARY}")
 # (CGAL::CGAL already brings in its include dirs)
 include_directories(${TEEM_INCLUDE_DIR})
 
-# ─── Source files & executable ───────────────────────────────────────────────
-file(GLOB_RECURSE VDC_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/vdc*.cpp"
+# ─── Common source files (all vdc*.cpp except vdc.cpp) ───────────────────────
+file(GLOB_RECURSE COMMON_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/vdc_*.cpp"  # Matches vdc_* but not vdc.cpp
 )
 
-add_executable(vdc ${VDC_SOURCES})
+# ─── Main executable ─────────────────────────────────────────────────────────
+add_executable(vdc vdc.cpp ${COMMON_SOURCES})
+
+# ─── Test executable ─────────────────────────────────────────────────────────
+add_executable(test_vor test_vor.cpp ${COMMON_SOURCES})
 
 # ─── Link libraries ──────────────────────────────────────────────────────────
 target_link_libraries(vdc
@@ -60,8 +64,15 @@ target_link_libraries(vdc
       ${TEEM_LIBRARY}
 )
 
+target_link_libraries(test_vor
+    PRIVATE
+      CGAL::CGAL
+      ZLIB::ZLIB
+      ${TEEM_LIBRARY}
+)
+
 # ─── Installation (optional) ─────────────────────────────────────────────────
-install(TARGETS vdc
+install(TARGETS vdc test_vor
         RUNTIME DESTINATION bin
 )
 
@@ -71,3 +82,4 @@ message(STATUS "  mkdir build && cd build")
 message(STATUS "  cmake ..")
 message(STATUS "  make")
 message(STATUS "  ./vdc [your options]")
+message(STATUS "  ./test_vor [options]")

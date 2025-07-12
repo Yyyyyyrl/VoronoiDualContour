@@ -1,183 +1,133 @@
 #include "test_vor.h"
+#include "vdc_utilities.h"  // For readPointsFromFile and write_voronoiDiagram
 
 void print_message()
 {
-    std::cout << "Usage: test_vor <input points file path ( in txt )> <output filename(without extension)>\n";
-    std::cout << "- The input file should contains point coordinates in a txt file where each point takes one line\n";
-    std::cout << "- This testing program will read the points from the txt file, build a delaunay triangulation and construct a voronoi diagram.\n";
-    std::cout << "- The output will also be a txt file contains the voronoi diagram constructed";
+    std::cout << "Usage for TXT: test_vor <input points file path (in txt)> <output filename (without extension)>\n";
+    std::cout << "Usage for NRRD/NHDR: test_vor <isovalue> <input nrrd/nhdr file path> <output filename (without extension)>\n";
+    std::cout << "- For TXT: The input file should contain point coordinates where each point takes one line in format x,y,z\n";
+    std::cout << "- For NRRD/NHDR: Provide isovalue first, then file path.\n";
+    std::cout << "- This testing program will build a Delaunay triangulation and construct a Voronoi diagram.\n";
+    std::cout << "- The output will be a txt file containing the Voronoi diagram if the validity check is passed, otherwise there will be an error.\n";
 }
 
-bool readPointsFromFile(const std::string &filename, std::vector<Point> &points)
-{
-    std::ifstream file(filename);
-    if (!file)
-    {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-        return false;
+bool is_nrrd_file(const std::string& filename) {
+    size_t dot_pos = filename.find_last_of('.');
+    if (dot_pos != std::string::npos) {
+        std::string ext = filename.substr(dot_pos);
+        return (ext == ".nrrd" || ext == ".nhdr");
     }
-
-    std::string line;
-    while (std::getline(file, line))
-    {
-        std::stringstream ss(line);
-        double x, y, z;
-        char comma1, comma2;
-
-        if (!(ss >> x >> comma1 >> y >> comma2 >> z) || comma1 != ',' || comma2 != ',')
-        {
-            std::cerr << "Warning: Skipping invalid line: " << line << std::endl;
-            continue;
-        }
-
-        points.emplace_back(x, y, z);
-    }
-
-    file.close();
-    return true;
-}
-
-void write_triangulation(Delaunay dt, std::vector<Point> &points, std::string &input_filename)
-{
-    // Save points and edges to file
-    std::ofstream file("triangulation.txt");
-    if (!file)
-    {
-        std::cerr << "Error opening output file.\n";
-        exit(EXIT_FAILURE);
-    }
-
-    // Write points
-    file << "POINTS\n";
-    for (const auto &p : points)
-    {
-        file << p.x() << " " << p.y() << " " << p.z() << "\n";
-    }
-
-    // Write edges
-    file << "EDGES\n";
-    for (auto e = dt.finite_edges_begin(); e != dt.finite_edges_end(); ++e)
-    {
-        auto v1 = e->first->vertex(e->second);
-        auto v2 = e->first->vertex(e->third);
-        file << v1->point().x() << " " << v1->point().y() << " " << v1->point().z() << " ";
-        file << v2->point().x() << " " << v2->point().y() << " " << v2->point().z() << "\n";
-    }
-
-    file.close();
-    std::cout << "Triangulation saved to triangulation.txt\n";
-}
-
-void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
-    std::ofstream file("voronoiDiagram.txt");
-    if (!file) {
-        std::cerr << "Error opening output file.\n";
-        exit(EXIT_FAILURE);
-    }
-
-    //Write points
-    file << "VoronoiDiagram:\n";
-
-    // 1. Voronoi Vertices
-    file << "\nVoronoiVertices:\n";
-    for (size_t i = 0; i < vd.vertices.size(); ++i)
-    {
-        file << "Index " << i << ":\n";
-        file << vd.vertices[i];
-    }
-
-    // 2. Voronoi Edges
-    file << "\nVoronoiEdges:\n";
-    for (const auto &edge : vd.edges)
-    {
-        file << "  Edge: ";
-        Segment3 segment;
-        Line3 line;
-        Ray3 ray;
-
-        if (CGAL::assign(segment, edge))
-        {
-            file << "Segment(" << segment.source() << " - " << segment.target() << ")\n";
-        }
-        else if (CGAL::assign(line, edge))
-        {
-            file << "Line(" << line.point(0) << " - " << line.point(1) << ")\n";
-        }
-        else if (CGAL::assign(ray, edge))
-        {
-            file << "Ray(" << ray.source() << ", direction: " << ray.direction() << ")\n";
-        }
-        else
-        {
-            file << "Unknown edge type.\n";
-        }
-    }
-
-    // 5. Voronoi Cells
-    file << "\nVoronoiCells:\n";
-    for (const auto &cell : vd.cells)
-    {
-        file << "\n" << cell;
-    }
-
-    // 4. Voronoi Facets
-    file << "\nVoronoiFacets:\n";
-    for (size_t i = 0; i < vd.facets.size(); ++i)
-    {
-        file << "Index " << i << ":\n";
-        file << vd.facets[i];
-    }
-
-    file.close();
-    std::cout << "voronoi diagram saved to voronoiDiagram.txt\n";
+    return false;
 }
 
 int main(int argc, char *argv[])
 {
-    Delaunay dt;
-    VoronoiDiagram vd;
-    std::map<Point, int> pointindexmap;
-
-    if (argc < 2)
-    {
+    if (argc < 3 || argc > 4) {
         print_message();
         exit(EXIT_FAILURE);
     }
 
-    std::string input_filename = argv[1];
-    std::string output_filename = argv[2];
+    Delaunay dt;
+    VoronoiDiagram vd;
+    std::string output_filename;
+    K::Iso_cuboid_3 bbox;
+    VDC_PARAM vdc_param; // Hardcode for test
+    vdc_param.multi_isov = true;
+    vdc_param.convex_hull = true;
 
     std::vector<Point> input_points;
+    UnifiedGrid data_grid;
+    std::vector<Cube> activeCubes;
+    std::vector<std::vector<GRID_FACETS>> grid_facets;
+    std::vector<Point> activeCubeCenters;
 
-    if (readPointsFromFile(input_filename, input_points))
-    {
+    bool is_nrrd = false;
+    float isovalue = 0.0f;
+    std::string input_filename;
+
+    if (argc == 3) {
+        // TXT mode
+        input_filename = argv[1];
+        output_filename = argv[2];
+        if (is_nrrd_file(input_filename)) {
+            std::cerr << "For NRRD/NHDR, provide isovalue as first argument.\n";
+            print_message();
+            exit(EXIT_FAILURE);
+        }
+        if (!readPointsFromFile(input_filename, input_points)) {
+            std::cerr << "Failed to read points from file." << std::endl;
+            exit(EXIT_FAILURE);
+        }
         std::cout << "Successfully read " << input_points.size() << " points." << std::endl;
+
+        // Compute bbox from points with small epsilon padding
+        if (input_points.empty()) {
+            std::cerr << "No points to process." << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        double eps = 1e-6;
+        double minx = input_points[0].x(), miny = input_points[0].y(), minz = input_points[0].z();
+        double maxx = minx, maxy = miny, maxz = minz;
+        for (const auto& p : input_points) {
+            minx = std::min(minx, p.x());
+            miny = std::min(miny, p.y());
+            minz = std::min(minz, p.z());
+            maxx = std::max(maxx, p.x());
+            maxy = std::max(maxy, p.y());
+            maxz = std::max(maxz, p.z());
+        }
+        Point p_min(minx - eps, miny - eps, minz - eps);
+        Point p_max(maxx + eps, maxy + eps, maxz + eps);
+        bbox = K::Iso_cuboid_3(p_min, p_max);
+
+        // Insert points into DT (no dummies for TXT)
+        for (size_t i = 0; i < input_points.size(); ++i) {
+            Vertex_handle vh = dt.insert(input_points[i]);
+            vh->info().index = i;
+            vh->info().is_dummy = false;
+        }
+    } else { // argc == 4, NRRD mode
+        isovalue = std::atof(argv[1]);
+        input_filename = argv[2];
+        output_filename = argv[3];
+        if (!is_nrrd_file(input_filename)) {
+            std::cerr << "Expected NRRD/NHDR file for 4 arguments.\n";
+            print_message();
+            exit(EXIT_FAILURE);
+        }
+        data_grid = load_nrrd_data(input_filename);
+        vdc_param.isovalue = isovalue;
+        find_active_cubes(data_grid, isovalue, activeCubes);
+        grid_facets = create_grid_facets(activeCubes);
+        activeCubeCenters = get_cube_centers(activeCubes);
+
+        Point p_min(data_grid.min_x, data_grid.min_y, data_grid.min_z);
+        Point p_max(data_grid.max_x, data_grid.max_y, data_grid.max_z);
+        bbox = K::Iso_cuboid_3(p_min, p_max);
+
+        construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
+        is_nrrd = true;
     }
-    else
-    {
-        std::cerr << "Failed to read points from file." << std::endl;
-    }
 
-    dt.insert(input_points.begin(), input_points.end());
-
-    write_triangulation(dt, input_points, input_filename);
-
-    int index = 0;
-    for (const auto &pt : input_points) {
-        pointindexmap[pt] = index;
-        index++;
-    }
-
-    std::map<Object, std::vector<Facet>, ObjectComparator> voronoi_edge_to_delaunay_facet_map;
-
+    // Construct Voronoi diagram (skip values as not needed for test)
     construct_voronoi_vertices(vd, dt);
-    construct_voronoi_edges(vd, voronoi_edge_to_delaunay_facet_map, dt);
-    std::cout << vd <<std::endl;
-    //construct_voronoi_cells(vd,dt);
-    construct_voronoi_cells_non_convex_hull(vd,dt);
-    std::cout << "Checkpoint 3" << std::endl;
+    construct_voronoi_edges(vd, dt);
+    if (vdc_param.multi_isov) {
+        if (vdc_param.convex_hull) {
+            construct_voronoi_cells_as_convex_hull(vd, dt);
+        } else {
+            construct_voronoi_cells_from_delaunay_triangulation(vd, dt);
+        }
+    }
+    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox, dt);
+    vd2.check();
+    vd = std::move(vd2);
+    if (vdc_param.multi_isov) {
+        construct_voronoi_cell_edges(vd, bbox, dt);
+    }
 
+    // Write output
     write_voronoiDiagram(vd, output_filename);
 
-
+    return EXIT_SUCCESS;
 }
