@@ -70,6 +70,14 @@ struct CELL_INFO
     int index;                  //!< Unique index of this cell in the triangulation
 };
 
+//! @brief Enum indicating the method for matching bipolar edges on a facet.
+enum class BIPOLAR_MATCH_METHOD {
+    SEP_POS,               // Separate positive regions: pair neg->pos to next pos->neg.
+    SEP_NEG,               // Separate negative regions: pair pos->neg to next neg->pos.
+    UNCONSTRAINED_MATCH,   // Arbitrary pairing (e.g., consecutive pairs without sign consideration).
+    UNDEFINED_MATCH_TYPE   // Undefined or error state.
+};
+
 //! @brief Vertex base for triangulations with additional information.
 typedef CGAL::Triangulation_vertex_base_with_info_3<VERTEX_INFO, K> Vb;
 
