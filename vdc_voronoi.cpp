@@ -452,58 +452,94 @@ static void rebuildVertices(VoronoiDiagram& vd, const std::vector<int>& mapto, s
  * @note Rebuilds segmentVertexPairToEdgeIndex lookup table
  */
 static void rebuildEdges(VoronoiDiagram& vd, std::vector<int> &oldToNewVertexIndex) {
-    std::map<std::pair<int, int>, int> segmentMap;
-    std::set<VoronoiEdge> rayLineSet;
+    std::map<std::pair<int, int>, size_t> segmentMap;
+    std::map<std::pair<Point, Vector3>, size_t, RayKeyComparator> rayMap;
+    std::map<std::pair<Point, Vector3>, size_t, LineKeyComparator> lineMap;
 
-    // Process all edges to identify unique ones
-    for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx) {
-        const auto& edge = vd.edges[edgeIdx];
-        Segment3 seg;
-        Ray3 ray;
-        Line3 line;
+    std::vector<VoronoiEdge> newEdges;
 
-        if (CGAL::assign(seg, edge.edgeObject)) {
-            // Handle segments using vertex indices
-            int oldIdx1 = edge.vertex1;
-            int oldIdx2 = edge.vertex2;
-            if (oldIdx1 >= 0 && oldIdx2 >= 0) {
-                int newIdx1 = oldToNewVertexIndex[oldIdx1];
-                int newIdx2 = oldToNewVertexIndex[oldIdx2];
-                if (newIdx1 != newIdx2) { // Skip collapsed edges (same vertex)
-                    int v1 = std::min(newIdx1, newIdx2);
-                    int v2 = std::max(newIdx1, newIdx2);
-                    if (segmentMap.find({v1, v2}) == segmentMap.end()) {
-                        segmentMap[{v1, v2}] = edgeIdx;
+    for (const VoronoiEdge& oldEdge : vd.edges) {
+        VoronoiEdge newEdge = oldEdge;
+
+        if (oldEdge.type == 0) {
+            int newV1 = oldToNewVertexIndex[oldEdge.vertex1];
+            int newV2 = oldToNewVertexIndex[oldEdge.vertex2];
+            if (newV1 == newV2) continue;
+            int minV = std::min(newV1, newV2);
+            int maxV = std::max(newV1, newV2);
+            auto it = segmentMap.find({minV, maxV});
+            if (it != segmentMap.end()) {
+                size_t keptIdx = it->second;
+                newEdges[keptIdx].delaunayFacets.insert(newEdges[keptIdx].delaunayFacets.end(),
+                                                        oldEdge.delaunayFacets.begin(), oldEdge.delaunayFacets.end());
+            } else {
+                newEdge.vertex1 = newV1;
+                newEdge.vertex2 = newV2;
+                newEdge.edgeObject = CGAL::make_object(Segment3(vd.vertices[newV1].coord, vd.vertices[newV2].coord));
+                newEdges.push_back(newEdge);
+                segmentMap[{minV, maxV}] = newEdges.size() - 1;
+            }
+        } else if (oldEdge.type == 1) {
+            if (oldEdge.vertex1 >= 0) {
+                int newV1 = oldToNewVertexIndex[oldEdge.vertex1];
+                newEdge.vertex1 = newV1;
+                newEdge.source = vd.vertices[newV1].coord;
+            }
+            std::pair<Point, Vector3> key = {newEdge.source, newEdge.direction};
+            auto it = rayMap.find(key);
+            if (it != rayMap.end()) {
+                size_t keptIdx = it->second;
+                newEdges[keptIdx].delaunayFacets.insert(newEdges[keptIdx].delaunayFacets.end(),
+                                                        oldEdge.delaunayFacets.begin(), oldEdge.delaunayFacets.end());
+            } else {
+                newEdge.edgeObject = CGAL::make_object(Ray3(newEdge.source, Direction3(newEdge.direction)));
+                newEdges.push_back(newEdge);
+                rayMap[key] = newEdges.size() - 1;
+            }
+        } else if (oldEdge.type == 2) {
+            Vector3 dir = newEdge.direction;
+            if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0)) {
+                dir = -dir;
+            }
+            newEdge.direction = dir;
+            std::pair<Point, Vector3> key = {newEdge.source, dir};
+            auto it = lineMap.find(key);
+            bool merged = false;
+            if (it != lineMap.end()) {
+                size_t keptIdx = it->second;
+                newEdges[keptIdx].delaunayFacets.insert(newEdges[keptIdx].delaunayFacets.end(),
+                                                        oldEdge.delaunayFacets.begin(), oldEdge.delaunayFacets.end());
+                merged = true;
+            } else {
+                // Check for flipped direction or collinear
+                for (auto& existing_entry : lineMap) {
+                    const auto& exist_key = existing_entry.first;
+                    Vector3 exist_dir = exist_key.second;
+                    if (!(exist_dir == dir || exist_dir == -dir)) continue;
+                    Point exist_source = exist_key.first;
+                    Vector3 to_new = newEdge.source - exist_source;
+                    double proj = CGAL::scalar_product(to_new, exist_dir) / CGAL::scalar_product(exist_dir, exist_dir);
+                    Vector3 proj_vec = proj * exist_dir;
+                    if ((to_new - proj_vec).squared_length() < 1e-10) { // collinear with tolerance
+                        size_t keptIdx = existing_entry.second;
+                        newEdges[keptIdx].delaunayFacets.insert(newEdges[keptIdx].delaunayFacets.end(),
+                                                                oldEdge.delaunayFacets.begin(), oldEdge.delaunayFacets.end());
+                        merged = true;
+                        break;
                     }
                 }
             }
-        } else if (CGAL::assign(ray, edge.edgeObject) || CGAL::assign(line, edge.edgeObject)) {
-            // Handle rays and lines with geometric comparison
-            rayLineSet.insert(edge);
+            if (!merged) {
+                newEdge.edgeObject = CGAL::make_object(Line3(newEdge.source, newEdge.source + newEdge.direction));
+                newEdges.push_back(newEdge);
+                lineMap[key] = newEdges.size() - 1;
+            }
         }
     }
 
-    // Rebuild the edges and edgeVertexIndices vectors
-    std::vector<VoronoiEdge> newEdges;
-    newEdges.reserve(segmentMap.size() + rayLineSet.size());
-
-    for (auto& kv : segmentMap) {
-        size_t edgeIdx = kv.second;
-        VoronoiEdge edge = vd.edges[edgeIdx];
-
-        edge.vertex1 = oldToNewVertexIndex[vd.edges[edgeIdx].vertex1];
-        edge.vertex2 = oldToNewVertexIndex[vd.edges[edgeIdx].vertex2];
-
-        newEdges.push_back(edge);
-    }
-    for (auto& edge : rayLineSet) {
-        newEdges.push_back(edge);
-    }
-
     vd.edges = std::move(newEdges);
-    vd.segmentVertexPairToEdgeIndex.clear();
 
-    // Rebuild segmentVertexPairToEdgeIndex
+    vd.segmentVertexPairToEdgeIndex.clear();
     for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx) {
         const auto& edge = vd.edges[edgeIdx];
         if (edge.type == 0 && edge.vertex1 >= 0 && edge.vertex2 >= 0) {
