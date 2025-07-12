@@ -567,4 +567,36 @@ static inline int selectIsovertexFromCellEdge(const VoronoiDiagram &voronoiDiagr
  */
 static void orderFacetVertices(std::vector<int> &indices, const Point &p0, const Point &p1, const std::vector<VoronoiVertex> &vertices);
 
+
+//! @brief Matches bipolar edges on a facet based on the specified method.
+/*!
+ * Pairs local indices of bipolar edges (0-based within the facet's bipolar edges) for connection.
+ * 
+ * @param voronoiDiagram The Voronoi diagram containing the facet.
+ * @param facet_index Index of the facet in voronoiDiagram.facets.
+ * @param isovalue Isovalue for determining bipolarity.
+ * @param match_method The matching method to use.
+ * @return Vector of pairs (local indices within bipolar edges) to connect.
+ */
+std::vector<std::pair<int, int>> match_facet_bipolar_edges(
+    const VoronoiDiagram &voronoiDiagram,
+    int facet_index,
+    float isovalue,
+    BIPOLAR_MATCH_METHOD match_method
+);
+
+
+//! @brief Determines the match type for each bipolar edge on a facet.
+/*!
+ * @param voronoiDiagram The Voronoi diagram.
+ * @param facet_index Facet index.
+ * @param isovalue Isovalue for bipolar edge determination.
+ * @return Vector of bipolar match methods.
+ */
+std::vector<BIPOLAR_MATCH_METHOD> get_bipolar_match_types(
+    const VoronoiDiagram &voronoiDiagram,
+    int facet_index,
+    float isovalue
+);
+
 #endif
