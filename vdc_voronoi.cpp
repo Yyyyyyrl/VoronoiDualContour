@@ -528,6 +528,13 @@ std::vector<int> update_facet_vertices(const std::vector<int>& old_vertices, con
     return new_vertices;
 }
 
+// Helper for union-find
+static int find(std::vector<int>& mapto, int x) {
+    if (mapto[x] != x) {
+        mapto[x] = find(mapto, mapto[x]);
+    }
+    return mapto[x];
+}
 
 // Standalone function to collapse small edges
 //! @brief Collapses small edges in a Voronoi diagram.
@@ -540,91 +547,94 @@ std::vector<int> update_facet_vertices(const std::vector<int>& old_vertices, con
  * @param bbox Bounding box of the diagram (unused)
  * @return New Voronoi diagram with small edges collapsed
  */
-VoronoiDiagram collapseSmallEdges(const VoronoiDiagram& input_vd, double D, const CGAL::Epick::Iso_cuboid_3& bbox, Delaunay& dt)
+VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
 {
-    VoronoiDiagram vd = input_vd;
-
-    std::cout << "[DEBUG] Starting collapseSmallEdges with D = " << D << "\n";
-    std::cout << "[DEBUG] Initial vertex count: " << vd.vertices.size() << ", edge count: " << vd.edges.size() << "\n";
-
-    std::vector<int> mapto(vd.vertices.size());
-    for (size_t i = 0; i < mapto.size(); ++i) {
+    VoronoiDiagram new_vd = vd; // Copy input
+    std::vector<int> mapto(new_vd.vertices.size());
+    for (size_t i = 0; i < mapto.size(); ++i)
         mapto[i] = i;
-    }
 
-    processEdges(vd, mapto, D);
-
-    std::cout << "[DEBUG] Performing path compression\n";
-    compressMapping(mapto);
-
-    std::vector<int> oldToNewVertexIndex;
-    std::cout << "[DEBUG] Rebuilding vertices\n";
-    rebuildVertices(vd, mapto, oldToNewVertexIndex);
-    std::cout << "[DEBUG] New vertex count: " << vd.vertices.size() << "\n";
-
-    for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
-    {
-        int original_idx = cit->info().dualVoronoiVertexIndex;
-        if (original_idx >= 0 && original_idx < oldToNewVertexIndex.size())
-        {
-            cit->info().dualVoronoiVertexIndex = oldToNewVertexIndex[original_idx];
-        }
-        else
-        {
-            std::cerr << "[ERROR] Invalid original dualVoronoiVertexIndex: " << original_idx << "\n";
-        }
-    }
-
-    vd.vertexMap.clear();
-    const double SCALE_FACTOR = 1e6;
-    for (size_t i = 0; i < vd.vertices.size(); ++i) {
-        const Point& p = vd.vertices[i].coord;
-        int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
-        int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
-        int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
-        std::tuple<int, int, int> key(ix, iy, iz);
-        vd.vertexMap[key].push_back(i);
-    }
-
-    std::cout << "[DEBUG] Rebuilding edges with duplicate removal\n";
-    rebuildEdges(vd, oldToNewVertexIndex);
-    std::cout << "[DEBUG] New edge count: " << vd.edges.size() << "\n";
-
-    std::vector<VoronoiCellFacet> new_facets;
-    std::vector<int> old_to_new_facet_index(vd.facets.size(), -1);
-    for (size_t i = 0; i < vd.facets.size(); ++i) {
-        std::vector<int> new_vertices = update_facet_vertices(vd.facets[i].vertices_indices, oldToNewVertexIndex);
-        if (new_vertices.size() >= 3) {
-            VoronoiCellFacet new_facet;
-            new_facet.vertices_indices = new_vertices;
-            new_facet.mirror_facet_index = -1;
-            old_to_new_facet_index[i] = new_facets.size();
-            new_facets.push_back(new_facet);
-        }
-    }
-    vd.facets = std::move(new_facets);
-
-    for (size_t i = 0; i < vd.cells.size(); ++i) {
-        std::vector<int> new_facet_indices;
-        for (int f_idx : vd.cells[i].facet_indices) {
-            int new_f_idx = old_to_new_facet_index[f_idx];
-            if (new_f_idx != -1) {
-                new_facet_indices.push_back(new_f_idx);
+    // Step 1: Merge coincident vertices (small epsilon, independent of D)
+    const double COINCIDENT_EPS2 = 1e-20;
+    for (const auto& kv : new_vd.vertexMap) {
+        const auto& indices = kv.second;
+        for (size_t i = 0; i < indices.size(); ++i) {
+            for (size_t j = i + 1; j < indices.size(); ++j) {
+                int v1 = indices[i];
+                int v2 = indices[j];
+                Point p1 = new_vd.vertices[v1].coord;
+                Point p2 = new_vd.vertices[v2].coord;
+                if (CGAL::squared_distance(p1, p2) <= COINCIDENT_EPS2) {
+                    int root1 = find(mapto, v1);
+                    int root2 = find(mapto, v2);
+                    if (root1 != root2) {
+                        mapto[root1] = root2; // Union
+                    }
+                }
             }
         }
-        vd.cells[i].facet_indices = new_facet_indices;
-
-        std::set<int> new_vertices;
-        for (int v_idx : vd.cells[i].vertices_indices) {
-            new_vertices.insert(oldToNewVertexIndex[v_idx]);
-        }
-        vd.cells[i].vertices_indices.assign(new_vertices.begin(), new_vertices.end());
     }
 
-    vd.cellEdges.clear();
-    vd.cellEdgeLookup.clear();
+    // Step 2: Merge along small edges (existing process)
+    processEdges(new_vd, mapto, D);
 
-    return vd;
+    // Compress paths
+    compressMapping(mapto);
+
+    // Rebuild vertices and get mapping
+    std::vector<int> oldToNewVertexIndex;
+    rebuildVertices(new_vd, mapto, oldToNewVertexIndex);
+
+    // Rebuild edges
+    rebuildEdges(new_vd, oldToNewVertexIndex);
+
+    // Rebuild facets (discard degenerates)
+    std::vector<VoronoiCellFacet> newFacets;
+    std::vector<int> oldToNewFacet(new_vd.facets.size(), -1);
+    for (size_t f = 0; f < new_vd.facets.size(); ++f) {
+        VoronoiCellFacet oldF = new_vd.facets[f];
+        std::vector<int> newVerts = update_facet_vertices(oldF.vertices_indices, oldToNewVertexIndex);
+        if (newVerts.size() < 3) continue; // Degenerate: discard
+        VoronoiCellFacet newF;
+        newF.vertices_indices = std::move(newVerts);
+        newF.mirror_facet_index = oldF.mirror_facet_index; // Temporary
+        int newFIdx = newFacets.size();
+        newFacets.push_back(newF);
+        oldToNewFacet[f] = newFIdx;
+    }
+    // Remap mirror indices
+    for (auto& newF : newFacets) {
+        if (newF.mirror_facet_index >= 0) {
+            newF.mirror_facet_index = oldToNewFacet[newF.mirror_facet_index];
+            if (newF.mirror_facet_index < 0) newF.mirror_facet_index = -1;
+        }
+    }
+    new_vd.facets = std::move(newFacets);
+
+    // Rebuild cells
+    for (auto& cell : new_vd.cells) {
+        // Remap vertices (unique)
+        std::set<int> newVerts;
+        for (int oldV : cell.vertices_indices) {
+            newVerts.insert(oldToNewVertexIndex[oldV]);
+        }
+        cell.vertices_indices.assign(newVerts.begin(), newVerts.end());
+        // Remap facets
+        std::vector<int> newFacetIndices;
+        for (int oldF : cell.facet_indices) {
+            int newF = oldToNewFacet[oldF];
+            if (newF >= 0) newFacetIndices.push_back(newF);
+        }
+        cell.facet_indices = std::move(newFacetIndices);
+        // Clear polyhedron
+        cell.polyhedron.clear();
+    }
+
+    // Clear cell edges/lookup (rebuild if needed)
+    new_vd.cellEdges.clear();
+    new_vd.cellEdgeLookup.clear();
+
+    return new_vd;
 }
 
 
