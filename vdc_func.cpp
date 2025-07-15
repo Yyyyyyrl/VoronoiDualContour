@@ -1114,7 +1114,6 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
     {
         if (delaunay_vertex->info().is_dummy)
         {
-            // std::cout << "Dummy Point excluded: " << delaunay_vertex->point() << std::endl;
             continue;
         }
         VoronoiCell vc(delaunay_vertex);
@@ -1123,37 +1122,43 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
         std::vector<Cell_handle> incident_cells;
         dt.finite_incident_cells(delaunay_vertex, std::back_inserter(incident_cells));
 
-        // Collect vertex indices, ensuring uniqueness
+        // Collect vertex indices combinatorially
         std::set<int> unique_vertex_indices_set;
         for (Cell_handle ch : incident_cells)
         {
             if (dt.is_infinite(ch))
             {
-                // Through an error, should not be happening after checking dummy vertices
                 continue; // Skip infinite cells
             }
-            Point voronoi_vertex = dt.dual(ch);
-
-            // Check if voronoi_vertex is within domain and exclude dummy points in the dt
-            //int vertex_index = ch->info().dualVoronoiVertexIndex;
-            int vertex_index = find_vertex_index(voronoiDiagram, voronoi_vertex);
+            // Use direct index instead of dual point + search
+            int vertex_index = ch->info().dualVoronoiVertexIndex;
             unique_vertex_indices_set.insert(vertex_index);
         }
 
         // Copy unique indices to vector
         vc.vertices_indices.assign(unique_vertex_indices_set.begin(), unique_vertex_indices_set.end());
 
-        // Build convex hull and extract facets
+        // Build vertex_points and vector for lookup (allow duplicates by using first idx for matching points)
         std::vector<Point> vertex_points;
+        std::vector<std::pair<Point, int>> point_index_pairs;
         for (int idx : vc.vertices_indices)
         {
-            vertex_points.push_back(voronoiDiagram.vertices[idx].coord);
+            Point p = voronoiDiagram.vertices[idx].coord;
+            vertex_points.push_back(p);
+            // Check if point already added (approx equal), if not, add pair
+            bool found = false;
+            for (const auto& pair : point_index_pairs) {
+                if (PointApproxEqual()(pair.first, p)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                point_index_pairs.emplace_back(p, idx);  // Use first idx for this point
+            }
         }
 
-        // Remove duplicate points
-        std::sort(vertex_points.begin(), vertex_points.end(), [](const Point &a, const Point &b)
-                  { return a.x() < b.x() || (a.x() == b.x() && (a.y() < b.y() || (a.y() == b.y() && a.z() < b.z()))); });
-        vertex_points.erase(std::unique(vertex_points.begin(), vertex_points.end(), PointApproxEqual()), vertex_points.end());
+        // No remove duplicates: pass all to hull, it will handle
 
         CGAL::convex_hull_3(vertex_points.begin(), vertex_points.end(), vc.polyhedron);
 
@@ -1166,10 +1171,23 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
             do
             {
                 Point p = h->vertex()->point();
-                int vertex_index = find_vertex_index(voronoiDiagram, p);
-                vf.vertices_indices.push_back(vertex_index);
+                // Linear lookup in point_index_pairs
+                bool found = false;
+                for (const auto& pair : point_index_pairs) {
+                    if (PointApproxEqual()(pair.first, p)) {
+                        vf.vertices_indices.push_back(pair.second);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    std::cerr << "[WARNING] Point not found during facet extraction: " << p << "\n";
+                }
                 ++h;
             } while (h != facet_it->facet_begin());
+
+            // Skip degenerate facets
+            if (vf.vertices_indices.size() < 3) continue;
 
             int facet_index = voronoiDiagram.facets.size();
             voronoiDiagram.facets.push_back(vf);
@@ -1342,59 +1360,65 @@ static VoronoiCellFacet buildFacetFromEdge(
         }
         else
         {
-            int newIdx = cc->info().dualVoronoiVertexIndex;
-            facetVertexIndices.push_back(newIdx);
+            // Use direct combinatorial index from the cell's info (dual to Voronoi vertex)
+            int vertex_index = cc->info().dualVoronoiVertexIndex;
+            facetVertexIndices.push_back(vertex_index);
             finite_cell_count++;
         }
         ++cc;
     } while (cc != start);
 
-    if (facetVertexIndices.size() < 3)
+    // Check for unique vertices using a set (combinatorial check on indices)
+    std::set<int> unique_vertices(facetVertexIndices.begin(), facetVertexIndices.end());
+
+    // The facetVertexIndices is already in cyclic order from the circulator
+    std::vector<int> orderedFacetVertices = facetVertexIndices; // Preserve circulator order
+
+    if (unique_vertices.size() >= 3)
+    {
+        // Compute centroid for orientation check (geometric, but necessary for correct winding)
+        Point centroid(0, 0, 0);
+        for (int idx : orderedFacetVertices)
+        {
+            centroid = centroid + (voronoiDiagram.vertices[idx].coord - CGAL::ORIGIN);
+        }
+        centroid = CGAL::ORIGIN + (centroid - CGAL::ORIGIN) / orderedFacetVertices.size();
+        Point cell_center = delaunay_vertex->point();
+        Vector3 normal = CGAL::cross_product(
+            voronoiDiagram.vertices[orderedFacetVertices[1]].coord - voronoiDiagram.vertices[orderedFacetVertices[0]].coord,
+            voronoiDiagram.vertices[orderedFacetVertices[2]].coord - voronoiDiagram.vertices[orderedFacetVertices[0]].coord);
+        Vector3 v = centroid - cell_center;
+        if (CGAL::scalar_product(normal, v) < 0)
+        {
+            std::reverse(orderedFacetVertices.begin() + 1, orderedFacetVertices.end());
+        }
+
+        VoronoiCellFacet facet;
+        facet.vertices_indices = orderedFacetVertices;
+
+        int facetIndex = voronoiDiagram.facets.size();
+        voronoiDiagram.facets.push_back(facet);
+        facet_indices.push_back(facetIndex);
+        std::pair<int, int> edge_key = std::make_pair(
+            std::min(v1->info().index, v2->info().index),
+            std::max(v1->info().index, v2->info().index));
+        edge_to_facets[edge_key].push_back(facetIndex);
+        return facet;
+    }
+    else
     {
         std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells\n";
-        std::cout << "Vertex indices: ";
-        for (const int idx : facetVertexIndices)
+        std::cout << "Original Voronoi vertices indices:\n";
+        for (const auto &idx : facetVertexIndices)
+        {
+            std::cout << "  " << idx << "\n";
+        }
+        std::cout << "Unique indices: ";
+        for (int idx : unique_vertices)
             std::cout << idx << " ";
         std::cout << "\n";
-        return VoronoiCellFacet(); // Skip degenerate
+        return VoronoiCellFacet();
     }
-
-    // Use the circulator order directly (cyclic)
-    std::vector<int> uniqueFacetVertices = facetVertexIndices;
-
-    // Compute centroid for orientation check
-    Point centroid(0, 0, 0);
-    for (int idx : uniqueFacetVertices)
-    {
-        centroid = centroid + (voronoiDiagram.vertices[idx].coord - CGAL::ORIGIN);
-    }
-    centroid = CGAL::ORIGIN + (centroid - CGAL::ORIGIN) / uniqueFacetVertices.size();
-
-    // Compute normal from first three points
-    Point cell_center = delaunay_vertex->point();
-    const auto &P0 = voronoiDiagram.vertices[uniqueFacetVertices[0]].coord;
-    const auto &P1 = voronoiDiagram.vertices[uniqueFacetVertices[1]].coord;
-    const auto &P2 = voronoiDiagram.vertices[uniqueFacetVertices[2]].coord;
-    Vector3 normal = CGAL::cross_product(P1 - P0, P2 - P0);
-    Vector3 v = centroid - cell_center;
-
-    // If scalar product <0, normal points inward, reverse the order
-    if (CGAL::scalar_product(normal, v) < 0)
-    {
-        std::reverse(uniqueFacetVertices.begin(), uniqueFacetVertices.end());
-    }
-
-    VoronoiCellFacet facet;
-    facet.vertices_indices = uniqueFacetVertices;
-
-    int facetIndex = voronoiDiagram.facets.size();
-    voronoiDiagram.facets.push_back(facet);
-    facet_indices.push_back(facetIndex);
-    std::pair<int, int> edge_key = std::make_pair(
-        std::min(v1->info().index, v2->info().index),
-        std::max(v1->info().index, v2->info().index));
-    edge_to_facets[edge_key].push_back(facetIndex);
-    return facet;
 }
 
 //! @brief Processes incident edges to build facets for a Voronoi cell.
@@ -1734,67 +1758,20 @@ static void linkCellEdges(
  * @param edgeIdx The index of the edge in the diagram.
  * @param bbox The bounding box for intersection.
  */
-static void processEdgeMapping(
-    VoronoiDiagram &voronoiDiagram,
-    const CGAL::Object &edgeObj,
-    int edgeIdx,
-    CGAL::Epick::Iso_cuboid_3 &bbox)
+static void processEdgeMapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &edge, int edgeIdx, CGAL::Epick::Iso_cuboid_3 &bbox)
 {
-    Segment3 seg;
-    Ray3 ray;
-    Line3 line;
-    Point p1, p2;
-    bool isSegment = false;
-
-    if (CGAL::assign(seg, edgeObj))
+    if (edge.type == 0) // Only process finite segments combinatorially
     {
-        p1 = seg.source();
-        p2 = seg.target();
-        isSegment = true;
-    }
-    else if (CGAL::assign(ray, edgeObj))
-    {
-        CGAL::Object clippedObj = CGAL::intersection(bbox, ray);
-        Segment3 clippedSeg;
-        if (CGAL::assign(clippedSeg, clippedObj))
-        {
-            p1 = clippedSeg.source();
-            p2 = clippedSeg.target();
-            isSegment = true;
-        }
-    }
-    else if (CGAL::assign(line, edgeObj))
-    {
-        CGAL::Object clippedObj = CGAL::intersection(bbox, line);
-        Segment3 clippedSeg;
-        if (CGAL::assign(clippedSeg, clippedObj))
-        {
-            p1 = clippedSeg.source();
-            p2 = clippedSeg.target();
-            isSegment = true;
-        }
-    }
-
-    if (isSegment)
-    {
-        int idx1 = find_vertex_index(voronoiDiagram, p1);
-        int idx2 = find_vertex_index(voronoiDiagram, p2);
-        // std::cout << "[DEBUG] Processing edge " << edgeIdx << " with vertices: (" << idx1 << ", " << idx2 << ") with edge index: " << edgeIdx << std::endl;
-        if (idx1 == -1)
-        {
-            std::cout << "[WARNING] Failed to find vertex index for point: " << p1 << std::endl;
-        }
-        else if (idx2 == -1)
-        {
-            std::cout << "[WARNING] Failed to find vertex index for point: " << p2 << std::endl;
-        }
-        else
+        int idx1 = edge.vertex1;
+        int idx2 = edge.vertex2;
+        if (idx1 != -1 && idx2 != -1)
         {
             int v1 = std::min(idx1, idx2);
             int v2 = std::max(idx1, idx2);
             voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
         }
     }
+    // Rays and lines are skipped; no mapping for infinite edges
 }
 
 //! @brief Updates edge mappings for all Voronoi edges.
@@ -1804,18 +1781,16 @@ static void processEdgeMapping(
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param bbox The bounding box for intersection.
  */
-static void updateEdgeMappings(
-    VoronoiDiagram &voronoiDiagram,
-    CGAL::Epick::Iso_cuboid_3 &bbox)
+static void updateEdgeMappings(VoronoiDiagram &voronoiDiagram, CGAL::Epick::Iso_cuboid_3 &bbox)
 {
-    for (int edgeIdx = 0; edgeIdx < (int)voronoiDiagram.edges.size(); ++edgeIdx)
+    for (int edgeIdx = 0; edgeIdx < static_cast<int>(voronoiDiagram.edges.size()); ++edgeIdx)
     {
-        const CGAL::Object &edgeObj = voronoiDiagram.edges[edgeIdx].edgeObject;
-        processEdgeMapping(voronoiDiagram, edgeObj, edgeIdx, bbox);
+        VoronoiEdge &edge = voronoiDiagram.edges[edgeIdx];
+        processEdgeMapping(voronoiDiagram, edge, edgeIdx, bbox);
     }
 
     voronoiDiagram.cellEdgeLookup.clear();
-    for (int ceIdx = 0; ceIdx < (int)voronoiDiagram.cellEdges.size(); ++ceIdx)
+    for (int ceIdx = 0; ceIdx < static_cast<int>(voronoiDiagram.cellEdges.size()); ++ceIdx)
     {
         const VoronoiCellEdge &ce = voronoiDiagram.cellEdges[ceIdx];
         std::pair<int, int> key = std::make_pair(ce.cellIndex, ce.edgeIndex);
@@ -1878,15 +1853,11 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
         {
             construct_voronoi_cells_from_delaunay_triangulation(vd, dt);
         }
-    }
-    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox, dt);
-    //vd2.check();
-    vd = std::move(vd2);
-
-    if (vdc_param.multi_isov)
-    {
         construct_voronoi_cell_edges(vd, bbox, dt);
     }
+    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox, dt);
+    vd2.check();
+    vd = std::move(vd2);
 
 }
 
