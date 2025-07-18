@@ -826,16 +826,11 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd, double D, cons
     for (auto& kv : newEdgeToCEIndices) {
         auto& indices = kv.second;
         size_t M = indices.size();
-        if (M <= 1) {
-            if (M == 1) {
-                updatedCellEdges[indices[0]].nextCellEdge = -1;  // Single: no ring
-            }
-            continue;
-        }
+        if (M < 1) continue;
         for (size_t j = 0; j < M; ++j) {
             size_t ceIdx = indices[j];
             size_t nextIdx = indices[(j + 1) % M];
-            updatedCellEdges[ceIdx].nextCellEdge = nextIdx;  // Link to index in updatedCellEdges
+            updatedCellEdges[ceIdx].nextCellEdge = nextIdx;  // For M==1, next=self
         }
     }
 
@@ -1143,6 +1138,17 @@ bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1,
     return false;
 }
 
+//! @brief Checks if two facets have opposite vertex ordering.
+bool VoronoiDiagram::haveOppositeOrientation(const std::vector<int> &f1,
+                                             const std::vector<int> &f2) const
+{
+    if (f1.size() != f2.size())
+        return false;
+    std::vector<int> rev_f2 = f2;
+    std::reverse(rev_f2.begin(), rev_f2.end());
+    return haveSameOrientation(f1, rev_f2);
+}
+
 //! @brief Verifies all facets have at least 3 vertices.
 /*!
  * Validates the minimum vertex count requirement for Voronoi facets.
@@ -1319,10 +1325,10 @@ void VoronoiDiagram::checkPairedFacetOrientations() const
         {
             auto &A = facets[fvec[0]].vertices_indices;
             auto &B = facets[fvec[1]].vertices_indices;
-            if (haveSameOrientation(A, B))
+            if (!haveOppositeOrientation(A, B))
                 throw std::runtime_error("Facet “" + std::to_string(fvec[0]) + "” and “" +
                                          std::to_string(fvec[1]) +
-                                         "” have the SAME orientation in their two cells.");
+                                         "” do not have opposite orientations in their two cells.");
         }
     }
 }
@@ -1332,7 +1338,7 @@ void VoronoiDiagram::checkAdvanced() const
     checkFacetVertexCount();
     checkCellFacetCount();
     checkFacetCellCount();
-    checkEdgeFacetCount();
-    checkFacetNormals();
-    checkPairedFacetOrientations();
+    checkEdgeFacetCount(); /**/
+    checkFacetNormals(); /**/
+    checkPairedFacetOrientations(); /**/
 }

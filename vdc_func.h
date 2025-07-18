@@ -20,7 +20,7 @@
  * @param isovalue The isovalue used for computing.
  * @param pointToIndexMap Map between points and their indices in Delaunay triangulation
  */
-void computeDualTriangles(
+void compute_dual_triangles(
     IsoSurface &iso_surface,
     VoronoiDiagram &vd,
     CGAL::Epick::Iso_cuboid_3 &bbox,
@@ -41,7 +41,7 @@ void computeDualTriangles(
  * @param isovalue The isovalue for mesh computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  */
-void computeDualTrianglesMulti(
+void compute_dual_triangle_multi(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     UnifiedGrid &grid,
@@ -70,7 +70,7 @@ void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float iso
  * @param data_grid The grid containing input data.
  * @param activeCubeCenters The list of center points of active cubes.
  */
-void Compute_Isosurface_Vertices_Single(UnifiedGrid &grid, float isovalue, IsoSurface &iso_surface, std::vector<Point> &activeCubeCenters);
+void compute_isosurface_vertices_single(UnifiedGrid &grid, float isovalue, IsoSurface &iso_surface, std::vector<Point> &activeCubeCenters);
 
 //! @brief Constructs a Delaunay triangulation from a grid and grid facets.
 /*!
@@ -209,7 +209,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
  * @param isInfinite Flag indicating if the cell is infinite.
  * @param dualTriangles Vector to store the generated triangles.
  */
-static void generateTriangle(const Point &p1, const Point &p2, const Point &p3, int iOrient, bool isInfinite, std::vector<DelaunayTriangle> &dualTriangles);
+static void generate_triangle(const Point &p1, const Point &p2, const Point &p3, int iOrient, bool isInfinite, std::vector<DelaunayTriangle> &dualTriangles);
 
 //! @brief Processes a segment edge for dual triangle computation.
 /*!
@@ -222,7 +222,7 @@ static void generateTriangle(const Point &p1, const Point &p2, const Point &p3, 
  * @param dt Delaunay triangulation for facet lookup
  * @param dualTriangles Output vector for generated triangles
  */
-static void processSegmentEdge(
+static void process_segment_edge(
     VoronoiEdge &edge,
     VoronoiDiagram &vd,
     float isovalue,
@@ -242,7 +242,7 @@ static void processSegmentEdge(
  * @param dt The Delaunay triangulation.
  * @param dualTriangles Vector to store generated triangles.
  */
-static void processRayEdge(
+static void process_ray_edge(
     const Ray3 &ray,
     VoronoiEdge &edge,
     VoronoiDiagram &vd,
@@ -265,7 +265,7 @@ static void processRayEdge(
  * @param dt The Delaunay triangulation.
  * @param dualTriangles Vector to store generated triangles.
  */
-static void processLineEdge(
+static void process_line_edge(
     const Line3 &line,
     VoronoiEdge &edge,
     UnifiedGrid &grid,
@@ -286,7 +286,7 @@ static void processLineEdge(
  * @param iOrient Orientation value determining vertex order.
  * @param isValid Flag indicating if the triangle is valid.
  */
-static void generateTriangleMulti(IsoSurface &iso_surface, int idx1, int idx2, int idx3, int iOrient, bool isValid);
+static void generate_triangle_multi(IsoSurface &iso_surface, int idx1, int idx2, int idx3, int iOrient, bool isValid);
 
 //! @brief Selects isovertices for a Delaunay facet.
 /*!
@@ -304,7 +304,7 @@ static void generateTriangleMulti(IsoSurface &iso_surface, int idx1, int idx2, i
  * @param cellIndex3 Output parameter for the third cell index.
  * @return True if the vertices are valid, false otherwise.
  */
-static bool selectIsovertices(const VoronoiDiagram &voronoiDiagram, const Facet &facet, int globalEdgeIndex, int &idx1, int &idx2, int &idx3, int &cellIndex1, int &cellIndex2, int &cellIndex3);
+static bool select_isovertices(const VoronoiDiagram &voronoiDiagram, const Facet &facet, int globalEdgeIndex, int &idx1, int &idx2, int &idx3, int &cellIndex1, int &cellIndex2, int &cellIndex3);
 
 //! @brief Processes a segment edge for multi-isovertex triangle computation.
 /*!
@@ -316,7 +316,7 @@ static bool selectIsovertices(const VoronoiDiagram &voronoiDiagram, const Facet 
  * @param isovalue The isovalue for bipolarity check
  * @param iso_surface The isosurface to store triangles
  */
-static void processSegmentEdgeMulti(
+static void process_segment_edge_multi(
     VoronoiEdge edge,
     VoronoiDiagram &voronoiDiagram,
     float isovalue,
@@ -335,7 +335,7 @@ static void processSegmentEdgeMulti(
  * @param bbox The bounding box for intersection
  * @param iso_surface The isosurface to store triangles
  */
-static void processRayEdgeMulti(
+static void process_ray_edge_multi(
     const Ray3 &ray,
     std::vector<Facet> dualDelaunayFacets,
     VoronoiDiagram &voronoiDiagram,
@@ -358,7 +358,7 @@ static void processRayEdgeMulti(
  * @param bbox The bounding box for intersection
  * @param iso_surface The isosurface to store triangles
  */
-static void processLineEdgeMulti(
+static void process_line_edge_multi(
     const Line3 &line,
     std::vector<Facet> dualDelaunayFacets,
     VoronoiDiagram &voronoiDiagram,
@@ -379,7 +379,7 @@ static void processLineEdgeMulti(
  * @param edge_to_midpoint_index Map linking edge keys to midpoint indices.
  * @param facet_midpoint_indices Vector storing midpoint indices for each facet.
  */
-static void collectMidpoints(VoronoiCell &vc, VoronoiDiagram &voronoiDiagram, float isovalue, std::vector<MidpointNode> &midpoints, std::map<std::pair<int, int>, int> &edge_to_midpoint_index, std::vector<std::vector<int>> &facet_midpoint_indices);
+static void collect_midpoints(VoronoiCell &vc, VoronoiDiagram &voronoiDiagram, float isovalue, std::vector<MidpointNode> &midpoints, std::map<std::pair<int, int>, int> &edge_to_midpoint_index, std::vector<std::vector<int>> &facet_midpoint_indices);
 
 //! @brief Connects midpoints within each facet to form a graph.
 /*!
@@ -388,7 +388,7 @@ static void collectMidpoints(VoronoiCell &vc, VoronoiDiagram &voronoiDiagram, fl
  * @param facet_midpoint_indices Vector storing midpoint indices for each facet.
  * @param midpoints Vector of midpoints to update with connectivity.
  */
-static void connectMidpoints(const std::vector<std::vector<int>> &facet_midpoint_indices, std::vector<MidpointNode> &midpoints);
+static void connect_midpoints(const std::vector<std::vector<int>> &facet_midpoint_indices, std::vector<MidpointNode> &midpoints);
 
 //! @brief Extracts cycles from the midpoint connectivity graph.
 /*!
@@ -397,7 +397,7 @@ static void connectMidpoints(const std::vector<std::vector<int>> &facet_midpoint
  * @param midpoints Vector of midpoints with connectivity information.
  * @param cycles Vector to store the extracted cycles as lists of midpoint indices.
  */
-static void extractCycles(const std::vector<MidpointNode> &midpoints, std::vector<std::vector<int>> &cycles);
+static void extract_cycles(const std::vector<MidpointNode> &midpoints, std::vector<std::vector<int>> &cycles);
 
 //! @brief Computes centroids for cycles and updates the isosurface.
 /*!
@@ -410,7 +410,7 @@ static void extractCycles(const std::vector<MidpointNode> &midpoints, std::vecto
  * @param cycles Vector of cycles as lists of midpoint indices.
  * @param iso_surface The isosurface to store vertices.
  */
-static void computeCycleCentroids(VoronoiCell &vc, VoronoiDiagram &voronoiDiagram, std::vector<MidpointNode> &midpoints, const std::vector<std::vector<int>> &cycles, IsoSurface &iso_surface);
+static void compute_cycle_centroids(VoronoiCell &vc, VoronoiDiagram &voronoiDiagram, std::vector<MidpointNode> &midpoints, const std::vector<std::vector<int>> &cycles, IsoSurface &iso_surface);
 
 //! @brief Builds Voronoi cell edges for each edge in the diagram.
 /*!
@@ -420,7 +420,7 @@ static void computeCycleCentroids(VoronoiCell &vc, VoronoiDiagram &voronoiDiagra
  * @param voronoiDiagram The Voronoi diagram to populate with cell edges.
  * @param dt The Delaunay triangulation.
  */
-static void buildCellEdges(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
+static void build_cell_edges(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
 //! @brief Links Voronoi cell edges in a circular ring.
 /*!
@@ -429,7 +429,7 @@ static void buildCellEdges(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
  *
  * @param voronoiDiagram The Voronoi diagram containing cell edges to link.
  */
-static void linkCellEdges(VoronoiDiagram &voronoiDiagram);
+static void link_cell_edges(VoronoiDiagram &voronoiDiagram);
 
 //! @brief Processes edge mapping for a single Voronoi edge.
 /*!
@@ -441,7 +441,7 @@ static void linkCellEdges(VoronoiDiagram &voronoiDiagram);
  * @param edgeIdx The index of the edge in the diagram.
  * @param bbox The bounding box for intersection.
  */
-static void processEdgeMapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &edge, int edgeIdx, CGAL::Epick::Iso_cuboid_3 &bbox);
+static void process_edge_mapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &edge, int edgeIdx, CGAL::Epick::Iso_cuboid_3 &bbox);
 
 //! @brief Updates edge mappings for all Voronoi edges.
 /*!
@@ -450,7 +450,7 @@ static void processEdgeMapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &edge
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param bbox The bounding box for intersection.
  */
-static void updateEdgeMappings(VoronoiDiagram &voronoiDiagram, CGAL::Epick::Iso_cuboid_3 &bbox);
+static void update_edge_mapping(VoronoiDiagram &voronoiDiagram, CGAL::Epick::Iso_cuboid_3 &bbox);
 
 //! @brief Creates a Voronoi cell for a Delaunay vertex.
 /*!
@@ -460,7 +460,7 @@ static void updateEdgeMappings(VoronoiDiagram &voronoiDiagram, CGAL::Epick::Iso_
  * @param cellIndex The index to assign to the cell.
  * @return The initialized Voronoi cell.
  */
-static VoronoiCell createVoronoiCell(Vertex_handle delaunay_vertex, int cellIndex);
+static VoronoiCell create_voronoi_cell(Vertex_handle delaunay_vertex, int cellIndex);
 
 //! @brief Collects unique vertex indices from incident cells.
 /*!
@@ -472,7 +472,7 @@ static VoronoiCell createVoronoiCell(Vertex_handle delaunay_vertex, int cellInde
  * @param voronoiDiagram The Voronoi diagram containing vertex mappings.
  * @param vertices_indices Vector to store the collected vertex indices.
  */
-static void collectCellVertices(Delaunay &dt, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &vertices_indices);
+static void collect_cell_vertices(Delaunay &dt, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &vertices_indices);
 
 //! @brief Builds a facet from an incident edge using cell circulators.
 /*!
@@ -487,7 +487,8 @@ static void collectCellVertices(Delaunay &dt, Vertex_handle delaunay_vertex, Vor
  * @param edge_to_facets Map tracking which facets share each edge.
  * @return The constructed Voronoi facet, or an empty facet if invalid.
  */
-static VoronoiCellFacet buildFacetFromEdge(Delaunay &dt, const Edge &ed, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &facet_indices, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
+static VoronoiCellFacet build_facet_from_edge(Delaunay &dt, const Edge &ed, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &facet_indices, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
+
 //! @brief Processes incident edges to build facets for a Voronoi cell.
 /*!
  * Iterates over incident edges to construct facets and add them to the cell.
@@ -498,7 +499,7 @@ static VoronoiCellFacet buildFacetFromEdge(Delaunay &dt, const Edge &ed, Vertex_
  * @param vc The Voronoi cell to populate with facets.
  * @param edge_to_facets Map tracking which facets share each edge.
  */
-static void processIncidentEdges(Delaunay &dt, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, VoronoiCell &vc, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
+static void process_incident_edges(Delaunay &dt, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, VoronoiCell &vc, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
 //! @brief Collects points for the Delaunay triangulation.
 /*!
  * Gathers original points and dummy points from grid facets for multi-isovertex mode,
@@ -511,7 +512,7 @@ static void processIncidentEdges(Delaunay &dt, Vertex_handle delaunay_vertex, Vo
  * @param delaunay_points Output vector for all points (original + dummy).
  * @param dummy_points Output vector for dummy points.
  */
-static void collectDelaunayPoints(UnifiedGrid &grid,
+static void collect_delaunay_points(UnifiedGrid &grid,
                                   const std::vector<std::vector<GRID_FACETS>> &grid_facets,
                                   const std::vector<Point> &activeCubeCenters,
                                   VDC_PARAM &vdc_param,
@@ -529,7 +530,7 @@ static void collectDelaunayPoints(UnifiedGrid &grid,
  * @param is_dummy Whether this is a dummy point
  * @return Handle to inserted vertex
  */
-static Vertex_handle insertPointIntoTriangulation(Delaunay &dt,
+static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
                                                   const Point &p,
                                                   int index,
                                                   bool is_dummy);
@@ -553,7 +554,7 @@ static int find_vertex_index(const VoronoiDiagram &vd, const Point &p);
  * @param globalEdgeIndex The global edge index to select the isovertex for.
  * @return The isovertex index, or -1 if not found.
  */
-static inline int selectIsovertexFromCellEdge(const VoronoiDiagram &voronoiDiagram, int cellIndex, int globalEdgeIndex);
+static inline int select_isovertex_from_cell_edge(const VoronoiDiagram &voronoiDiagram, int cellIndex, int globalEdgeIndex);
 
 //! @brief Orders facet vertices in cyclic order around a Delaunay edge.
 /*!
@@ -565,6 +566,6 @@ static inline int selectIsovertexFromCellEdge(const VoronoiDiagram &voronoiDiagr
  * @param p1 The second point of the Delaunay edge.
  * @param vertices The Voronoi vertices containing position data.
  */
-static void orderFacetVertices(std::vector<int> &indices, const Point &p0, const Point &p1, const std::vector<VoronoiVertex> &vertices);
+static void order_facet_vertices(std::vector<int> &indices, const Point &p0, const Point &p1, const std::vector<VoronoiVertex> &vertices);
 
 #endif

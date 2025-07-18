@@ -243,6 +243,13 @@ struct VoronoiDiagram
      */
     int find_vertex(const Point &p) const;
 
+        /// Do two facet‐vertex‐sequences represent the same cyclic orientation?
+    bool haveSameOrientation(const std::vector<int> &f1,
+                             const std::vector<int> &f2) const;
+
+    bool haveOppositeOrientation(const std::vector<int> &f1,
+                                             const std::vector<int> &f2) const;
+
 private:
     //! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
     void checkCellEdgeLookup() const;
@@ -268,9 +275,6 @@ private:
     /// Hash a facet by its three smallest vertex indices (for “at most two cells” check)
     std::tuple<int, int, int> getFacetHashKey(const std::vector<int> &verts) const;
 
-    /// Do two facet‐vertex‐sequences represent the same cyclic orientation?
-    bool haveSameOrientation(const std::vector<int> &f1,
-                             const std::vector<int> &f2) const;
 };
 
 // Add standalone function declaration at the end of vdc_voronoi.h
