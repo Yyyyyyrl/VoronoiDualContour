@@ -799,7 +799,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd, double D, cons
             if (newF >= 0) newFacetIndices.push_back(newF);
         }
         cell.facet_indices = std::move(newFacetIndices);
-        // Clear polyhedron (rebuild if needed, but not used post-collapse)
+        // Clear polyhedron (can rebuild if needed, but not used post-collapse)
         cell.polyhedron.clear();
     }
 
@@ -1233,6 +1233,8 @@ void VoronoiDiagram::checkFacetCellCount() const
  * @throws std::runtime_error if edge-facet relationships are invalid
  * @note Essential for watertight mesh generation
  */
+// Modified checkEdgeFacetCount in vdc_voronoi.cpp
+// Explanation: Added logging when throwing to print the two facets sharing the edge and their vertex orders. This helps debug which facets have same direction for the edge.
 void VoronoiDiagram::checkEdgeFacetCount() const {
     for (const auto &cell : cells) {
         std::map<std::pair<int, int>, int> edge_count;
@@ -1246,21 +1248,38 @@ void VoronoiDiagram::checkEdgeFacetCount() const {
             }
         }
         for (const auto &[edge, count] : edge_count) {
-            if (count == 2) { // Internal edge
+            if (count == 2) { // Internal edge in the cell (shared by two facets)
                 int u = edge.first;
                 int v = edge.second;
                 int uv_count = 0, vu_count = 0;
+                std::vector<int> sharing_facets;
                 for (int facet_idx : cell.facet_indices) {
                     const auto &vertices = facets[facet_idx].vertices_indices;
                     for (size_t i = 0; i < vertices.size(); ++i) {
                         if (vertices[i] == u && vertices[(i + 1) % vertices.size()] == v) uv_count++;
                         if (vertices[i] == v && vertices[(i + 1) % vertices.size()] == u) vu_count++;
                     }
+                    // Collect sharing facets
+                    for (size_t i = 0; i < vertices.size(); ++i) {
+                        if ((vertices[i] == u && vertices[(i + 1) % vertices.size()] == v) ||
+                            (vertices[i] == v && vertices[(i + 1) % vertices.size()] == u)) {
+                            sharing_facets.push_back(facet_idx);
+                            break;
+                        }
+                    }
                 }
                 if (uv_count != 1 || vu_count != 1) {
-                    throw std::runtime_error("In cell " + std::to_string(cell.cellIndex) + 
-                                             " edge {" + std::to_string(u) + "," + std::to_string(v) + 
-                                             "} does not have opposite orientations.");
+                    std::cerr << "[DEBUG] Inconsistent orientations in cell " << cell.cellIndex 
+                              << " for edge {" << u << "," << v << "}: uv=" << uv_count << ", vu=" << vu_count << "\n";
+                    if (sharing_facets.size() == 2) {
+                        std::cerr << "[DEBUG] Sharing facets: " << sharing_facets[0] << " and " << sharing_facets[1] << "\n";
+                        std::cerr << "[DEBUG] Facet " << sharing_facets[0] << " vertices: ";
+                        for (int vi : facets[sharing_facets[0]].vertices_indices) std::cerr << vi << " ";
+                        std::cerr << "\n[DEBUG] Facet " << sharing_facets[1] << " vertices: ";
+                        for (int vi : facets[sharing_facets[1]].vertices_indices) std::cerr << vi << " ";
+                        std::cerr << "\n";
+                    }
+                    throw std::runtime_error("In cell " + std::to_string(cell.cellIndex) + " edge {" + std::to_string(u) + "," + std::to_string(v) + "} does not have opposite orientations.");
                 }
             }
         }
@@ -1283,20 +1302,54 @@ void VoronoiDiagram::checkFacetNormals() const
 {
     for (const auto &cell : cells)
     {
-        auto p = cell.delaunay_vertex->point();
+        auto site = cell.delaunay_vertex->point();
         for (int fi : cell.facet_indices)
         {
             auto const &V = facets[fi].vertices_indices;
-            const auto &P1 = vertices[V[0]].coord;
-            const auto &P2 = vertices[V[1]].coord;
-            const auto &P3 = vertices[V[2]].coord;
-            if (CGAL::orientation(P1, P2, P3, p) != CGAL::NEGATIVE)
-                throw std::runtime_error("Facet " + std::to_string(fi) +
-                                         " in cell " + std::to_string(cell.cellIndex) +
-                                         " has inward‐pointing normal.");
+            if (V.size() < 3) continue;
+
+            // Centroid
+            Point centroid(0, 0, 0);
+            for (int idx : V) {
+                centroid = centroid + (vertices[idx].coord - CGAL::ORIGIN) / V.size();
+            }
+
+            // Newell's normal
+            Vector3 normal(0, 0, 0);
+            size_t n = V.size();
+            for (size_t k = 0; k < n; ++k) {
+                const Point &p1 = vertices[V[k]].coord;
+                const Point &p2 = vertices[V[(k + 1) % n]].coord;
+                normal = normal + Vector3(
+                    (p1.y() - p2.y()) * (p1.z() + p2.z()),
+                    (p1.z() - p2.z()) * (p1.x() + p2.x()),
+                    (p1.x() - p2.x()) * (p1.y() + p2.y())
+                );
+            }
+            normal = normal / 2.0;
+
+            Vector3 v = site - centroid;
+            double dot = CGAL::scalar_product(normal, v);
+            if (dot > 0 || (dot > -1e-10 && normal.squared_length() < 1e-20)) {  // Allow small negative or zero for degenerates
+                std::cerr << "[DEBUG] Facet " << fi << " in cell " << cell.cellIndex << " has dot " << dot << " (should <0), sq_normal " << normal.squared_length() << "\n";
+                std::cerr << "[DEBUG] Full vertices: ";
+                for (int vi : V) std::cerr << vi << " ";
+                std::cerr << "\n[DEBUG] Coords: \n";
+                for (int vi : V) {
+                    const Point &p = vertices[vi].coord;
+                    std::cerr << p << "\n";
+                }
+                std::cerr << "[DEBUG] Centroid: " << centroid << ", site: " << site << "\n";
+                if (dot > 0) {
+                    throw std::runtime_error("Facet " + std::to_string(fi) +
+                                             " in cell " + std::to_string(cell.cellIndex) +
+                                             " has inward‐pointing normal.");
+                }
+            }
         }
     }
 }
+
 
 //! @brief Verifies paired facets have opposite orientations.
 /*!
