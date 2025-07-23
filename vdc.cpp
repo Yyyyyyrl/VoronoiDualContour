@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     }
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
 
-    std::cout << dt << std::endl;
+    //std::cout << dt << std::endl;
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
     {
