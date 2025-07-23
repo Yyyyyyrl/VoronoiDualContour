@@ -123,6 +123,10 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
  */
 void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
+//! @brief Validates that each Facet in the Voronoi Diagram has the correct orientation and normal vector.
+void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram);
+
+
 //! @brief Computes Voronoi vertex values using scalar grid interpolation.
 /*!
  * Interpolates scalar values from the grid to each vertex of the Voronoi diagram.
