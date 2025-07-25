@@ -231,10 +231,10 @@ struct VoronoiDiagram
     int AddCell(Vertex_handle delaunay_vertex);
     
     //! @brief Checks internal consistency of the VoronoiDiagram.
-    void check() const;
+    void check(bool check_norm) const;
 
     //! @brief Comprehensive checker for Voronoi diagram consistency.
-    void checkAdvanced() const;
+    void checkAdvanced(bool check_norm) const;
 
     //! @brief Finds the index of a vertex given its coordinates.
     /*!
