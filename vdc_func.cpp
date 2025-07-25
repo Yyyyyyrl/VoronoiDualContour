@@ -584,6 +584,7 @@ void compute_dual_triangle_multi(
         Line3 line;
         std::vector<Facet> dualDelaunayFacets = edge.delaunayFacets;
 
+        std::cout << "[DEBUG] processing edge (" << edge.vertex1 << ", " << edge.vertex2 << "), type = " << edge.type << std::endl;
         if (edge.type == 0)
         {
             process_segment_edge_multi(edge, voronoiDiagram, isovalue, iso_surface);
@@ -2053,9 +2054,9 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
         construct_voronoi_cell_edges(vd, bbox, dt);
     }
 
-    // vd.check();
+    vd.check(false);
     VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox, dt);
-    vd2.check();
+    vd2.check(true);
     vd = std::move(vd2);
 }
 
