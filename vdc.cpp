@@ -7,6 +7,8 @@ int main(int argc, char *argv[])
     IsoSurface iso_surface;
     Delaunay dt;
 
+    std::clock_t start_time = std::clock();
+
     // Parse command-line arguments to set program options and parameters.
     parse_arguments(argc, argv, vdc_param);
 
@@ -55,12 +57,21 @@ int main(int argc, char *argv[])
 
     float cubeSideLength = data_grid.dx; // Store the cube side length (equal to grid spacing, assuming regular grid so dx/dy/dz will be equal).
 
+    std::clock_t load_data_time = std::clock(); // Get ending clock ticks
+    double duration_ld = static_cast<double>(load_data_time - start_time) / CLOCKS_PER_SEC;
+
+    std::cout << "[INFO] Loading Data processing time: " << std::to_string(duration_ld) << " seconds." << std::endl;
+
     // Construct the Delaunay triangulation using the grid facets.
     if (indicator)
     {
         std::cout << "[INFO] Constructing Delaunay triangulation..." << std::endl;
     }
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
+
+    std::clock_t construct_dt_time = std::clock(); // Get ending clock ticks
+    double duration_dt = static_cast<double>(construct_dt_time - load_data_time) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Constructing Delaunay triangulation time: " << std::to_string(duration_dt) << " seconds." << std::endl;
 
     //std::cout << dt << std::endl;
     // Construct the Voronoi diagram based on the Delaunay triangulation.
@@ -70,23 +81,29 @@ int main(int argc, char *argv[])
     }
 
     construct_voronoi_diagram(vd, vdc_param, data_grid, bbox, dt);
-    if (vdc_param.test_vor) {
-        // If test_vor is true means in testing mode for voronoi diagram construction, no need for further move
-        return EXIT_SUCCESS;
-    }
 
+    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.01, bbox, dt);
+    vd2.check(true);
+
+    std::clock_t construct_vd_time = std::clock(); // Get ending clock ticks
+    double duration_vd = static_cast<double>(construct_vd_time - construct_dt_time) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Constructing Voronoi diagram time: " << std::to_string(duration_vd) << " seconds." << std::endl;
 
     if (indicator)
     {
         std::cout << "[INFO] Constructing Iso Surface..." << std::endl;
     }
-    construct_iso_surface(dt, vd, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox);
+    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox);
 
-    write_voronoiDiagram(vd, vdc_param.output_filename);
+    std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
+    double duration_iso = static_cast<double>(construct_iso_time - construct_vd_time) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Constructing Iso Surface time: " << std::to_string(duration_iso) << " seconds." << std::endl;
+
+    write_voronoiDiagram(vd2, vdc_param.output_filename);
 
     // Handle the output mesh generation and return the appropriate status.
     bool retFlag;
-    int retVal = handle_output_mesh(retFlag, vd, vdc_param, iso_surface);
+    int retVal = handle_output_mesh(retFlag, vd2, vdc_param, iso_surface);
     if (retFlag)
         return retVal;
 
