@@ -1,49 +1,5 @@
 #include "vdc_voronoi.h"
 
-//! @brief Finds the index of the vertex corresponding to the given point in the Voronoi diagram.
-/*!
- * Implements a spatial hashing technique for efficient point lookup in 3D space.
- * Scales the point coordinates to integers and uses a hash map for quick vertex index retrieval.
- *
- * Algorithm details:
- * 1. Scales coordinates by 1e6 to convert to integer space
- * 2. Uses tuple-based hash map for spatial partitioning
- * 3. Performs exact match check within hash bucket
- *
- * Performance considerations:
- * - O(1) average case lookup time
- * - Scales well with large number of vertices
- *
- * @param p The 3D point to locate in the Voronoi diagram (must be finite)
- * @return The index of the vertex if found, otherwise -1 indicating point not found
- * @note The scaling factor (1e6) provides ~1 micron precision for coordinates in meter units
- */
-int VoronoiDiagram::find_vertex(const Point &p) const
-{
-    // Scale coordinates for spatial hashing
-    const double SCALE_FACTOR = 1e6;
-    int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
-    int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
-    int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
-
-    // Create hash key from scaled coordinates
-    std::tuple<int, int, int> key(ix, iy, iz);
-
-    // Look up in vertex map
-    auto it = vertexMap.find(key);
-    if (it != vertexMap.end())
-    {
-        // Check all vertices in this hash bucket for exact match
-        for (int idx : it->second)
-        {
-            if (PointApproxEqual()(vertices[idx].coord, p))
-            {
-                return idx;
-            }
-        }
-    }
-    return -1; // Not found
-}
 
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
 /*!
@@ -52,7 +8,6 @@ int VoronoiDiagram::find_vertex(const Point &p) const
  *
  * Implementation details:
  * - Vertex indices are assigned sequentially
- * - Uses same spatial hashing scheme as find_vertex()
  * - Initializes empty cell indices list
  *
  * Thread safety:
@@ -76,13 +31,6 @@ int VoronoiDiagram::AddVertex(const Point &p, float value)
     // Add to vertex list
     vertices.push_back(v);
 
-    // Update spatial hash map
-    const double SCALE_FACTOR = 1e6;
-    int ix = static_cast<int>(std::round(p.x() * SCALE_FACTOR));
-    int iy = static_cast<int>(std::round(p.y() * SCALE_FACTOR));
-    int iz = static_cast<int>(std::round(p.z() * SCALE_FACTOR));
-    std::tuple<int, int, int> key(ix, iy, iz);
-    vertexMap[key].push_back(idx);
 
     return idx;
 }
