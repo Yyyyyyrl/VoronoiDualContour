@@ -3,12 +3,6 @@
 
 #include "vdc_func.h"
 
-//! @brief Helper function - returns the index of the vertex matching p, or -1 if not found.
-
-int find_vertex_index(const VoronoiDiagram &vd, const Point &p)
-{
-    return vd.find_vertex(p);
-}
 
 //! @brief Generates a Delaunay triangle based on orientation and cell finiteness.
 /*!
@@ -108,7 +102,6 @@ static void process_segment_edge(
  * @param dualTriangles Vector to store generated triangles.
  */
 static void process_ray_edge(
-    const Ray3 &ray,
     VoronoiEdge &edge,
     VoronoiDiagram &vd,
     CGAL::Epick::Iso_cuboid_3 &bbox,
@@ -117,13 +110,15 @@ static void process_ray_edge(
     Delaunay &dt,
     std::vector<DelaunayTriangle> &dualTriangles)
 {
+    Ray3 ray;
+    CGAL::assign(ray, edge.edgeObject);
     CGAL::Object intersectObj = CGAL::intersection(bbox, ray);
     Segment3 iseg;
     if (CGAL::assign(iseg, intersectObj))
     {
         Point v1 = iseg.source();
         Point v2 = iseg.target();
-        int idx_v1 = find_vertex_index(vd, v1);
+        int idx_v1 = edge.vertex1;
         float v1_val = vd.vertices[idx_v1].value;
         float iPt_value = trilinear_interpolate(adjust_outside_bound_points(v2, grid, v1, v2), grid);
 
@@ -242,8 +237,7 @@ void compute_dual_triangles(
         }
         else if (edge.type == 1)
         {
-            CGAL::assign(ray, edge.edgeObject);
-            process_ray_edge(ray, edge, vd, bbox, grid, isovalue, dt, dualTriangles);
+            process_ray_edge(edge, vd, bbox, grid, isovalue, dt, dualTriangles);
         }
         else if (edge.type == 2)
         {
@@ -319,10 +313,10 @@ static void generate_triangle_multi(
     }
     else
     {
-        std::cout << "Problematic triangle" << std::endl;
-        std::cout << "Vertex 1: " << idx1 << std::endl;
-        std::cout << "Vertex 2: " << idx2 << std::endl;
-        std::cout << "Vertex 3: " << idx3 << std::endl;
+        //std::cout << "Problematic triangle" << std::endl;
+        //std::cout << "Vertex 1: " << idx1 << std::endl;
+        //std::cout << "Vertex 2: " << idx2 << std::endl;
+        //std::cout << "Vertex 3: " << idx3 << std::endl;
     }
 }
 
@@ -434,6 +428,7 @@ static void process_segment_edge_multi(
  * @param iso_surface The isosurface to store triangles.
  */
 static void process_ray_edge_multi(
+    int source_pt,
     const Ray3 &ray,
     std::vector<Facet> dualDelaunayFacets,
     VoronoiDiagram &voronoiDiagram,
@@ -448,7 +443,7 @@ static void process_ray_edge_multi(
     {
         Point v1 = ray.source();
         Point v2 = iseg.target();
-        int idx_v1 = find_vertex_index(voronoiDiagram, v1);
+        int idx_v1 = source_pt;
         float val1 = voronoiDiagram.vertices[idx_v1].value;
         float val2 = trilinear_interpolate(v2, grid);
 
@@ -584,7 +579,7 @@ void compute_dual_triangle_multi(
         Line3 line;
         std::vector<Facet> dualDelaunayFacets = edge.delaunayFacets;
 
-        std::cout << "[DEBUG] processing edge (" << edge.vertex1 << ", " << edge.vertex2 << "), type = " << edge.type << std::endl;
+        //std::cout << "[DEBUG] processing edge (" << edge.vertex1 << ", " << edge.vertex2 << "), type = " << edge.type << std::endl;
         if (edge.type == 0)
         {
             process_segment_edge_multi(edge, voronoiDiagram, isovalue, iso_surface);
@@ -592,7 +587,8 @@ void compute_dual_triangle_multi(
         else if (edge.type == 1)
         {
             CGAL::assign(ray, edge.edgeObject);
-            process_ray_edge_multi(ray, dualDelaunayFacets, voronoiDiagram, grid, isovalue, bbox, iso_surface);
+            int source = edge.vertex1;
+            process_ray_edge_multi(source, ray, dualDelaunayFacets, voronoiDiagram, grid, isovalue, bbox, iso_surface);
         }
         else if (edge.type == 2)
         {
@@ -1083,17 +1079,6 @@ void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
         cit->info().dualVoronoiVertexIndex = vertex_index;
         vertex_index++;
     }
-    // Populate vertexMap for spatial queries, allowing multiple vertices at the same position
-    const double SCALE_FACTOR = 1e6;
-    for (size_t i = 0; i < voronoiDiagram.vertices.size(); ++i)
-    {
-        const Point &P = voronoiDiagram.vertices[i].coord;
-        int ix = static_cast<int>(std::round(P.x() * SCALE_FACTOR));
-        int iy = static_cast<int>(std::round(P.y() * SCALE_FACTOR));
-        int iz = static_cast<int>(std::round(P.z() * SCALE_FACTOR));
-        std::tuple<int, int, int> key(ix, iy, iz);
-        voronoiDiagram.vertexMap[key].push_back(i);
-    }
 }
 
 //! @brief Computes Voronoi Vertex values using scalar grid interpolation
@@ -1459,7 +1444,7 @@ static void process_incident_edges(
 
         if (finite_cell_count < 3)
         {
-            std::cout << "[INFO] Skipping edge with " << finite_cell_count << " finite incident cells (insufficient for interior facet)\n";
+            //std::cout << "[INFO] Skipping edge with " << finite_cell_count << " finite incident cells (insufficient for interior facet)\n";
             continue;
         }
 
@@ -1602,7 +1587,7 @@ void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
                 if (curr_dir_uv == adj_dir_uv)
                 {
                     std::reverse(adj_verts.begin(), adj_verts.end());
-                    std::cout << "[INFO] Reversed intra-cell facet " << adj_f << " in cell " << cell.cellIndex << " to match opposite edge {" << shared_edge.first << "," << shared_edge.second << "} with facet " << curr_f << "\n";
+                    //std::cout << "[INFO] Reversed intra-cell facet " << adj_f << " in cell " << cell.cellIndex << " to match opposite edge {" << shared_edge.first << "," << shared_edge.second << "} with facet " << curr_f << "\n";
                 }
             }
         }
@@ -1649,7 +1634,7 @@ void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
         if (total_non_deg > 0 && outward_count < total_non_deg / 2)
         {
             // Majority inward, reverse all facets in the cell
-            std::cout << "[INFO] Reversing all facets in cell " << cell.cellIndex << " to make majority outward (outward_count: " << outward_count << " / " << total_non_deg << ")\n";
+            //std::cout << "[INFO] Reversing all facets in cell " << cell.cellIndex << " to make majority outward (outward_count: " << outward_count << " / " << total_non_deg << ")\n";
             for (size_t f = 0; f < num_facets; ++f)
             {
                 int fi = cell.facet_indices[f];
@@ -1707,46 +1692,46 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
 
             auto &A = voronoiDiagram.facets[f1].vertices_indices;
             auto &B = voronoiDiagram.facets[f2].vertices_indices;
-            std::cout << "[INFO] Matching edge-facets: " << f1 << " and " << f2 << "\n";
+/*             std::cout << "[INFO] Matching edge-facets: " << f1 << " and " << f2 << "\n";
             std::cout << "Vertices A: ";
             for (int vi : A)
                 std::cout << vi << " ";
             std::cout << "\nVertices B: ";
             for (int vi : B)
                 std::cout << vi << " ";
-            std::cout << std::endl;
+            std::cout << std::endl; */
 
             bool is_same = voronoiDiagram.haveSameOrientation(A, B);
             bool is_opposite = voronoiDiagram.haveOppositeOrientation(A, B);
             if (is_same)
             {
-                std::cout << "[INFO] Facets " << f1 << " and " << f2 << " have same orientation, reversing B\n";
+                //std::cout << "[INFO] Facets " << f1 << " and " << f2 << " have same orientation, reversing B\n";
             }
             else if (!is_opposite)
             {
-                std::cout << "[INFO] Facets " << f1 << " and " << f2 << " have neither same nor opposite, reversing B to force\n";
+                //std::cout << "[INFO] Facets " << f1 << " and " << f2 << " have neither same nor opposite, reversing B to force\n";
             }
 
             if (is_same || !is_opposite)
             {
                 std::reverse(B.begin(), B.end());
                 is_opposite = voronoiDiagram.haveOppositeOrientation(A, B);
-                std::cout << "[INFO] After reverse, vertices B: ";
+/*                 std::cout << "[INFO] After reverse, vertices B: ";
                 for (int vi : B)
                     std::cout << vi << " ";
-                std::cout << "\n";
+                std::cout << "\n"; */
                 if (!is_opposite)
                 {
-                    std::cerr << "[ERROR] Failed to make opposite after reverse for facets " << f1 << " and " << f2 << "\n";
+                    //std::cerr << "[ERROR] Failed to make opposite after reverse for facets " << f1 << " and " << f2 << "\n";
                 }
                 else
                 {
-                    std::cout << "[INFO] Now opposite after reverse\n";
+                    //std::cout << "[INFO] Now opposite after reverse\n";
                 }
             }
             else
             {
-                std::cout << "[INFO] Already opposite, no reverse needed\n";
+                //std::cout << "[INFO] Already opposite, no reverse needed\n";
             }
         }
         else if (dfacets.size() == 1)
@@ -2055,9 +2040,6 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
     }
 
     vd.check(false);
-    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox, dt);
-    vd2.check(true);
-    vd = std::move(vd2);
 }
 
 // ！@brief Wrap up function for constructing iso surface
@@ -2081,7 +2063,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
         compute_dual_triangles(iso_surface, vd, bbox, dt, grid, vdc_param.isovalue);
     }
 
-    if (debug)
+/*     if (debug)
     {
         std::set<int> problem_vertices = {1730, 1554, 1731, 1553};
         std::cout << "[DEBUG] Cell assignments for isovertices:\n";
@@ -2125,7 +2107,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
                 std::cout << "[DEBUG] Isovertex " << i << ": " << p << "\n";
             }
         }
-    }
+    } */
 }
 
 //! @brief Handles output mesh generation.

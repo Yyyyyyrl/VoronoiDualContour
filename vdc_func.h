@@ -238,7 +238,6 @@ static void process_segment_edge(
  * Intersects the ray with the bounding box, checks bipolarity, and generates
  * triangles for associated Delaunay facets.
  *
- * @param ray The ray edge to process.
  * @param edge The CGAL object representing the edge.
  * @param bbox The bounding box for intersection.
  * @param grid The scalar grid for interpolation.
@@ -247,7 +246,6 @@ static void process_segment_edge(
  * @param dualTriangles Vector to store generated triangles.
  */
 static void process_ray_edge(
-    const Ray3 &ray,
     VoronoiEdge &edge,
     VoronoiDiagram &vd,
     CGAL::Epick::Iso_cuboid_3 &bbox,
@@ -331,6 +329,7 @@ static void process_segment_edge_multi(
  * Intersects the ray with the bounding box, checks bipolarity, and generates
  * triangles using the first isovertex from each cell.
  *
+ * @param source_pt The index of the source point of the ray edge in VoronoiDiagram
  * @param ray The ray edge to process
  * @param dualDelaunayFacets List of Delaunay facets dual to this edge
  * @param voronoiDiagram The Voronoi diagram containing edge and cell data
@@ -340,6 +339,7 @@ static void process_segment_edge_multi(
  * @param iso_surface The isosurface to store triangles
  */
 static void process_ray_edge_multi(
+    int source_pt,
     const Ray3 &ray,
     std::vector<Facet> dualDelaunayFacets,
     VoronoiDiagram &voronoiDiagram,
@@ -538,16 +538,6 @@ static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
                                                   const Point &p,
                                                   int index,
                                                   bool is_dummy);
-
-//! @brief Finds the index of a vertex in the Voronoi diagram matching a point.
-/*!
- * Searches for a vertex with approximately equal coordinates to the given point.
- *
- * @param vd The Voronoi diagram containing vertices.
- * @param p The point to match.
- * @return The index of the matching vertex, or -1 if not found.
- */
-static int find_vertex_index(const VoronoiDiagram &vd, const Point &p);
 
 //! @brief Selects an isovertex from a Voronoi cell edge.
 /*!
