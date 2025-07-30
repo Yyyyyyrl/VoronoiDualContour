@@ -2019,7 +2019,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
             validate_facet_orientations_and_normals(vd);
             std::clock_t check4 = std::clock();
             double duration4 = static_cast<double>(check4 - check3) / CLOCKS_PER_SEC;
-            std::cout << "validate cells Execution time: " << duration4 << " seconds" << std::endl;
+            std::cout << "validate facet orientations and normals in cells Execution time: " << duration4 << " seconds" << std::endl;
         }
 
         std::clock_t t = std::clock();
