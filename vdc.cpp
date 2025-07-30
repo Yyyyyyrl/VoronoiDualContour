@@ -2,6 +2,7 @@
 
 int main(int argc, char *argv[])
 {
+    std::clock_t initial_time = std::clock();
     VoronoiDiagram vd; // Initialize an empty Voronoi diagram.
     VDC_PARAM vdc_param;
     IsoSurface iso_surface;
@@ -82,12 +83,15 @@ int main(int argc, char *argv[])
 
     construct_voronoi_diagram(vd, vdc_param, data_grid, bbox, dt);
 
+    std::clock_t cons_vd_time = std::clock();
     VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.01, bbox, dt);
+    std::clock_t collapse_time = std::clock();
+    double duration_col = static_cast<double>(collapse_time - cons_vd_time) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Collapsing time: " << std::to_string(duration_col) << " seconds." << std::endl;
     vd2.check(true);
-
-    std::clock_t construct_vd_time = std::clock(); // Get ending clock ticks
-    double duration_vd = static_cast<double>(construct_vd_time - construct_dt_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Constructing Voronoi diagram time: " << std::to_string(duration_vd) << " seconds." << std::endl;
+    std::clock_t check2_time = std::clock();
+    double duration_vd2check = static_cast<double>(check2_time - collapse_time) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Checking vd2 time: " << std::to_string(duration_vd2check) << " seconds." << std::endl;
 
     if (indicator)
     {
@@ -96,7 +100,7 @@ int main(int argc, char *argv[])
     construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox);
 
     std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
-    double duration_iso = static_cast<double>(construct_iso_time - construct_vd_time) / CLOCKS_PER_SEC;
+    double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Constructing Iso Surface time: " << std::to_string(duration_iso) << " seconds." << std::endl;
 
     write_voronoiDiagram(vd2, vdc_param.output_filename);
@@ -108,6 +112,9 @@ int main(int argc, char *argv[])
         return retVal;
 
     std::cout << "Finished." << std::endl;
+    std::clock_t finish_time = std::clock();
+    double duration = static_cast<double>(finish_time - initial_time) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Total processing time: " << std::to_string(duration) << " seconds." << std::endl;
 
     return EXIT_SUCCESS;
 }

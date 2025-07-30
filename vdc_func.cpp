@@ -1046,11 +1046,16 @@ void construct_delaunay_triangulation(Delaunay &dt,
                                       VDC_PARAM &vdc_param,
                                       std::vector<Point> &activeCubeCenters)
 {
+    std::clock_t start_time = std::clock();
     // Build point list and dummy indices
     std::vector<Point> delaunay_points;
     std::vector<int> dummy_point_indices;
     collect_delaunay_points(grid, grid_facets, activeCubeCenters,
                             vdc_param, delaunay_points, dummy_point_indices);
+    
+    std::clock_t check1_time = std::clock();
+    double duration = (check1_time - start_time) / (double)CLOCKS_PER_SEC;
+    std::cout << "[INFO] Time to build point list: " << duration << " seconds" << std::endl;
 
     std::cout << "[DEBUG] Number of vertices: " << delaunay_points.size() << std::endl;
 
@@ -1063,6 +1068,9 @@ void construct_delaunay_triangulation(Delaunay &dt,
         bool is_dummy = (std::find(dummy_point_indices.begin(), dummy_point_indices.end(), i) != dummy_point_indices.end());
         insert_point_into_delaunay_triangulation(dt, delaunay_points[i], i, is_dummy);
     }
+    std::clock_t check2_time = std::clock();
+    double duration2 = (check2_time - check1_time) / (double)CLOCKS_PER_SEC;
+    std::cout << "[INFO] Time to insert points into Delaunay Triangulation " << duration2 << " seconds" << std::endl;
 }
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
@@ -1692,47 +1700,6 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
 
             auto &A = voronoiDiagram.facets[f1].vertices_indices;
             auto &B = voronoiDiagram.facets[f2].vertices_indices;
-/*             std::cout << "[INFO] Matching edge-facets: " << f1 << " and " << f2 << "\n";
-            std::cout << "Vertices A: ";
-            for (int vi : A)
-                std::cout << vi << " ";
-            std::cout << "\nVertices B: ";
-            for (int vi : B)
-                std::cout << vi << " ";
-            std::cout << std::endl; */
-
-            bool is_same = voronoiDiagram.haveSameOrientation(A, B);
-            bool is_opposite = voronoiDiagram.haveOppositeOrientation(A, B);
-            if (is_same)
-            {
-                //std::cout << "[INFO] Facets " << f1 << " and " << f2 << " have same orientation, reversing B\n";
-            }
-            else if (!is_opposite)
-            {
-                //std::cout << "[INFO] Facets " << f1 << " and " << f2 << " have neither same nor opposite, reversing B to force\n";
-            }
-
-            if (is_same || !is_opposite)
-            {
-                std::reverse(B.begin(), B.end());
-                is_opposite = voronoiDiagram.haveOppositeOrientation(A, B);
-/*                 std::cout << "[INFO] After reverse, vertices B: ";
-                for (int vi : B)
-                    std::cout << vi << " ";
-                std::cout << "\n"; */
-                if (!is_opposite)
-                {
-                    //std::cerr << "[ERROR] Failed to make opposite after reverse for facets " << f1 << " and " << f2 << "\n";
-                }
-                else
-                {
-                    //std::cout << "[INFO] Now opposite after reverse\n";
-                }
-            }
-            else
-            {
-                //std::cout << "[INFO] Already opposite, no reverse needed\n";
-            }
         }
         else if (dfacets.size() == 1)
         {
@@ -1740,8 +1707,6 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
             voronoiDiagram.facets[f].mirror_facet_index = -1;
         }
     }
-
-    validate_facet_orientations_and_normals(voronoiDiagram);
 }
 
 
@@ -2023,9 +1988,22 @@ void construct_voronoi_cell_edges(
 //! @brief Wrap up function of constructing voronoi diagram
 void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, UnifiedGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
 {
+    std::clock_t start = std::clock();
+    std::cout << "[INFO] Start constructing Voronoi vertices and edges..." << std::endl;
     construct_voronoi_vertices(vd, dt);
+    std::clock_t check0 = std::clock();
+    double duration0 = static_cast<double>(check0 - start) / CLOCKS_PER_SEC;
+    std::cout << "construct vertices Execution time: " << duration0 << " seconds" << std::endl;
+
     construct_voronoi_edges(vd, dt);
+    std::clock_t check1 = std::clock();
+    double duration1 = static_cast<double>(check1 - start) / CLOCKS_PER_SEC;
+    std::cout << "construct edges Execution time: " << duration1 << " seconds" << std::endl;
+
     compute_voronoi_values(vd, grid);
+    std::clock_t check2 = std::clock();
+    double duration2 = static_cast<double>(check2 - check1) / CLOCKS_PER_SEC;
+
     if (vdc_param.multi_isov)
     {
         if (vdc_param.convex_hull)
@@ -2035,16 +2013,34 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
         else
         {
             construct_voronoi_cells_from_delaunay_triangulation(vd, dt);
+            std::clock_t check3 = std::clock();
+            double duration3 = static_cast<double>(check3 - check2) / CLOCKS_PER_SEC;
+            std::cout << "construct cells Execution time: " << duration3 << " seconds" << std::endl;
+            validate_facet_orientations_and_normals(vd);
+            std::clock_t check4 = std::clock();
+            double duration4 = static_cast<double>(check4 - check3) / CLOCKS_PER_SEC;
+            std::cout << "validate cells Execution time: " << duration4 << " seconds" << std::endl;
         }
+
+        std::clock_t t = std::clock();
+        
         construct_voronoi_cell_edges(vd, bbox, dt);
+        std::clock_t check5 = std::clock();
+        double duration5 = static_cast<double>(check5 - t) / CLOCKS_PER_SEC;
+        std::cout << "construct cell edges Execution time: " << duration5 << " seconds" << std::endl;
     }
 
+    std::clock_t t2 = std::clock();
     vd.check(false);
+    std::clock_t check6 = std::clock();
+    double duration6 = static_cast<double>(check6 - t2) / CLOCKS_PER_SEC;
+    std::cout << "vd.check() Execution time: " << duration6 << " seconds" << std::endl;
 }
 
 // ！@brief Wrap up function for constructing iso surface
 void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox)
 {
+    std::clock_t start_time = std::clock();
     if (vdc_param.multi_isov)
     {
         compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
@@ -2053,6 +2049,10 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     {
         compute_isosurface_vertices_single(grid, vdc_param.isovalue, iso_surface, activeCubeCenters);
     }
+
+    std::clock_t check_time = std::clock();
+    double duration = static_cast<double>(check_time - start_time) / CLOCKS_PER_SEC;
+    std::cout << "Compute isosurface vertices Execution time: " << duration << " seconds" << std::endl;
 
     if (vdc_param.multi_isov)
     {
@@ -2063,51 +2063,10 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
         compute_dual_triangles(iso_surface, vd, bbox, dt, grid, vdc_param.isovalue);
     }
 
-/*     if (debug)
-    {
-        std::set<int> problem_vertices = {1730, 1554, 1731, 1553};
-        std::cout << "[DEBUG] Cell assignments for isovertices:\n";
-        for (size_t cell_idx = 0; cell_idx < vd.cells.size(); ++cell_idx)
-        {
-            const VoronoiCell &vc = vd.cells[cell_idx];
-            int start = vc.isoVertexStartIndex;
-            int end = start + vc.numIsoVertices;
-            for (int idx = start; idx < end; ++idx)
-            {
-                if (problem_vertices.count(idx) > 0)
-                {
-                    int cycle_idx = idx - start;
-                    std::cout << "[DEBUG] Problematic Isovertex " << idx << " in Cell " << cell_idx
-                              << ", Cycle " << cycle_idx << "\n";
-                    if (cycle_idx < vc.cycles.size())
-                    {
-                        const Cycle &cycle = vc.cycles[cycle_idx];
-                        std::cout << "[DEBUG] Cycle midpoints: ";
-                        for (int mid_idx : cycle.midpoint_indices)
-                        {
-                            std::cout << mid_idx << " ";
-                        }
-                        std::cout << "\n";
-                    }
-                }
-            }
-        }
-    }
+    std::clock_t check2_time = std::clock();
+    double duration2 = static_cast<double>(check2_time - check_time) / CLOCKS_PER_SEC;
+    std::cout << "Compute isosurface vertices Execution time: " << duration2 << " seconds" << std::endl;
 
-    if (debug)
-    {
-        Point hole_center(52, 34, 35);
-        double threshold = 2.0;
-        std::cout << "[DEBUG] Isovertices near hole region:\n";
-        for (size_t i = 0; i < iso_surface.isosurfaceVertices.size(); ++i)
-        {
-            const Point &p = iso_surface.isosurfaceVertices[i];
-            if (CGAL::squared_distance(p, hole_center) < threshold * threshold)
-            {
-                std::cout << "[DEBUG] Isovertex " << i << ": " << p << "\n";
-            }
-        }
-    } */
 }
 
 //! @brief Handles output mesh generation.
