@@ -91,6 +91,11 @@ struct VoronoiCellFacet
     VoronoiCellFacet() = default;
 };
 
+//TODO:
+struct VoronoiFacet {
+
+}; 
+
 //! @brief Represents a closed cycle in a Voronoi cell formed by midpoints.
 /*!
  * A cycle is a loop of midpoints connected by edges. Each cycle is associated

@@ -1167,28 +1167,30 @@ std::tuple<int, int, int> VoronoiDiagram::getFacetHashKey(const std::vector<int>
  * @return true if sequences match under any cyclic shift
  * @note O(n²) time complexity for n-vertex facets
  */
-bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1,
-                                         const std::vector<int> &f2) const
-{
-    if (f1.size() != f2.size())
-        return false;
-    int n = (int)f1.size();
-    // try every cyclic shift
-    for (int shift = 0; shift < n; ++shift)
-    {
-        bool ok = true;
-        for (int i = 0; i < n; ++i)
-        {
-            if (f1[i] != f2[(i + shift) % n])
-            {
-                ok = false;
-                break;
-            }
-        }
-        if (ok)
-            return true;
+bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1, const std::vector<int> &f2) const {
+    if (f1.size() != f2.size()) {
+        throw std::runtime_error("Facet vertex counts differ: " + std::to_string(f1.size()) + " vs " + std::to_string(f2.size()));
     }
-    return false;
+    size_t n = f1.size();
+    if (n <= 1) {
+        return true;  // Both empty or single element
+    }
+    
+    // Find location of f1[0] in f2
+    auto it = std::find(f2.begin(), f2.end(), f1[0]);
+    if (it == f2.end()) {
+        throw std::runtime_error("f1[0] not found in f2 - facets have different vertex sets");
+    }
+    size_t iloc = std::distance(f2.begin(), it);
+    
+    // Check the rest sequentially with wrap-around
+    for (size_t i = 1; i < n; ++i) {
+        iloc = (iloc + 1) % n;
+        if (f1[i] != f2[iloc]) {
+            return false;  // Mismatch in sequence (implies different ordering or sets)
+        }
+    }
+    return true;
 }
 
 //! @brief Checks if two facets have opposite vertex ordering.
