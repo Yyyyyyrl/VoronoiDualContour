@@ -565,7 +565,7 @@ static void process_line_edge_multi(
  * @param isovalue The isovalue for mesh computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  */
-void compute_dual_triangle_multi(
+void compute_dual_triangles_multi(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     UnifiedGrid &grid,
@@ -976,35 +976,24 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedG
  * @param activeCubeCenters The list of center points of active cubes.
  * @param vdc_param The VDC_PARAM instance containing user input options.
  * @param delaunay_points Output vector for all points (original + dummy).
- * @param dummy_points Output vector for dummy points.
  */
-static void collect_delaunay_points(UnifiedGrid &grid,
-                                    const std::vector<std::vector<GRID_FACETS>> &grid_facets,
-                                    const std::vector<Point> &activeCubeCenters,
-                                    VDC_PARAM &vdc_param,
-                                    std::vector<Point> &delaunay_points,
-                                    std::vector<int> &dummy_point_indices)
-{
-    // Start with active cube centers
+static int collect_delaunay_points(UnifiedGrid &grid,
+                                   const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+                                   const std::vector<Point> &activeCubeCenters,
+                                   VDC_PARAM &vdc_param,
+                                   std::vector<Point> &delaunay_points) {
     delaunay_points = activeCubeCenters;
-    dummy_point_indices.clear();
+    int first_dummy_index = delaunay_points.size();  // Dummies start here
 
-    if (vdc_param.multi_isov)
-    {
-        // For each facet, generate dummy points and record their indices
-        for (size_t d = 0; d < grid_facets.size(); ++d)
-        {
-            for (const auto &f : grid_facets[d])
-            {
+    if (vdc_param.multi_isov) {
+        for (int d = 0; d < 3; ++d) {  // Assuming 3 dimensions
+            for (const auto &f : grid_facets[d]) {
                 auto pointsf = add_dummy_from_facet(f, grid);
-                for (const auto &p : pointsf)
-                {
-                    delaunay_points.push_back(p);
-                    dummy_point_indices.push_back(static_cast<int>(delaunay_points.size()) - 1);
-                }
+                delaunay_points.insert(delaunay_points.end(), pointsf.begin(), pointsf.end());
             }
         }
     }
+    return first_dummy_index;
 }
 
 //! @brief Inserts points into the Delaunay triangulation.
@@ -1049,9 +1038,7 @@ void construct_delaunay_triangulation(Delaunay &dt,
     std::clock_t start_time = std::clock();
     // Build point list and dummy indices
     std::vector<Point> delaunay_points;
-    std::vector<int> dummy_point_indices;
-    collect_delaunay_points(grid, grid_facets, activeCubeCenters,
-                            vdc_param, delaunay_points, dummy_point_indices);
+    int first_dummy_index = collect_delaunay_points(grid, grid_facets, activeCubeCenters, vdc_param, delaunay_points);
     
     std::clock_t check1_time = std::clock();
     double duration = (check1_time - start_time) / (double)CLOCKS_PER_SEC;
@@ -1063,9 +1050,8 @@ void construct_delaunay_triangulation(Delaunay &dt,
     dt.clear();
 
     // Insert each point using the helper
-    for (int i = 0; i < static_cast<int>(delaunay_points.size()); ++i)
-    {
-        bool is_dummy = (std::find(dummy_point_indices.begin(), dummy_point_indices.end(), i) != dummy_point_indices.end());
+    for (size_t i = 0; i < delaunay_points.size(); ++i) {
+        bool is_dummy = (i >= first_dummy_index);
         insert_point_into_delaunay_triangulation(dt, delaunay_points[i], i, is_dummy);
     }
     std::clock_t check2_time = std::clock();
@@ -1096,7 +1082,6 @@ void compute_voronoi_values(VoronoiDiagram &voronoiDiagram, UnifiedGrid &grid)
     {
         Point vertex = voronoiDiagram.vertices[i].coord;
         voronoiDiagram.vertices[i].value = trilinear_interpolate(vertex, grid);
-        float value = trilinear_interpolate(vertex, grid);
     }
 }
 
@@ -2056,7 +2041,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
 
     if (vdc_param.multi_isov)
     {
-        compute_dual_triangle_multi(vd, bbox, grid, vdc_param.isovalue, iso_surface);
+        compute_dual_triangles_multi(vd, bbox, grid, vdc_param.isovalue, iso_surface);
     }
     else
     {

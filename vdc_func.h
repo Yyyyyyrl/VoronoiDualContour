@@ -41,7 +41,7 @@ void compute_dual_triangles(
  * @param isovalue The isovalue for mesh computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  */
-void compute_dual_triangle_multi(
+void compute_dual_triangles_multi(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     UnifiedGrid &grid,
@@ -514,14 +514,12 @@ static void process_incident_edges(Delaunay &dt, Vertex_handle delaunay_vertex, 
  * @param activeCubeCenters The list of center points of active cubes.
  * @param vdc_param The VDC_PARAM instance containing user input options.
  * @param delaunay_points Output vector for all points (original + dummy).
- * @param dummy_points Output vector for dummy points.
  */
-static void collect_delaunay_points(UnifiedGrid &grid,
-                                  const std::vector<std::vector<GRID_FACETS>> &grid_facets,
-                                  const std::vector<Point> &activeCubeCenters,
-                                  VDC_PARAM &vdc_param,
-                                  std::vector<Point> &delaunay_points,
-                                  std::vector<int> &dummy_point_indices);
+static int collect_delaunay_points(UnifiedGrid &grid,
+                                   const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+                                   const std::vector<Point> &activeCubeCenters,
+                                   VDC_PARAM &vdc_param,
+                                   std::vector<Point> &delaunay_points);
 
 
 //! @brief Inserts a point into Delaunay triangulation.
