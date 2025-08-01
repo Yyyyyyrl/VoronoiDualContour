@@ -91,6 +91,11 @@ struct VoronoiCellFacet
     VoronoiCellFacet() = default;
 };
 
+//TODO:
+struct VoronoiFacet {
+
+}; 
+
 //! @brief Represents a closed cycle in a Voronoi cell formed by midpoints.
 /*!
  * A cycle is a loop of midpoints connected by edges. Each cycle is associated
@@ -178,8 +183,6 @@ struct VoronoiDiagram
     std::vector<VoronoiCell> cells;                     //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiCellFacet> facets;               //!< List of facets in the diagram.
 
-    std::unordered_map<std::tuple<int, int, int>, std::vector<int>, TupleHash> vertexMap;   //!< A hash map with keys are a computed tuple of a Point(x,y,z) and value being the index of the Voronoi vertex in vertices with coordinates(x,y,z)
-
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
     std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
 
@@ -231,17 +234,17 @@ struct VoronoiDiagram
     int AddCell(Vertex_handle delaunay_vertex);
     
     //! @brief Checks internal consistency of the VoronoiDiagram.
-    void check() const;
+    void check(bool check_norm) const;
 
     //! @brief Comprehensive checker for Voronoi diagram consistency.
-    void checkAdvanced() const;
+    void checkAdvanced(bool check_norm) const;
 
-    //! @brief Finds the index of a vertex given its coordinates.
-    /*!
-     * @param p The point coordinates to search for
-     * @return Index of the vertex if found, -1 otherwise
-     */
-    int find_vertex(const Point &p) const;
+        /// Do two facet‐vertex‐sequences represent the same cyclic orientation?
+    bool haveSameOrientation(const std::vector<int> &f1,
+                             const std::vector<int> &f2) const;
+
+    bool haveOppositeOrientation(const std::vector<int> &f1,
+                                             const std::vector<int> &f2) const;
 
 private:
     //! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
@@ -268,13 +271,10 @@ private:
     /// Hash a facet by its three smallest vertex indices (for “at most two cells” check)
     std::tuple<int, int, int> getFacetHashKey(const std::vector<int> &verts) const;
 
-    /// Do two facet‐vertex‐sequences represent the same cyclic orientation?
-    bool haveSameOrientation(const std::vector<int> &f1,
-                             const std::vector<int> &f2) const;
 };
 
 // Add standalone function declaration at the end of vdc_voronoi.h
-VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox);
+VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
 
 //! @brief Represents an isosurface in the domain.
 /*!
