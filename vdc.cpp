@@ -7,6 +7,7 @@ int main(int argc, char *argv[])
     VDC_PARAM vdc_param;
     IsoSurface iso_surface;
     Delaunay dt;
+    Delaunay dt_test;
 
     std::clock_t start_time = std::clock();
 
@@ -41,6 +42,11 @@ int main(int argc, char *argv[])
 
     // Extract the centers of the active cubes.
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
+    std::clock_t test1 = std::clock();
+    dt_test.insert(activeCubeCenters.begin(), activeCubeCenters.end());
+    std::clock_t test2 = std::clock();
+    double d = static_cast<double>(test2 - test1) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Delaunay test time: " << d << " seconds." << std::endl;
 
     std::cout << "[INFO] Number of active cube centers: " << activeCubeCenters.size() << std::endl;
 
