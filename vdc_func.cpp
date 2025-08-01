@@ -1029,34 +1029,50 @@ static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
  * @param vdc_param The VDC_PARAM instance holding user input options.
  * @param activeCubeCenters The list of center points of active cubes.
  */
-void construct_delaunay_triangulation(Delaunay &dt,
-                                      UnifiedGrid &grid,
-                                      const std::vector<std::vector<GRID_FACETS>> &grid_facets,
-                                      VDC_PARAM &vdc_param,
-                                      std::vector<Point> &activeCubeCenters)
-{
-    std::clock_t start_time = std::clock();
-    // Build point list and dummy indices
+void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters) {
+    std::clock_t start = std::clock();
+
     std::vector<Point> delaunay_points;
-    int first_dummy_index = collect_delaunay_points(grid, grid_facets, activeCubeCenters, vdc_param, delaunay_points);
-    
-    std::clock_t check1_time = std::clock();
-    double duration = (check1_time - start_time) / (double)CLOCKS_PER_SEC;
-    std::cout << "[INFO] Time to build point list: " << duration << " seconds" << std::endl;
+    size_t first_dummy_index = collect_delaunay_points(grid, grid_facets, activeCubeCenters, vdc_param, delaunay_points);
+
+    std::clock_t after_collect = std::clock();
+    double collect_time = static_cast<double>(after_collect - start) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Time to build point list: " << collect_time << " seconds" << std::endl;
 
     std::cout << "[DEBUG] Number of vertices: " << delaunay_points.size() << std::endl;
 
-    // Clear existing triangulation
     dt.clear();
 
-    // Insert each point using the helper
+    // Batch insert all points
+    dt.insert(delaunay_points.begin(), delaunay_points.end());
+
+    std::clock_t after_insert = std::clock();
+    double insert_time = static_cast<double>(after_insert - after_collect) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Vertices insert time: " << insert_time << " seconds" << std::endl;
+
+    // Create map from point to original index
+    std::map<Point, size_t> point_to_index;
     for (size_t i = 0; i < delaunay_points.size(); ++i) {
-        bool is_dummy = (i >= first_dummy_index);
-        insert_point_into_delaunay_triangulation(dt, delaunay_points[i], i, is_dummy);
+        point_to_index[delaunay_points[i]] = i;
     }
-    std::clock_t check2_time = std::clock();
-    double duration2 = (check2_time - check1_time) / (double)CLOCKS_PER_SEC;
-    std::cout << "[INFO] Time to insert points into Delaunay Triangulation " << duration2 << " seconds" << std::endl;
+
+    // Assign info to vertices
+    for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
+        const Point& p = vit->point();
+        auto it = point_to_index.find(p);
+        if (it == point_to_index.end()) {
+            std::cerr << "[ERROR] Vertex point not found in original points!" << std::endl;
+            continue;
+        }
+        size_t original_index = it->second;
+        vit->info().index = original_index;
+        vit->info().is_dummy = (original_index >= first_dummy_index);
+        vit->info().voronoiCellIndex = -1;  // Initialize if needed
+    }
+
+    std::clock_t after_assign = std::clock();
+    double assign_time = static_cast<double>(after_assign - after_insert) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Time to assign vertex info: " << assign_time << " seconds" << std::endl;
 }
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
