@@ -183,7 +183,9 @@ void write_triangulation(Delaunay dt, std::vector<Point> &points, std::string &i
 }
 
 void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
-    std::ofstream file(output_filename + ".txt");
+    std::size_t pos = output_filename.find_last_of('.');
+    std::string out = output_filename.substr(0,pos);
+    std::ofstream file("VoronoiDiagram_" + out + ".txt");
     if (!file) {
         std::cerr << "Error opening output file.\n";
         exit(EXIT_FAILURE);
@@ -194,5 +196,5 @@ void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
     file << vd;
 
     file.close();
-    std::cout << "voronoi diagram saved to " << output_filename + ".txt\n";
+    std::cout << "voronoi diagram saved to VoronoiDiagram_" << out + ".txt\n";
 }

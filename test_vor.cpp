@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
         }
     }
     VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox, dt);
-    vd2.check();
+    vd2.check(true);
     vd = std::move(vd2);
     if (vdc_param.multi_isov) {
         construct_voronoi_cell_edges(vd, bbox, dt);
