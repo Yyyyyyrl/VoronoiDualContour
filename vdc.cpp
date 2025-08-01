@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Constructing Iso Surface time: " << std::to_string(duration_iso) << " seconds." << std::endl;
 
-    write_voronoiDiagram(vd2, vdc_param.output_filename);
+    //write_voronoiDiagram(vd2, vdc_param.output_filename);
 
     // Handle the output mesh generation and return the appropriate status.
     bool retFlag;
