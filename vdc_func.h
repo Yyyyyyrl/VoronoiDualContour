@@ -548,18 +548,6 @@ static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
  */
 static inline int select_isovertex_from_cell_edge(const VoronoiDiagram &voronoiDiagram, int cellIndex, int globalEdgeIndex);
 
-//! @brief Orders facet vertices in cyclic order around a Delaunay edge.
-/*!
- * Sorts vertex indices based on their angular position around the Delaunay edge
- * defined by points p0 and p1.
- *
- * @param indices The vertex indices to sort.
- * @param p0 The first point of the Delaunay edge.
- * @param p1 The second point of the Delaunay edge.
- * @param vertices The Voronoi vertices containing position data.
- */
-static void order_facet_vertices(std::vector<int> &indices, const Point &p0, const Point &p1, const std::vector<VoronoiVertex> &vertices);
-
 
 //! @brief Matches bipolar edges on a facet based on the specified method.
 /*!
