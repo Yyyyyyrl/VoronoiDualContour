@@ -1,6 +1,137 @@
 #include "vdc_voronoi.h"
 
 
+void VoronoiDiagram::create_global_facets() {
+    std::map<std::tuple<int, int, int>, std::vector<int>> hashToCellFacets;
+    for (size_t fi = 0; fi < facets.size(); ++fi) {
+        auto key = getFacetHashKey(facets[fi].vertices_indices);
+        hashToCellFacets[key].push_back(static_cast<int>(fi));
+    }
+
+    for (const auto& kv : hashToCellFacets) {
+        const auto& fvec = kv.second;
+        if (fvec.size() > 2) {
+            throw std::runtime_error("Facet shared by more than 2 cells.");
+        }
+
+        VoronoiFacet vf;
+        vf.index = static_cast<int>(global_facets.size());
+        int primary = fvec[0];
+        vf.vertices_indices = facets[primary].vertices_indices;
+        vf.primary_cell_facet_index = primary;
+        global_facets.push_back(vf);
+
+        facets[primary].voronoi_facet_index = vf.index;
+        facets[primary].orientation = 1;
+
+        if (fvec.size() == 2) {
+            int secondary = fvec[1];
+            bool opposite = haveOppositeOrientation(facets[primary].vertices_indices, facets[secondary].vertices_indices);
+            if (!opposite) {
+                throw std::runtime_error("Paired facets " + std::to_string(primary) + " and " + std::to_string(secondary) + " do not have opposite orientations.");
+            }
+            facets[secondary].voronoi_facet_index = vf.index;
+            facets[secondary].orientation = -1;
+        }
+    }
+
+}
+
+void VoronoiDiagram::compute_bipolar_matches(float isovalue) {
+    for (auto& vf : global_facets) {
+        // Get types for global facet
+        std::vector<BIPOLAR_MATCH_METHOD> types;
+        std::vector<int> bipolar_edge_indices;  // New: store full-facet edge indices where bipolar
+        const auto& vert_indices = vf.vertices_indices;
+        int num = vert_indices.size();
+        int num_sep_neg = 0;
+        int num_sep_pos = 0;
+        for (int i = 0; i < num; ++i) {
+            int vi0 = vert_indices[i];
+            int vi1 = vert_indices[(i + 1) % num];
+            float val0 = vertices[vi0].value;
+            float val1 = vertices[vi1].value;
+            if (is_bipolar(val0, val1, isovalue)) {
+                bipolar_edge_indices.push_back(i);  // Add the full-edge index
+                if (val0 >= isovalue && val1 < isovalue) {
+                    types.push_back(BIPOLAR_MATCH_METHOD::SEP_NEG);
+                    num_sep_neg++;
+                } else {
+                    types.push_back(BIPOLAR_MATCH_METHOD::SEP_POS);
+                    num_sep_pos++;
+                }
+            }
+        }
+        vf.bipolar_edge_indices = bipolar_edge_indices;  // Store in vf
+
+        // Determine match_method (unchanged)
+        BIPOLAR_MATCH_METHOD match_method;
+        if (num_sep_neg == num_sep_pos) {
+            match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // Arbitrary choice when equal; consistent
+        } else if (num_sep_neg > num_sep_pos) {
+            match_method = BIPOLAR_MATCH_METHOD::SEP_NEG;
+        } else {
+            match_method = BIPOLAR_MATCH_METHOD::SEP_POS;
+        }
+
+        if (types.size() % 2 != 0) {
+            match_method = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
+        }
+
+        // Compute matches (unchanged)
+        std::vector<std::pair<int, int>> matches;
+        int num_bipolar = types.size();
+        if (num_bipolar == 0 || num_bipolar % 2 != 0) {
+            vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE;
+            vf.bipolar_matches = matches;
+            continue;
+        }
+
+        bool use_pos_neg_start = (match_method == BIPOLAR_MATCH_METHOD::SEP_NEG); // true for SEP_NEG
+
+        std::vector<int> starts;
+        for (int k = 0; k < num_bipolar; ++k) {
+            if (types[k] == BIPOLAR_MATCH_METHOD::SEP_NEG == use_pos_neg_start) {
+                starts.push_back(k);
+            }
+        }
+
+        for (int s : starts) {
+            int next = (s + 1) % num_bipolar;
+            matches.emplace_back(s, next);
+        }
+
+        if (match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH) {
+            matches.clear();
+            for (int k = 0; k < num_bipolar; k += 2) {
+                matches.emplace_back(k, k + 1);
+            }
+        }
+
+        vf.bipolar_match_method = match_method;
+        vf.bipolar_matches = matches;
+    }
+}
+
+std::vector<int> VoronoiDiagram::get_vertices_for_facet(int cell_facet_index) const {
+    int vfi = facets[cell_facet_index].voronoi_facet_index;
+    std::vector<int> vert = global_facets[vfi].vertices_indices;
+    if (facets[cell_facet_index].orientation == -1) {
+        std::reverse(vert.begin(), vert.end());
+    }
+    return vert;
+}
+
+std::string matchMethodToString(BIPOLAR_MATCH_METHOD method) {
+    switch (method) {
+        case BIPOLAR_MATCH_METHOD::SEP_POS: return "SEP_POS";
+        case BIPOLAR_MATCH_METHOD::SEP_NEG: return "SEP_NEG";
+        case BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH: return "UNCONSTRAINED_MATCH";
+        case BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE: return "UNDEFINED_MATCH_TYPE";
+        default: return "UNKNOWN";
+    }
+}
+
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
 /*!
  * Creates a new Voronoi vertex and updates both the vertex list and spatial hash map.
@@ -169,7 +300,7 @@ int VoronoiDiagram::AddLineEdge(const Line3 &line)
  * @return Index of the newly created facet
  * @throws std::invalid_argument if vertices_indices has fewer than 3 elements
  */
-int VoronoiDiagram::AddFacet(const std::vector<int> &vertices_indices)
+int VoronoiDiagram::AddCellFacet(const std::vector<int> &vertices_indices)
 {
     // Create new facet
     VoronoiCellFacet facet;
@@ -213,65 +344,7 @@ int VoronoiDiagram::AddCell(Vertex_handle delaunay_vertex)
 
     return cellIdx;
 }
-//! @brief Computes the centroid of a cycle using the associated midpoints.
-/*!
- * Calculates the geometric center (isovertex) of a cycle by averaging the positions
- * of its constituent midpoints using CGAL's centroid function.
- *
- * Mathematical properties:
- * - Computes the arithmetic mean of point coordinates
- * - Result is the geometric center of mass
- * - Only valid for non-empty midpoint sets
- *
- * @param midpoints Vector of all MidpointNode objects in the diagram
- * @note Skips computation if midpoint_indices is empty
- * @see Cycle::compute_centroid(const std::vector<VoronoiVertex>&)
- */
-void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
-{
-    if (midpoint_indices.empty())
-    {
-        return; // No midpoints to compute centroid.
-    }
 
-    // Collect the points corresponding to the midpoint indices.
-    std::vector<Point> points;
-    for (int idx : midpoint_indices)
-    {
-        points.push_back(midpoints[idx].point);
-    }
-
-    // Compute the centroid using CGAL's centroid function.
-    isovertex = CGAL::centroid(points.begin(), points.end());
-}
-
-//! @brief Computes centroid using Voronoi vertex positions.
-/*!
- * Alternative centroid calculation using direct vertex coordinates instead of midpoints.
- * Provides more stable results when working with raw Voronoi vertices.
- *
- * Implementation details:
- * - Performs simple arithmetic mean of coordinates
- * - Handles empty vertex sets gracefully
- * - More efficient than midpoint-based version
- *
- * @param voronoiVertices Vector of all VoronoiVertex objects in the diagram
- * @note Prefer this version when midpoint data is unavailable
- * @see Cycle::compute_centroid(const std::vector<MidpointNode>&)
- */
-void Cycle::compute_centroid(const std::vector<VoronoiVertex> &voronoiVertices)
-{
-    double sumX = 0, sumY = 0, sumZ = 0;
-    for (int idx : midpoint_indices)
-    {
-        const Point &p = voronoiVertices[idx].coord;
-        sumX += p.x();
-        sumY += p.y();
-        sumZ += p.z();
-    }
-    double n = static_cast<double>(midpoint_indices.size());
-    isovertex = Point(sumX / n, sumY / n, sumZ / n);
-}
 
 /*
  * Small Edge Collapsing Routines
@@ -1473,4 +1546,36 @@ void VoronoiDiagram::checkAdvanced(bool check_norm) const
         checkFacetNormals();            /**/
         checkPairedFacetOrientations(); /**/
     }
+}
+
+std::string get_directory(const std::string& path) {
+    size_t pos = path.find_last_of("/\\");
+    if (pos == std::string::npos) return "";
+    return path.substr(0, pos + 1);
+}
+
+std::string get_basename_without_ext(const std::string& path) {
+    std::string filename = path.substr(path.find_last_of("/\\") + 1);
+    size_t dot_pos = filename.find_last_of('.');
+    if (dot_pos == std::string::npos) return filename;
+    return filename.substr(0, dot_pos);
+}
+
+void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
+    std::string dir = get_directory(output_filename);
+    std::string base = get_basename_without_ext(output_filename);
+    std::string txt_filename = dir + "VoronoiDiagram_" + base + ".txt";
+
+    std::ofstream file(txt_filename);
+    if (!file) {
+        std::cerr << "Error opening output file: " << txt_filename << "\n";
+        exit(EXIT_FAILURE);
+    }
+    
+    file << "VoronoiDiagram:\n";
+
+    file << vd;
+
+    file.close();
+    std::cout << "voronoi diagram saved to " << txt_filename << "\n";
 }

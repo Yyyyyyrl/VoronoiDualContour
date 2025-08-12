@@ -6,6 +6,7 @@
 
 #include "vdc_type.h"
 #include "vdc_delaunay.h"
+#include "vdc_utilities.h"
 #include <utility>             // for std::make_tuple
 
 //! @brief Represents a vertex in a Voronoi diagram.
@@ -33,9 +34,11 @@ struct VoronoiEdge
     int vertex1;          //!< Index of the first vertex ( -1 if infinite )
     int vertex2;          //!< Index of the second vertex ( -1 if infinite )
     int type;             //!< 0 for segment, 1 for ray and 2 for lines; -1 for unknown
+    int index = -1;
     Point source;         //!< Source point for rays and lines; empty for segments
     Vector3 direction;    //!< Direction vector for rays and lines; empty for segments
     std::vector<Facet> delaunayFacets; //!< Facet indices in the Delaunay triangulation that correspond to this edge
+
     //! @brief constructor
     /*!
      * @param obj instance of the edge in CGAL::Object
@@ -75,6 +78,7 @@ struct MidpointNode
     int facet_index;               //!< Index of the facet this midpoint lies on.
     int cycle_index;               //!< Index of the cycle this midpoint belongs to.
     int global_edge_index;
+    bool is_bipolar = false;
 };
 
 //! @brief Represents a facet in a Voronoi diagram.
@@ -85,16 +89,23 @@ struct MidpointNode
 struct VoronoiCellFacet
 {
     std::vector<int> vertices_indices; //!< Indices of vertices forming this facet, ordered.
-    int mirror_facet_index = -1;       //!< Index of the mirror facet in the adjacent cell
-    int facet_index = -1;              //!< Index of the facet within the VoronoiDiagram
-    //! @brief Default constructor.
+    int mirror_facet_index = -1;       //!< Index of the mirror cell-facet in the adjacent cell.
+    int facet_index = -1;              //!< Index of this cell-facet in facets (for compatibility).
+    int voronoi_facet_index = -1;      //!< Index of the unique facet in voronoi_facets.
+    int orientation = 1;               //!< 1 if using vertices_indices as-is, -1 if reversed.    //! @brief Default constructor.
     VoronoiCellFacet() = default;
 };
 
-//TODO:
-struct VoronoiFacet {
-
-}; 
+//! @brief Represents a facet in the Voronoi diagram (unique, shared by cells).
+struct VoronoiFacet
+{
+    std::vector<int> vertices_indices; //!< Ordered indices of vertices forming this facet.
+    int index = -1;                    //!< Index of the facet in voronoi_facets.
+    int primary_cell_facet_index = -1; //!< Index in facets of the primary cell-facet.
+    BIPOLAR_MATCH_METHOD bipolar_match_method = BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE; //!< Matching method for bipolar edges.
+    std::vector<std::pair<int, int>> bipolar_matches; //!< Pairs of edge indices for matched bipolar edges.
+    std::vector<int> bipolar_edge_indices;  // Full-facet edge indices (0 to num-1) where bipolarstd::vector<int> bipolar_voronoi_edge_indices;
+};
 
 //! @brief Represents a closed cycle in a Voronoi cell formed by midpoints.
 /*!
@@ -103,23 +114,11 @@ struct VoronoiFacet {
  */
 struct Cycle
 {
-    std::vector<int> midpoint_indices;      //!< Indices of midpoints forming this cycle.
-    std::vector<std::pair<int, int>> edges; //!< Edges forming the cycle, represented by pairs of midpoint indices.
-    Point isovertex;                        //!< Geometric centroid of the cycle, representing the isovertex.
-    int voronoi_cell_index;                 //!< Index of the Voronoi cell this cycle belongs to;
+    Point isovertex;          //!< The computed isovertex (centroid) for this cycle.
+    int voronoi_cell_index;   //!< Index of the Voronoi cell.
+    int facet_index;          //!< Index of the cell facet this cycle belongs to.
+    std::vector<int> bipolar_voronoi_edge_indices;  // Global Voronoi edge indices for the paired bipolar edges
 
-    // TODO: record it using the indices of the voronoi edges instead of the midpoints
-    //! @brief Computes the centroid of the cycle.
-    /*!
-     * The centroid (isovertex) is calculated using the CGAL `centroid` function
-     * based on the geometric positions of the midpoints.
-     *
-     * @param midpoints Vector of all midpoints in the diagram. Only the midpoints
-     *                  associated with this cycle are used in the computation.
-     */
-    void compute_centroid(const std::vector<MidpointNode> &midpoints);
-    // Compute centroid of the cycle using the positions in vertices.
-    void compute_centroid(const std::vector<VoronoiVertex> &vertices);
 };
 
 //! @brief Represents a Voronoi cell (polytope) in the Voronoi diagram.
@@ -182,12 +181,19 @@ struct VoronoiDiagram
     std::vector<VoronoiCellEdge> cellEdges;             //!< List of Cell Edges in the diagram
     std::vector<VoronoiCell> cells;                     //!< List of Voronoi cells in the diagram.
     std::vector<VoronoiCellFacet> facets;               //!< List of facets in the diagram.
+    std::vector<VoronoiFacet> global_facets;            //!< List of unique Voronoi facets.
 
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
     std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
 
-
     // Member Functions
+
+    void compute_bipolar_matches(float isovalue);
+    void create_global_facets();
+
+    // Helper to get oriented vertices for a cell facet
+    std::vector<int> get_vertices_for_facet(int cell_facet_index) const;
+
     //! @brief Adds a vertex to the Voronoi diagram.
     /*!
      * @param p The point coordinates of the vertex
@@ -224,7 +230,7 @@ struct VoronoiDiagram
      * @param vertices_indices Indices of vertices forming the facet
      * @return Index of the newly added facet
      */
-    int AddFacet(const std::vector<int>& vertices_indices);
+    int AddCellFacet(const std::vector<int>& vertices_indices);
 
     //! @brief Adds a cell to the Voronoi diagram.
     /*!
@@ -381,10 +387,10 @@ struct LineKeyComparator
 template <typename OSTREAM_TYPE>
 OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiCellFacet &vf)
 {
-    os << "VoronoiFacet:\n";
-    os << "  Vertices indices: ";
-    for (const int idx : vf.vertices_indices)
-        os << idx << " ";
+    os << "VoronoiCellFacet:\n";
+    os << " Index: " << vf.facet_index << "\n";
+    os << " Global facet index: " << vf.voronoi_facet_index << "\n";
+    os << " Orientation: " << vf.orientation << "\n";
     os << "\n";
 
 
@@ -393,22 +399,11 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiCellFacet &vf)
 
 //! @brief Overloaded output operator for Cycle
 template <typename OSTREAM_TYPE>
-OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Cycle &cycle)
-{
+OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Cycle &cycle) {
     os << "Cycle:\n";
-    os << "  Voronoi cell index: " << cycle.voronoi_cell_index << "\n";
     os << "  Isovertex: " << cycle.isovertex << "\n";
-
-    os << "  Midpoint indices: ";
-    for (const int idx : cycle.midpoint_indices)
-        os << idx << " ";
-    os << "\n";
-
-    os << "  Edges: ";
-    for (const auto &edge : cycle.edges)
-        os << "(" << edge.first << ", " << edge.second << ") ";
-    os << "\n";
-
+    os << "  Voronoi cell index: " << cycle.voronoi_cell_index << "\n";
+    os << "  Facet index: " << cycle.facet_index << "\n";
     return os;
 }
 
@@ -446,6 +441,38 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiCell &vc)
     os << "  Cycles:\n";
     for (const auto &cycle : vc.cycles)
         os << cycle;
+
+    return os;
+}
+
+
+// Helper to print BIPOLAR_MATCH_METHOD
+std::string matchMethodToString(BIPOLAR_MATCH_METHOD method);
+
+
+// Overloaded output operator for VoronoiFacet
+template <typename OSTREAM_TYPE>
+OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiFacet &vf) {
+    os << "VoronoiFacet:\n";
+    os << "  Index: " << vf.index << "\n";
+    os << "  Primary cell facet index: " << vf.primary_cell_facet_index << "\n";
+    os << "  Bipolar match method: " << matchMethodToString(vf.bipolar_match_method) << "\n";
+
+    os << "  Vertices indices: ";
+    for (const int idx : vf.vertices_indices) {
+        os << idx << " ";
+    }
+    os << "\n";
+
+    os << "  Bipolar matches: ";
+    if (vf.bipolar_matches.empty()) {
+        os << "(none)";
+    } else {
+        for (const auto &match : vf.bipolar_matches) {
+            os << "(" << match.first << ", " << match.second << ") ";
+        }
+    }
+    os << "\n";
 
     return os;
 }
@@ -498,12 +525,18 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
         os << "  Index " << i << ": " << vd.vertices[i].value << "\n";
     }
 
-    // 4. Voronoi Facets
-    os << "\nVoronoiFacets:\n";
-    for (size_t i = 0; i < vd.facets.size(); ++i)
-    {
+    // 4. Voronoi Cell Facets (existing)
+    os << "\nVoronoiCellFacets:\n";
+    for (size_t i = 0; i < vd.facets.size(); ++i) {
         os << "Index " << i << ":\n";
         os << vd.facets[i];
+    }
+
+    // 5. Voronoi Global Facets (new addition)
+    os << "\nVoronoiGlobalFacets:\n";
+    for (size_t i = 0; i < vd.global_facets.size(); ++i) {
+        os << "Index " << i << ":\n";
+        os << vd.global_facets[i];
     }
 
     // 5. Voronoi Cells
@@ -601,4 +634,6 @@ inline std::ostream& operator<<(std::ostream& os, IsoSurface const& iso) {
 // Helper function declarations (internal linkage)
 std::tuple<int, int, int> getFacetHashKey(const std::vector<int> &vertices);
 bool haveSameOrientation(const std::vector<int> &facet1, const std::vector<int> &facet2);
+
+void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename);
 #endif
