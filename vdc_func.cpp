@@ -3,6 +3,11 @@
 
 #include "vdc_func.h"
 
+// Helper for positive mod
+static int positive_mod(int val, int mod) {
+    int res = val % mod;
+    return (res < 0) ? res + mod : res;
+}
 
 //! @brief Generates a Delaunay triangle based on orientation and cell finiteness.
 /*!
@@ -310,13 +315,6 @@ static void generate_triangle_multi(
         {
             iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
         }
-    }
-    else
-    {
-        //std::cout << "Problematic triangle" << std::endl;
-        //std::cout << "Vertex 1: " << idx1 << std::endl;
-        //std::cout << "Vertex 2: " << idx2 << std::endl;
-        //std::cout << "Vertex 3: " << idx3 << std::endl;
     }
 }
 
@@ -666,81 +664,35 @@ void compute_isosurface_vertices_single(UnifiedGrid &grid, float isovalue, IsoSu
  * @param edge_to_midpoint_index Map linking edge keys to midpoint indices.
  * @param facet_midpoint_indices Vector storing midpoint indices for each facet.
  */
-static void collect_midpoints(
-    VoronoiCell &vc,
-    VoronoiDiagram &voronoiDiagram,
-    float isovalue,
-    std::vector<MidpointNode> &midpoints,
-    std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
-    std::vector<std::vector<int>> &facet_midpoint_indices)
-{
-    for (size_t i = 0; i < vc.facet_indices.size(); ++i)
-    {
-        int facet_index = vc.facet_indices[i];
-        VoronoiCellFacet &facet = voronoiDiagram.facets[facet_index];
-        size_t num_vertices = facet.vertices_indices.size();
+static std::vector<MidpointNode> collect_midpoints(
+    const std::vector<int>& vert_indices,
+    const VoronoiDiagram& vd,
+    float isovalue) {
+    int n = vert_indices.size();
+    std::vector<MidpointNode> midpoints(n);
+    for (int i = 0; i < n; ++i) {
+        int vi0 = vert_indices[i];
+        int vi1 = vert_indices[(i + 1) % n];
+        Point p0 = vd.vertices[vi0].coord;
+        Point p1 = vd.vertices[vi1].coord;
+        float val0 = vd.vertices[vi0].value;
+        float val1 = vd.vertices[vi1].value;
 
-        std::vector<int> current_facet_midpoints;
-
-        for (size_t j = 0; j < num_vertices; ++j)
-        {
-            size_t idx1 = j;
-            size_t idx2 = (j + 1) % num_vertices;
-
-            float val1 = voronoiDiagram.vertices[facet.vertices_indices[idx1]].value;
-            float val2 = voronoiDiagram.vertices[facet.vertices_indices[idx2]].value;
-
-            if (is_bipolar(val1, val2, isovalue))
-            {
-                int vertex_index1 = facet.vertices_indices[idx1];
-                int vertex_index2 = facet.vertices_indices[idx2];
-
-                Point p1 = voronoiDiagram.vertices[vertex_index1].coord;
-                Point p2 = voronoiDiagram.vertices[vertex_index2].coord;
-
-                double t = (isovalue - val1) / (val2 - val1);
-                Point midpoint = p1 + (p2 - p1) * t;
-
-                auto edge_key = std::make_pair(std::min(vertex_index1, vertex_index2),
-                                               std::max(vertex_index1, vertex_index2));
-
-                int globalEdgeIndex = -1;
-                auto iter_glob = voronoiDiagram.segmentVertexPairToEdgeIndex.find(edge_key);
-                if (iter_glob != voronoiDiagram.segmentVertexPairToEdgeIndex.end())
-                {
-                    globalEdgeIndex = iter_glob->second;
-                }
-
-                MidpointNode node;
-                node.point = midpoint;
-                node.facet_index = facet_index;
-                node.cycle_index = -1;
-                node.global_edge_index = globalEdgeIndex;
-
-                midpoints.push_back(node);
-                int midpoint_index = midpoints.size() - 1;
-                edge_to_midpoint_index[edge_key] = midpoint_index;
-                current_facet_midpoints.push_back(midpoint_index);
-            }
+        MidpointNode& m = midpoints[i];
+        m.global_edge_index = i;  // Local edge index.
+        if (is_bipolar(val0, val1, isovalue)) {
+            // Interpolated intersection point.
+            float t = (isovalue - val0) / (val1 - val0);
+            m.point = p0 + t * (p1 - p0);
+        } else {
+            // Geometric midpoint for non-bipolar.
+            m.point = CGAL::midpoint(p0, p1);
         }
-
-        facet_midpoint_indices.push_back(current_facet_midpoints);
-
-        // Compute matches using the routine and connect midpoints accordingly
-        BIPOLAR_MATCH_METHOD method = BIPOLAR_MATCH_METHOD::SEP_NEG;  // Can change, placeholder
-        auto pairs = match_facet_bipolar_edges(voronoiDiagram, facet_index, isovalue, method);
-        for (const auto& p : pairs) {
-            if (p.first < current_facet_midpoints.size() && p.second < current_facet_midpoints.size()) {
-                int idx1 = current_facet_midpoints[p.first];
-                int idx2 = current_facet_midpoints[p.second];
-                midpoints[idx1].connected_to.push_back(idx2);
-                midpoints[idx2].connected_to.push_back(idx1);
-            }
-        }
-
-        //auto types = get_bipolar_match_types(voronoiDiagram, facet_index, isovalue);
-
+        m.facet_index = -1;  // Set later if needed.
+        m.cycle_index = -1;  // Set later if needed.
+        m.connected_to.clear();
     }
+    return midpoints;
 }
 
 //! @brief Connects midpoints within each facet to form a graph.
@@ -775,48 +727,33 @@ static void connect_midpoints(
  * @param midpoints Vector of midpoints with connectivity information.
  * @param cycles Vector to store the extracted cycles as lists of midpoint indices.
  */
-static void extract_cycles(
-    const std::vector<MidpointNode> &midpoints,
-    std::vector<std::vector<int>> &cycles)
-{
-    std::set<int> visited;
-
-    for (size_t i = 0; i < midpoints.size(); ++i)
-    {
-        if (visited.find(i) == visited.end())
-        {
-            std::vector<int> cycle;
-            std::stack<int> stack;
-            stack.push(i);
-
-            while (!stack.empty())
-            {
-                int current = stack.top();
-                stack.pop();
-
-                if (visited.find(current) != visited.end())
-                {
-                    continue;
-                }
-
-                visited.insert(current);
-                cycle.push_back(current);
-
-                for (int neighbor : midpoints[current].connected_to)
-                {
-                    if (visited.find(neighbor) == visited.end())
-                    {
-                        stack.push(neighbor);
-                    }
-                }
+static std::vector<std::vector<int>> extract_cycles(
+    const std::vector<std::pair<int, int>>& local_matches,
+    const std::vector<int>& bipolar_edge_indices,
+    int n) {
+    std::vector<std::vector<int>> cycles;
+    for (const auto& match : local_matches) {
+        int ka = match.first;
+        int kb = match.second;
+        if (ka == kb) continue;  // Degenerate, skip
+        int start = bipolar_edge_indices[ka];
+        int end = bipolar_edge_indices[kb];
+        std::vector<int> path;
+        if (start <= end) {
+            for (int j = start; j <= end; ++j) {
+                path.push_back(j);
             }
-
-            if (!cycle.empty())
-            {
-                cycles.push_back(cycle);
+        } else {
+            for (int j = start; j < n; ++j) {
+                path.push_back(j);
+            }
+            for (int j = 0; j <= end; ++j) {
+                path.push_back(j);
             }
         }
+        cycles.push_back(path);
     }
+    return cycles;
 }
 
 //! @brief Computes centroids for cycles and updates the isosurface.
@@ -831,56 +768,32 @@ static void extract_cycles(
  * @param iso_surface The isosurface to store vertices.
  */
 static void compute_cycle_centroids(
-    VoronoiCell &vc,
-    VoronoiDiagram &voronoiDiagram,
-    std::vector<MidpointNode> &midpoints,
-    const std::vector<std::vector<int>> &cycles,
-    IsoSurface &iso_surface)
-{
-    vc.isoVertexStartIndex = iso_surface.isosurfaceVertices.size();
-    vc.numIsoVertices = cycles.size();
+    const std::vector<std::vector<int>>& cycle_edges,
+    const std::vector<MidpointNode>& midpoints,
+    IsoSurface& iso_surface,
+    std::vector<Cycle>& cycles,
+    int cell_index,
+    int facet_index,
+    int& isoVertexIndex) {
+    for (const auto& edges : cycle_edges) {
+        if (edges.empty()) continue;
+        Vector3 sum(0, 0, 0);
+        int count = 0;
+        for (int e : edges) {
+            sum = sum + (midpoints[e].point - CGAL::ORIGIN);
+            ++count;
+        }
+        if (count == 0) continue;
+        Point centroid = CGAL::ORIGIN + (sum / count);
 
-    int cycIdx = 0;
-    for (const auto &single_cycle : cycles)
-    {
         Cycle cycle;
-        cycle.voronoi_cell_index = vc.cellIndex;
-        cycle.midpoint_indices = single_cycle;
+        cycle.isovertex = centroid;
+        cycle.voronoi_cell_index = cell_index;
+        cycle.facet_index = facet_index;
+        cycles.push_back(cycle);
 
-        for (size_t i = 0; i < single_cycle.size(); ++i)
-        {
-            int idx1 = single_cycle[i];
-            int idx2 = single_cycle[(i + 1) % single_cycle.size()];
-            cycle.edges.emplace_back(idx1, idx2);
-        }
-
-        cycle.compute_centroid(midpoints);
-
-        for (int ptIdx : single_cycle)
-        {
-            midpoints[ptIdx].cycle_index = cycIdx;
-
-            int globalEdgeIdx = midpoints[ptIdx].global_edge_index;
-            if (globalEdgeIdx >= 0)
-            {
-                std::pair<int, int> key = std::make_pair(vc.cellIndex, globalEdgeIdx);
-                auto iter_cEdge = voronoiDiagram.cellEdgeLookup.find(key);
-                if (iter_cEdge != voronoiDiagram.cellEdgeLookup.end())
-                {
-                    int cEdgeIdx = iter_cEdge->second;
-                    auto &cyclesVec = voronoiDiagram.cellEdges[cEdgeIdx].cycleIndices;
-
-                    if (std::find(cyclesVec.begin(), cyclesVec.end(), cycIdx) == cyclesVec.end())
-                    {
-                        cyclesVec.push_back(cycIdx);
-                    }
-                }
-            }
-        }
-
-        vc.cycles.push_back(cycle);
-        iso_surface.isosurfaceVertices.push_back(cycle.isovertex);
-        cycIdx++;
+        iso_surface.isosurfaceVertices.push_back(centroid);
+        ++isoVertexIndex;
     }
 }
 
@@ -893,21 +806,113 @@ static void compute_cycle_centroids(
  * @param isovalue The isovalue to use for vertex computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  */
-void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface)
-{
-    for (auto &vc : voronoiDiagram.cells)
-    {
-        std::vector<MidpointNode> midpoints;
-        std::map<std::pair<int, int>, int> edge_to_midpoint_index;
-        std::vector<std::vector<int>> facet_midpoint_indices;
+// Revised: Computes isosurface vertices for the multi-isovertex case.
+void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface) {
+    int isoVertexIndex = 0;
+    for (auto &cell : voronoiDiagram.cells) {
+        cell.isoVertexStartIndex = isoVertexIndex;
+        std::vector<Cycle> cycles;
 
-        collect_midpoints(vc, voronoiDiagram, isovalue, midpoints, edge_to_midpoint_index, facet_midpoint_indices);
-        connect_midpoints(facet_midpoint_indices, midpoints);
+        for (int fi : cell.facet_indices) {
+            int global_fi = voronoiDiagram.facets[fi].voronoi_facet_index;
+            auto const &g_facet = voronoiDiagram.global_facets[global_fi];
+            int orient = voronoiDiagram.facets[fi].orientation;
 
-        std::vector<std::vector<int>> cycles;
-        extract_cycles(midpoints, cycles);
+            if (g_facet.bipolar_match_method == BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE ||
+                g_facet.bipolar_matches.empty()) {
+                continue;
+            }
 
-        compute_cycle_centroids(vc, voronoiDiagram, midpoints, cycles, iso_surface);
+            std::vector<int> local_vert = voronoiDiagram.get_vertices_for_facet(fi);
+
+            std::vector<int> bipolar_edge_indices;
+            int n = local_vert.size();
+            for (int i = 0; i < n; ++i) {
+                float val0 = voronoiDiagram.vertices[local_vert[i]].value;
+                float val1 = voronoiDiagram.vertices[local_vert[(i + 1) % n]].value;
+                if (is_bipolar(val0, val1, isovalue)) {
+                    bipolar_edge_indices.push_back(i);
+                }
+            }
+            int num_bipolar = bipolar_edge_indices.size();
+
+            if (num_bipolar != g_facet.bipolar_edge_indices.size() || num_bipolar % 2 != 0) {
+                std::cerr << "[WARNING] Bipolar count mismatch on facet " << fi << " (skipping)\n";
+                continue;
+            }
+
+            std::map<int, int> local_edge_to_bipolar_k;
+            for (int kk = 0; kk < num_bipolar; ++kk) {
+                local_edge_to_bipolar_k[bipolar_edge_indices[kk]] = kk;
+            }
+
+            std::vector<std::pair<int, int>> local_matches;
+            for (const auto& match : g_facet.bipolar_matches) {
+                int ga = match.first;
+                int gb = match.second;
+
+                int g_edge_a = g_facet.bipolar_edge_indices[ga];
+                int g_edge_b = g_facet.bipolar_edge_indices[gb];
+
+                int l_edge_a = (orient == 1) ? g_edge_a : positive_mod(n - g_edge_a - 2, n);
+                int l_edge_b = (orient == 1) ? g_edge_b : positive_mod(n - g_edge_b - 2, n);
+
+                if (local_edge_to_bipolar_k.find(l_edge_a) == local_edge_to_bipolar_k.end() ||
+                    local_edge_to_bipolar_k.find(l_edge_b) == local_edge_to_bipolar_k.end()) {
+                    std::cerr << "[WARNING] Mapping missing for edge on facet " << fi << " (skipping match)\n";
+                    continue;
+                }
+                int l_k_a = local_edge_to_bipolar_k[l_edge_a];
+                int l_k_b = local_edge_to_bipolar_k[l_edge_b];
+
+                if (orient == -1) {
+                    local_matches.emplace_back(l_k_b, l_k_a);
+                } else {
+                    local_matches.emplace_back(l_k_a, l_k_b);
+                }
+            }
+
+            auto midpoints = collect_midpoints(local_vert, voronoiDiagram, isovalue);
+
+            auto cycle_edges = extract_cycles(local_matches, bipolar_edge_indices, n);
+
+            // Compute centroids and add to isosurface/cycles.
+            compute_cycle_centroids(cycle_edges, midpoints, iso_surface, cycles,
+                                    cell.cellIndex, fi, isoVertexIndex);
+
+            // New: Assign cycle indices to cell edges for the edges in each cycle
+            int local_cyc_idx = cycles.size() - cycle_edges.size();  // Start from the first new cycle
+            for (size_t c_idx = 0; c_idx < cycle_edges.size(); ++c_idx, ++local_cyc_idx) {
+                const auto& path_edges = cycle_edges[c_idx];
+                for (int local_edge : path_edges) {
+                    // Compute global edge index from local vertices
+                    int vi0 = local_vert[local_edge];
+                    int vi1 = local_vert[(local_edge + 1) % n];
+                    int v_min = std::min(vi0, vi1);
+                    int v_max = std::max(vi0, vi1);
+                    auto it = voronoiDiagram.segmentVertexPairToEdgeIndex.find({v_min, v_max});
+                    if (it == voronoiDiagram.segmentVertexPairToEdgeIndex.end()) {
+                        std::cerr << "[WARNING] Global edge not found for local edge " << local_edge << " on facet " << fi << "\n";
+                        continue;
+                    }
+                    int global_edge_idx = it->second;
+
+                    // Get cellEdge for this cell and global edge
+                    auto ce_it = voronoiDiagram.cellEdgeLookup.find({cell.cellIndex, global_edge_idx});
+                    if (ce_it == voronoiDiagram.cellEdgeLookup.end()) {
+                        std::cerr << "[WARNING] CellEdge not found for cell " << cell.cellIndex << " edge " << global_edge_idx << "\n";
+                        continue;
+                    }
+                    int ceIdx = ce_it->second;
+
+                    // Add the local cycle index to cycleIndices
+                    voronoiDiagram.cellEdges[ceIdx].cycleIndices.push_back(local_cyc_idx);
+                }
+            }
+        }
+
+        cell.cycles = cycles;
+        cell.numIsoVertices = cycles.size();
     }
 }
 
@@ -1962,6 +1967,10 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
         std::clock_t check5 = std::clock();
         double duration5 = static_cast<double>(check5 - t) / CLOCKS_PER_SEC;
         std::cout << "construct cell edges Execution time: " << duration5 << " seconds" << std::endl;
+        
+        vd.create_global_facets();
+
+        vd.compute_bipolar_matches(vdc_param.isovalue);
     }
 
     std::clock_t t2 = std::clock();
@@ -1999,7 +2008,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
 
     std::clock_t check2_time = std::clock();
     double duration2 = static_cast<double>(check2_time - check_time) / CLOCKS_PER_SEC;
-    std::cout << "Compute isosurface vertices Execution time: " << duration2 << " seconds" << std::endl;
+    std::cout << "Compute isosurface facets Execution time: " << duration2 << " seconds" << std::endl;
 
 }
 

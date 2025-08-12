@@ -57,7 +57,7 @@ void compute_dual_triangles_multi(
  * @param isovalue The isovalue to use for vertex computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  */
-void Compute_Isosurface_Vertices_Multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface);
+void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface);
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
 /*!
@@ -383,7 +383,10 @@ static void process_line_edge_multi(
  * @param edge_to_midpoint_index Map linking edge keys to midpoint indices.
  * @param facet_midpoint_indices Vector storing midpoint indices for each facet.
  */
-static void collect_midpoints(VoronoiCell &vc, VoronoiDiagram &voronoiDiagram, float isovalue, std::vector<MidpointNode> &midpoints, std::map<std::pair<int, int>, int> &edge_to_midpoint_index, std::vector<std::vector<int>> &facet_midpoint_indices);
+static std::vector<MidpointNode> collect_midpoints(
+    const std::vector<int>& vert_indices,
+    const VoronoiDiagram& vd,
+    float isovalue);
 
 //! @brief Connects midpoints within each facet to form a graph.
 /*!
@@ -401,7 +404,10 @@ static void connect_midpoints(const std::vector<std::vector<int>> &facet_midpoin
  * @param midpoints Vector of midpoints with connectivity information.
  * @param cycles Vector to store the extracted cycles as lists of midpoint indices.
  */
-static void extract_cycles(const std::vector<MidpointNode> &midpoints, std::vector<std::vector<int>> &cycles);
+static std::vector<std::vector<int>> extract_cycles(
+    const std::vector<std::pair<int, int>>& local_matches,
+    const std::vector<int>& bipolar_edge_indices,
+    int n);
 
 //! @brief Computes centroids for cycles and updates the isosurface.
 /*!
@@ -414,7 +420,15 @@ static void extract_cycles(const std::vector<MidpointNode> &midpoints, std::vect
  * @param cycles Vector of cycles as lists of midpoint indices.
  * @param iso_surface The isosurface to store vertices.
  */
-static void compute_cycle_centroids(VoronoiCell &vc, VoronoiDiagram &voronoiDiagram, std::vector<MidpointNode> &midpoints, const std::vector<std::vector<int>> &cycles, IsoSurface &iso_surface);
+static void compute_cycle_centroids(
+    const std::vector<std::vector<int>>& cycle_edges,
+    const std::vector<MidpointNode>& midpoints,
+    IsoSurface& iso_surface,
+    std::vector<Cycle>& cycles,
+    int cell_index,
+    int facet_index,
+    int& isoVertexIndex,
+    std::unordered_map<Point, int, PointHash> &vertexToIndex);
 
 //! @brief Builds Voronoi cell edges for each edge in the diagram.
 /*!
