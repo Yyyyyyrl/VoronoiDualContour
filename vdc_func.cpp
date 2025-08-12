@@ -880,7 +880,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
             compute_cycle_centroids(cycle_edges, midpoints, iso_surface, cycles,
                                     cell.cellIndex, fi, isoVertexIndex);
 
-            // New: Assign cycle indices to cell edges for the edges in each cycle
+            //Assign cycle indices to cell edges for the edges in each cycle
             int local_cyc_idx = cycles.size() - cycle_edges.size();  // Start from the first new cycle
             for (size_t c_idx = 0; c_idx < cycle_edges.size(); ++c_idx, ++local_cyc_idx) {
                 const auto& path_edges = cycle_edges[c_idx];
