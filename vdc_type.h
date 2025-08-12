@@ -544,4 +544,11 @@ struct ObjectComparator
     }
 };
 
+struct PointHash {
+    std::size_t operator()(const Point& p) const {
+        std::hash<double> h;
+        return h(p.x()) ^ (h(p.y()) << 1) ^ (h(p.z()) << 2);
+    }
+};
+
 #endif // VDC_TYPE_H
