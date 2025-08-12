@@ -7,7 +7,6 @@
 #include "vdc_debug.h"
 #include "vdc_type.h"
 #include "vdc_grid.h"
-#include "vdc_voronoi.h"
 #include "vdc_delaunay.h"
 #include "vdc_commandline.h"
 
@@ -98,5 +97,4 @@ bool readPointsFromFile(const std::string &filename, std::vector<Point> &points)
 
 void write_triangulation(Delaunay dt, std::vector<Point> &points, std::string &input_filename);
 
-void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename);
 #endif // VDC_UTILITIES_H
