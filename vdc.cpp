@@ -94,6 +94,9 @@ int main(int argc, char *argv[])
     std::clock_t collapse_time = std::clock();
     double duration_col = static_cast<double>(collapse_time - cons_vd_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Collapsing time: " << std::to_string(duration_col) << " seconds." << std::endl;
+    vd2.create_global_facets();
+    vd2.compute_bipolar_matches(vdc_param.isovalue); // Add this
+    
     vd2.check(true);
     std::clock_t check2_time = std::clock();
     double duration_vd2check = static_cast<double>(check2_time - collapse_time) / CLOCKS_PER_SEC;
@@ -109,7 +112,7 @@ int main(int argc, char *argv[])
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Constructing Iso Surface time: " << std::to_string(duration_iso) << " seconds." << std::endl;
 
-    //write_voronoiDiagram(vd2, vdc_param.output_filename);
+    write_voronoiDiagram(vd2, vdc_param.output_filename);
 
     // Handle the output mesh generation and return the appropriate status.
     bool retFlag;
