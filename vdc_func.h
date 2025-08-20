@@ -404,10 +404,18 @@ static void connect_midpoints(const std::vector<std::vector<int>> &facet_midpoin
  * @param midpoints Vector of midpoints with connectivity information.
  * @param cycles Vector to store the extracted cycles as lists of midpoint indices.
  */
-static std::vector<std::vector<int>> extract_cycles(
-    const std::vector<std::pair<int, int>>& local_matches,
-    const std::vector<int>& bipolar_edge_indices,
-    int n);
+static std::vector<std::vector<int>> extract_cycles(std::vector<MidpointNode> &midpoints, std::vector<Cycle> &cycles, int voronoi_cell_index);
+
+//! @brief Builds the midpoint graph for a facet using bipolar matches.
+/*!
+ * Connects midpoints (bipolar edges) based on the bipolar matches in the global facet.
+ * Adds bidirectional connections in midpoints.connected_to (indices are bipolar k 0 to num_bipolar-1).
+ *
+ * @param midpoints Vector of MidpointNodes to update.
+ * @param voronoiDiagram The Voronoi diagram.
+ * @param fi The cell-facet index.
+ */
+static void build_midpoint_graph(std::vector<MidpointNode> &midpoints, VoronoiDiagram &voronoiDiagram, int fi);
 
 //! @brief Computes centroids for cycles and updates the isosurface.
 /*!

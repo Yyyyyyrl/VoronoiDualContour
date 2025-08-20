@@ -39,9 +39,9 @@ void VoronoiDiagram::create_global_facets() {
 
 void VoronoiDiagram::compute_bipolar_matches(float isovalue) {
     for (auto& vf : global_facets) {
-        // Get types for global facet
-        std::vector<BIPOLAR_MATCH_METHOD> types;
-        std::vector<int> bipolar_edge_indices;  // New: store full-facet edge indices where bipolar
+        // Collect bipolar edges and their types
+        std::vector<bool> types;
+        std::vector<int> bipolar_edge_indices;
         const auto& vert_indices = vf.vertices_indices;
         int num = vert_indices.size();
         int num_sep_neg = 0;
@@ -52,65 +52,68 @@ void VoronoiDiagram::compute_bipolar_matches(float isovalue) {
             float val0 = vertices[vi0].value;
             float val1 = vertices[vi1].value;
             if (is_bipolar(val0, val1, isovalue)) {
-                bipolar_edge_indices.push_back(i);  // Add the full-edge index
+                bipolar_edge_indices.push_back(i);  // Index in full facet edges
                 if (val0 >= isovalue && val1 < isovalue) {
-                    types.push_back(BIPOLAR_MATCH_METHOD::SEP_NEG);
+                    types.push_back(false);  // pos → neg
                     num_sep_neg++;
                 } else {
-                    types.push_back(BIPOLAR_MATCH_METHOD::SEP_POS);
+                    types.push_back(true);  // neg → pos
                     num_sep_pos++;
                 }
             }
         }
         vf.bipolar_edge_indices = bipolar_edge_indices;  // Store in vf
 
-        // Determine match_method (unchanged)
-        BIPOLAR_MATCH_METHOD match_method;
-        if (num_sep_neg == num_sep_pos) {
-            match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // Arbitrary choice when equal; consistent
-        } else if (num_sep_neg > num_sep_pos) {
-            match_method = BIPOLAR_MATCH_METHOD::SEP_NEG;
-        } else {
-            match_method = BIPOLAR_MATCH_METHOD::SEP_POS;
+        // Check for non-alternating types (should always be equal in valid facets)
+        if (num_sep_neg != num_sep_pos) {
+            std::cerr << "[DEBUG] Facet " << vf.index << ": num_sep_neg=" << num_sep_neg << ", num_sep_pos=" << num_sep_pos << ", values=";
+            for (int vi : vf.vertices_indices) std::cerr << " " << vertices[vi].value;
+            std::cerr << "\nVertices: ";
+            for (int vi : vf.vertices_indices) std::cerr << " " << vertices[vi].coord;
+            std::cerr << "\n";  
+            throw std::runtime_error("Non-alternating bipolar edge types on facet " + std::to_string(vf.index) + ". This indicates a potential error in facet construction or value interpolation.");
         }
 
-        if (types.size() % 2 != 0) {
-            match_method = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
-        }
-
-        // Compute matches (unchanged)
-        std::vector<std::pair<int, int>> matches;
         int num_bipolar = types.size();
         if (num_bipolar == 0 || num_bipolar % 2 != 0) {
             vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE;
-            vf.bipolar_matches = matches;
+            vf.bipolar_matches.clear();
             continue;
         }
 
-        bool use_pos_neg_start = (match_method == BIPOLAR_MATCH_METHOD::SEP_NEG); // true for SEP_NEG
+        // Determine match method (set as member of vf)
+        BIPOLAR_MATCH_METHOD match_method = vf.bipolar_match_method;
 
+        // Compute matches using the new routine
+        match_facet_bipolar_edges(vf, types, match_method, num_bipolar);
+    }
+}
+
+void VoronoiDiagram::match_facet_bipolar_edges(VoronoiFacet &vf, const std::vector<bool> &types, BIPOLAR_MATCH_METHOD match_method, int num_bipolar) {
+
+    std::vector<std::pair<int, int>> matches;
+
+    if (match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH) {
+        // Arbitrary consecutive pairing 
+        for (int k = 0; k < num_bipolar; k += 2) {
+            matches.emplace_back(k, k + 1);
+        }
+    } else {
+        // Standard pairing based on method (connect to next in circular order)
+        bool use_pos_neg_start = (match_method == BIPOLAR_MATCH_METHOD::SEP_POS); // Will be true for SEP_POS, false for SEP_NEG
         std::vector<int> starts;
         for (int k = 0; k < num_bipolar; ++k) {
-            if (types[k] == BIPOLAR_MATCH_METHOD::SEP_NEG == use_pos_neg_start) {
+            if (types[k] == use_pos_neg_start) {  
                 starts.push_back(k);
             }
         }
-
         for (int s : starts) {
             int next = (s + 1) % num_bipolar;
             matches.emplace_back(s, next);
         }
-
-        if (match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH) {
-            matches.clear();
-            for (int k = 0; k < num_bipolar; k += 2) {
-                matches.emplace_back(k, k + 1);
-            }
-        }
-
-        vf.bipolar_match_method = match_method;
-        vf.bipolar_matches = matches;
     }
+
+    vf.bipolar_matches = matches;
 }
 
 std::vector<int> VoronoiDiagram::get_vertices_for_facet(int cell_facet_index) const {
