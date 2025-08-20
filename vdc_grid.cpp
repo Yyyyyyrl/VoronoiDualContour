@@ -327,45 +327,80 @@ Point interpolate(const Point &p1, const Point &p2, float val1, float val2, floa
 }
 
 // Trilinear interpolation
-float trilinear_interpolate(const Point &p, const UnifiedGrid &grid)
-{
-    float gx = (p.x() - grid.min_x) / grid.dx;
-    float gy = (p.y() - grid.min_y) / grid.dy;
-    float gz = (p.z() - grid.min_z) / grid.dz;
+float trilinear_interpolate(const Point &p, const UnifiedGrid &grid) {
+    // Get grid dimensions
+    int nx = grid.nx;
+    int ny = grid.ny;
+    int nz = grid.nz;
 
-    gx = std::max(0.0f, std::min(gx, (float)(grid.nx - 1)));
-    gy = std::max(0.0f, std::min(gy, (float)(grid.ny - 1)));
-    gz = std::max(0.0f, std::min(gz, (float)(grid.nz - 1)));
+    // Get spacing
+    float dx = grid.dx;
+    float dy = grid.dy;
+    float dz = grid.dz;
 
-    int x0 = static_cast<int>(std::floor(gx));
-    int x1 = std::min(x0 + 1, grid.nx - 1);
-    int y0 = static_cast<int>(std::floor(gy));
-    int y1 = std::min(y0 + 1, grid.ny - 1);
-    int z0 = static_cast<int>(std::floor(gz));
-    int z1 = std::min(z0 + 1, grid.nz - 1);
+    // Compute fractional indices
+    float fx = p.x() / dx;
+    float fy = p.y() / dy;
+    float fz = p.z() / dz;
 
-    float xd = gx - x0;
-    float yd = gy - y0;
-    float zd = gz - z0;
+    // Clamp to valid range [0, nx-1] to handle outside/boundary points as nearest value
+    fx = std::max(0.0f, std::min(static_cast<float>(nx - 1), fx));
+    fy = std::max(0.0f, std::min(static_cast<float>(ny - 1), fy));
+    fz = std::max(0.0f, std::min(static_cast<float>(nz - 1), fz));
 
-    float c000 = grid.get_value(x0, y0, z0);
-    float c001 = grid.get_value(x0, y0, z1);
-    float c010 = grid.get_value(x0, y1, z0);
-    float c011 = grid.get_value(x0, y1, z1);
-    float c100 = grid.get_value(x1, y0, z0);
-    float c101 = grid.get_value(x1, y0, z1);
-    float c110 = grid.get_value(x1, y1, z0);
-    float c111 = grid.get_value(x1, y1, z1);
+    // Compute integer indices
+    int x0 = static_cast<int>(std::floor(fx));
+    int y0 = static_cast<int>(std::floor(fy));
+    int z0 = static_cast<int>(std::floor(fz));
 
-    float c00 = c000 * (1 - zd) + c001 * zd;
-    float c01 = c010 * (1 - zd) + c011 * zd;
-    float c10 = c100 * (1 - zd) + c101 * zd;
-    float c11 = c110 * (1 - zd) + c111 * zd;
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+    int z1 = z0 + 1;
 
-    float c0 = c00 * (1 - yd) + c01 * yd;
-    float c1 = c10 * (1 - yd) + c11 * yd;
+    // Compute fractional parts (default)
+    float xd = fx - x0;
+    float yd = fy - y0;
+    float zd = fz - z0;
 
-    return c0 * (1 - xd) + c1 * xd;
+    // Handle upper boundary clamping (set to nearest value if would overflow)
+    if (x1 > nx - 1) {
+        x1 = nx - 1;
+        xd = 0.0f;  // No interpolation needed; use value at x1
+    }
+    if (y1 > ny - 1) {
+        y1 = ny - 1;
+        yd = 0.0f;  // No interpolation needed; use value at y1
+    }
+    if (z1 > nz - 1) {
+        z1 = nz - 1;
+        zd = 0.0f;  // No interpolation needed; use value at z1
+    }
+
+    // Indices are now guaranteed valid (0 <= x0 <= x1 <= nx-1, etc.)
+    // Get values at cube corners
+    float c000 = grid.flat_data[z0 * ny * nx + y0 * nx + x0];
+    float c100 = grid.flat_data[z0 * ny * nx + y0 * nx + x1];
+    float c010 = grid.flat_data[z0 * ny * nx + y1 * nx + x0];
+    float c110 = grid.flat_data[z0 * ny * nx + y1 * nx + x1];
+    float c001 = grid.flat_data[z1 * ny * nx + y0 * nx + x0];
+    float c101 = grid.flat_data[z1 * ny * nx + y0 * nx + x1];
+    float c011 = grid.flat_data[z1 * ny * nx + y1 * nx + x0];
+    float c111 = grid.flat_data[z1 * ny * nx + y1 * nx + x1];
+
+    // Interpolate along x
+    float c00 = c000 * (1 - xd) + c100 * xd;
+    float c01 = c001 * (1 - xd) + c101 * xd;
+    float c10 = c010 * (1 - xd) + c110 * xd;
+    float c11 = c011 * (1 - xd) + c111 * xd;
+
+    // Interpolate along y
+    float c0 = c00 * (1 - yd) + c10 * yd;
+    float c1 = c01 * (1 - yd) + c11 * yd;
+
+    // Interpolate along z
+    float c = c0 * (1 - zd) + c1 * zd;
+
+    return c;
 }
 
 
