@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
     double duration_col = static_cast<double>(collapse_time - cons_vd_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Collapsing time: " << std::to_string(duration_col) << " seconds." << std::endl;
     vd2.create_global_facets();
-    vd2.compute_bipolar_matches(vdc_param.isovalue); // Add this
+    vd2.compute_bipolar_matches(vdc_param.isovalue);
     
     vd2.check(true);
     std::clock_t check2_time = std::clock();
