@@ -135,6 +135,44 @@ std::string matchMethodToString(BIPOLAR_MATCH_METHOD method) {
     }
 }
 
+namespace {
+
+// --------- Small utilities -------------------------------------------------
+
+struct DSU {
+    std::vector<int> p, r;  // parent, rank
+    explicit DSU(int n = 0) : p(n), r(n, 0) { std::iota(p.begin(), p.end(), 0); }
+    void reset(int n) { p.resize(n); r.assign(n,0); std::iota(p.begin(), p.end(), 0); }
+    int find(int x){ return p[x] == x ? x : p[x] = find(p[x]); }
+    void unite(int a, int b){ a = find(a); b = find(b); if (a==b) return; if (r[a]<r[b]) std::swap(a,b); p[b]=a; if (r[a]==r[b]) ++r[a]; }
+};
+
+inline bool isFiniteSegmentEdge(const VoronoiEdge& e) {
+    return e.type == 0 && e.vertex1 >= 0 && e.vertex2 >= 0;
+}
+
+inline double sqr(double x) { return x * x; }
+
+inline double squaredDist(const Point& a, const Point& b) {
+    return sqr(a.x() - b.x()) + sqr(a.y() - b.y()) + sqr(a.z() - b.z());
+}
+
+// Keep representative vertex as the one with smallest original index.  This is
+// stable/deterministic and matches common collapse conventions.
+int chooseRepresentative(const std::vector<int>& group) {
+    return *std::min_element(group.begin(), group.end());
+}
+
+// Deduplicate a sequence while keeping the first occurrence order.
+static inline std::vector<int> dedupKeepFirst(const std::vector<int>& seq) {
+    std::vector<int> out; out.reserve(seq.size());
+    std::unordered_set<int> seen; seen.reserve(seq.size()*2+1);
+    for (int v : seq) if (!seen.count(v)) { seen.insert(v); out.push_back(v); }
+    return out;
+}
+
+} // anonymous namespace
+
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
 /*!
  * Creates a new Voronoi vertex and updates both the vertex list and spatial hash map.
@@ -353,294 +391,6 @@ int VoronoiDiagram::AddCell(Vertex_handle delaunay_vertex)
  * Small Edge Collapsing Routines
  */
 
-//! @brief Processes edges and marks vertices for merging based on distance threshold.
-/*!
- * Implements the first phase of edge collapsing by identifying vertices closer than
- * threshold D using a union-find (disjoint-set) data structure.
- *
- * Algorithm phases:
- * 1. Iterate through all finite edges
- * 2. Compute Euclidean distance between vertices
- * 3. Union vertex sets when distance <= D
- *
- * Complexity:
- * - O(E) edge iterations
- * - O(α(V)) per union operation (inverse Ackermann)
- *
- * @param vd Voronoi diagram to process (read-only)
- * @param mapto Union-find structure (initially each vertex points to itself)
- * @param D Distance threshold for merging (must be >= 0)
- * @note Only processes finite edges (skips rays and lines)
- */
-static void processEdges(const VoronoiDiagram &vd, std::vector<int> &mapto, double D)
-{
-    for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx)
-    {
-
-        const auto &edge = vd.edges[edgeIdx];
-
-        // Get vertex indices for the current edge
-        int v1 = edge.vertex1;
-        int v2 = edge.vertex2;
-
-        // Skip edges that are not finite segments (rays or lines)
-        if (v1 < 0 || v2 < 0)
-            continue;
-
-        // Find the roots of the vertex sets in the union-find structure
-        int root1 = v1;
-        while (mapto[root1] != root1)
-            root1 = mapto[root1];
-        int root2 = v2;
-        while (mapto[root2] != root2)
-            root2 = mapto[root2];
-
-        // If vertices are already in the same set, skip
-        if (root1 == root2)
-            continue;
-
-        // Compute the distance between the vertex positions
-        Point p1 = vd.vertices[v1].coord;
-        Point p2 = vd.vertices[v2].coord;
-        double dist = CGAL::sqrt(CGAL::squared_distance(p1, p2));
-
-        // Merge vertices if the distance is less than or equal to threshold D
-        if (dist <= D)
-        {
-            // Union by setting the parent; use smaller index as parent for consistency
-            if (root1 < root2)
-            {
-                mapto[root2] = root1;
-            }
-            else
-            {
-                mapto[root1] = root2;
-            }
-        }
-    }
-}
-
-//! @brief Performs path compression on the union-find structure.
-/*!
- * Optimizes the union-find data structure by flattening the tree structure,
- * making future find operations nearly constant time.
- *
- * Algorithm details:
- * - Performs one-pass path compression
- * - Updates all nodes along path to point directly to root
- * - Preserves union-find invariants
- *
- * @param mapto Union-find structure to compress (modified in-place)
- * @note Should be called after all unions are complete
- * @see processEdges()
- */
-static void compressMapping(std::vector<int> &mapto)
-{
-    for (size_t i = 0; i < mapto.size(); ++i)
-    {
-        int root = i;
-        while (mapto[root] != root)
-            root = mapto[root];
-        mapto[i] = root;
-    }
-}
-
-//! @brief Rebuilds vertex list after edge collapsing.
-/*!
- * Creates a consolidated vertex list containing only representative vertices
- * after edge collapsing, and builds index remapping table.
- *
- * Postconditions:
- * - vd.vertices contains only root vertices
- * - oldToNewVertexIndex maps each original index to its new representative
- * - Vertex count <= original count
- *
- * @param vd Voronoi diagram to modify (vertices updated)
- * @param mapto Union-find structure after path compression
- * @param oldToNewVertexIndex Output mapping (resized and populated)
- * @note Clears and rebuilds the vertexMap spatial index
- */
-static void rebuildVertices(VoronoiDiagram &vd, const std::vector<int> &mapto, std::vector<int> &oldToNewVertexIndex)
-{
-    std::map<int, int> oldToNewIndex;
-    std::vector<VoronoiVertex> newVertices;
-    for (size_t i = 0; i < vd.vertices.size(); ++i)
-    {
-        int root = mapto[i];
-        if (oldToNewIndex.count(root) == 0)
-        {
-            VoronoiVertex v = vd.vertices[root];
-            v.index = newVertices.size();
-            oldToNewIndex[root] = v.index;
-            newVertices.push_back(v);
-        }
-    }
-    vd.vertices = std::move(newVertices);
-
-    oldToNewVertexIndex.resize(mapto.size());
-    for (size_t i = 0; i < mapto.size(); ++i)
-    {
-        oldToNewVertexIndex[i] = oldToNewIndex[mapto[i]];
-    }
-}
-
-//! @brief Rebuilds edge list after vertex collapsing.
-/*!
- * Consolidates and deduplicates edges after vertex merging, handling:
- * - Segment edges (finite)
- * - Ray edges (semi-infinite)
- * - Line edges (bi-infinite)
- *
- * Edge processing:
- * 1. Segments: deduplicate using vertex pairs
- * 2. Rays/Lines: deduplicate using geometric equality
- * 3. Updates all vertex references
- *
- * @param vd Voronoi diagram to modify (edges updated)
- * @param oldToNewVertexIndex Vertex index mapping from rebuildVertices()
- * @note Rebuilds segmentVertexPairToEdgeIndex lookup table
- */
-static void rebuildEdges(VoronoiDiagram &vd, std::vector<int> &oldToNewVertexIndex)
-{
-    std::map<std::pair<int, int>, size_t> segmentMap;
-    std::map<std::pair<Point, Vector3>, size_t, RayKeyComparator> rayMap;
-    std::map<std::pair<Point, Vector3>, size_t, LineKeyComparator> lineMap;
-
-    std::vector<VoronoiEdge> newEdges;
-
-    for (const VoronoiEdge &oldEdge : vd.edges)
-    {
-        VoronoiEdge newEdge = oldEdge;
-
-        if (oldEdge.type == 0)
-        {
-            int newV1 = oldToNewVertexIndex[oldEdge.vertex1];
-            int newV2 = oldToNewVertexIndex[oldEdge.vertex2];
-            if (newV1 == newV2)
-                continue;
-            int minV = std::min(newV1, newV2);
-            int maxV = std::max(newV1, newV2);
-            auto it = segmentMap.find({minV, maxV});
-            if (it != segmentMap.end())
-            {
-                size_t keptIdx = it->second;
-                newEdges[keptIdx].delaunayFacets.insert(newEdges[keptIdx].delaunayFacets.end(),
-                                                        oldEdge.delaunayFacets.begin(), oldEdge.delaunayFacets.end());
-            }
-            else
-            {
-                newEdge.vertex1 = newV1;
-                newEdge.vertex2 = newV2;
-                newEdge.edgeObject = CGAL::make_object(Segment3(vd.vertices[newV1].coord, vd.vertices[newV2].coord));
-                newEdges.push_back(newEdge);
-                segmentMap[{minV, maxV}] = newEdges.size() - 1;
-            }
-        }
-        else if (oldEdge.type == 1)
-        {
-            if (oldEdge.vertex1 >= 0)
-            {
-                int newV1 = oldToNewVertexIndex[oldEdge.vertex1];
-                newEdge.vertex1 = newV1;
-                newEdge.source = vd.vertices[newV1].coord;
-            }
-            std::pair<Point, Vector3> key = {newEdge.source, newEdge.direction};
-            auto it = rayMap.find(key);
-            if (it != rayMap.end())
-            {
-                size_t keptIdx = it->second;
-                newEdges[keptIdx].delaunayFacets.insert(newEdges[keptIdx].delaunayFacets.end(),
-                                                        oldEdge.delaunayFacets.begin(), oldEdge.delaunayFacets.end());
-            }
-            else
-            {
-                newEdge.edgeObject = CGAL::make_object(Ray3(newEdge.source, Direction3(newEdge.direction)));
-                newEdges.push_back(newEdge);
-                rayMap[key] = newEdges.size() - 1;
-            }
-        }
-        else if (oldEdge.type == 2)
-        {
-            Vector3 dir = newEdge.direction;
-            if (dir.x() < 0 || (dir.x() == 0 && dir.y() < 0) || (dir.x() == 0 && dir.y() == 0 && dir.z() < 0))
-            {
-                dir = -dir;
-            }
-            newEdge.direction = dir;
-            std::pair<Point, Vector3> key = {newEdge.source, dir};
-            auto it = lineMap.find(key);
-            bool merged = false;
-            if (it != lineMap.end())
-            {
-                size_t keptIdx = it->second;
-                newEdges[keptIdx].delaunayFacets.insert(newEdges[keptIdx].delaunayFacets.end(),
-                                                        oldEdge.delaunayFacets.begin(), oldEdge.delaunayFacets.end());
-                merged = true;
-            }
-            else
-            {
-                // Check for flipped direction or collinear
-                for (auto &existing_entry : lineMap)
-                {
-                    const auto &exist_key = existing_entry.first;
-                    Vector3 exist_dir = exist_key.second;
-                    if (!(exist_dir == dir || exist_dir == -dir))
-                        continue;
-                    Point exist_source = exist_key.first;
-                    Vector3 to_new = newEdge.source - exist_source;
-                    double proj = CGAL::scalar_product(to_new, exist_dir) / CGAL::scalar_product(exist_dir, exist_dir);
-                    Vector3 proj_vec = proj * exist_dir;
-                    if ((to_new - proj_vec).squared_length() < 1e-10)
-                    { // collinear with tolerance
-                        size_t keptIdx = existing_entry.second;
-                        newEdges[keptIdx].delaunayFacets.insert(newEdges[keptIdx].delaunayFacets.end(),
-                                                                oldEdge.delaunayFacets.begin(), oldEdge.delaunayFacets.end());
-                        merged = true;
-                        break;
-                    }
-                }
-            }
-            if (!merged)
-            {
-                newEdge.edgeObject = CGAL::make_object(Line3(newEdge.source, newEdge.source + newEdge.direction));
-                newEdges.push_back(newEdge);
-                lineMap[key] = newEdges.size() - 1;
-            }
-        }
-    }
-
-    vd.edges = std::move(newEdges);
-
-    vd.segmentVertexPairToEdgeIndex.clear();
-    for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx)
-    {
-        const auto &edge = vd.edges[edgeIdx];
-        if (edge.type == 0 && edge.vertex1 >= 0 && edge.vertex2 >= 0)
-        {
-            int v1 = std::min(edge.vertex1, edge.vertex2);
-            int v2 = std::max(edge.vertex1, edge.vertex2);
-            vd.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
-        }
-    }
-}
-
-std::vector<int> update_facet_vertices(const std::vector<int> &old_vertices, const std::vector<int> &oldToNewVertexIndex)
-{
-    std::vector<int> new_vertices;
-    for (int old_v : old_vertices)
-    {
-        int new_v = oldToNewVertexIndex[old_v];
-        if (new_vertices.empty() || new_v != new_vertices.back())
-        {
-            new_vertices.push_back(new_v);
-        }
-    }
-    if (new_vertices.size() > 1 && new_vertices.front() == new_vertices.back())
-    {
-        new_vertices.pop_back();
-    }
-    return new_vertices;
-}
 
 // Helper for union-find
 static int find(std::vector<int> &mapto, int x)
@@ -705,275 +455,253 @@ bool lines_approx_equal(const Line3 &l1, const Line3 &l2, double eps_sq = 1e-20)
  * @param bbox Bounding box of the diagram (unused)
  * @return New Voronoi diagram with small edges collapsed
  */
-VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
+VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
+                                  double D,
+                                  const CGAL::Epick::Iso_cuboid_3 & /*bbox*/,
+                                  Delaunay & /*dt*/)
 {
-    VoronoiDiagram vd = input_vd;
-    std::cout << "[DEBUG] Starting collapseSmallEdges with D = " << D << "\n";
-    std::cout << "[DEBUG] Initial vertex count: " << vd.vertices.size() << ", edge count: " << vd.edges.size() << "\n";
-    std::vector<int> mapto(vd.vertices.size());
-    for (size_t i = 0; i < mapto.size(); ++i)
-        mapto[i] = i;
-    processEdges(vd, mapto, D);
-    std::cout << "[DEBUG] Performing path compression\n";
-    compressMapping(mapto);
-    std::vector<int> oldToNewVertexIndex;
-    std::cout << "[DEBUG] Rebuilding vertices\n";
-    rebuildVertices(vd, mapto, oldToNewVertexIndex);
-    std::cout << "[DEBUG] New vertex count: " << vd.vertices.size() << "\n";
-    std::cout << "[DEBUG] Rebuilding edges with duplicate removal\n";
+    // 0) Set up
+    VoronoiDiagram out;            // fresh diagram — we won’t mutate input_vd
+    const double D2 = D * D;       // compare squared distances (robust + faster)
 
-    // Rebuild edges with merging and mapping old->new
-    std::vector<VoronoiEdge> newEdges;
-    std::map<int, int> mergedEdgeMap;                 // oldIdx -> newIdx, -1 if discarded
-    std::map<std::pair<int, int>, int> newSegmentMap; // For new edges
+    const int nV = static_cast<int>(input_vd.vertices.size());
+    const int nE = static_cast<int>(input_vd.edges.size());
+    const int nC = static_cast<int>(input_vd.cells.size());
+    const int nF = static_cast<int>(input_vd.facets.size());
 
-    // For rays: list of <ray, newIdx> for loop check
-    std::vector<std::pair<Ray3, int>> rayList;
+    // 1) Decide merges: union endpoints of every segment edge shorter than D.
+    DSU dsu(nV);
+    for (int ei = 0; ei < nE; ++ei) {
+        const VoronoiEdge &e = input_vd.edges[ei];
+        if (!isFiniteSegmentEdge(e)) continue;
+        const Point &a = input_vd.vertices[e.vertex1].coord;
+        const Point &b = input_vd.vertices[e.vertex2].coord;
+        if (squaredDist(a, b) < D2) {
+            dsu.unite(e.vertex1, e.vertex2); // collapse this short edge
+        }
+    }
 
-    // For lines: list of <line, newIdx>
-    std::vector<std::pair<Line3, int>> lineList;
+    // 2) Build groups and pick a representative per merged set.
+    std::unordered_map<int, std::vector<int>> groups; groups.reserve(nV);
+    for (int v = 0; v < nV; ++v) groups[dsu.find(v)].push_back(v);
 
-    for (size_t oldEdgeIdx = 0; oldEdgeIdx < vd.edges.size(); ++oldEdgeIdx)
-    {
-        VoronoiEdge edge = vd.edges[oldEdgeIdx]; // Copy to modify
-        Segment3 seg;
-        Ray3 ray;
-        Line3 line;
+    // 3) oldV -> representative oldV (root); then oldV -> newV index mapping
+    std::vector<int> oldRoot(nV);
+    for (int v = 0; v < nV; ++v) oldRoot[v] = dsu.find(v);
 
-        if (CGAL::assign(seg, edge.edgeObject))
+    // Determine insertion order for new vertices by ascending representative.
+    // Also select a deterministic representative element within each group.
+    std::vector<int> reps; reps.reserve(groups.size());
+    for (auto &kv : groups) reps.push_back( chooseRepresentative(kv.second) );
+    std::sort(reps.begin(), reps.end());
+
+    std::vector<int> oldToNewV(nV, -1);
+
+    // 4) Insert merged vertices into `out`.
+    //    Policy: represent a merged vertex by the *representative* original
+    //    vertex’s coordinate/value, and union of cell membership.
+    for (int rep : reps) {
+        const auto &bucket = groups[ dsu.find(rep) ];
+
+        // Representative: smallest original index in the bucket
+        const int chosen = chooseRepresentative(bucket);
+        const VoronoiVertex &origVV = input_vd.vertices[chosen];
+
+        // Merge cell memberships (if used elsewhere). We keep unique set.
+        std::vector<int> mergedCells;
         {
-            int oldV1 = edge.vertex1;
-            int oldV2 = edge.vertex2;
-            if (oldV1 < 0 || oldV2 < 0)
-                continue; // Skip invalid
-            int newV1 = oldToNewVertexIndex[oldV1];
-            int newV2 = oldToNewVertexIndex[oldV2];
-            if (newV1 == newV2)
-            {
-                mergedEdgeMap[oldEdgeIdx] = -1; // Discarded
+            std::unordered_set<int> s;
+            for (int vOld : bucket) {
+                for (int ci : input_vd.vertices[vOld].cellIndices) s.insert(ci);
+            }
+            mergedCells.reserve(s.size());
+            for (int ci : s) mergedCells.push_back(ci);
+            std::sort(mergedCells.begin(), mergedCells.end());
+        }
+
+        const int newIdx = out.AddVertex(origVV.coord, origVV.value);
+        // Preserve back-references to cells
+        out.vertices[newIdx].cellIndices = std::move(mergedCells);
+
+        // Map all old vertices in the bucket to this new index
+        for (int vOld : bucket) oldToNewV[vOld] = newIdx;
+    }
+
+    // 5) Rebuild edges — only keep UNcollapsed ones. Also build oldE->newE map.
+    std::vector<int> oldToNewE(nE, -1);
+
+    for (int ei = 0; ei < nE; ++ei) {
+        const VoronoiEdge &e = input_vd.edges[ei];
+
+        if (e.type == 0) { // segment
+            // map endpoints
+            if (e.vertex1 < 0 || e.vertex2 < 0) continue; // safety
+            const int aNew = oldToNewV[e.vertex1];
+            const int bNew = oldToNewV[e.vertex2];
+            if (aNew == bNew) {
+                // collapsed away
                 continue;
             }
-            int minV = std::min(newV1, newV2);
-            int maxV = std::max(newV1, newV2);
-            auto it = newSegmentMap.find({minV, maxV});
-            if (it != newSegmentMap.end())
-            {
-                // Merge to existing: append facets
-                int existingIdx = it->second;
-                newEdges[existingIdx].delaunayFacets.insert(
-                    newEdges[existingIdx].delaunayFacets.end(),
-                    edge.delaunayFacets.begin(), edge.delaunayFacets.end());
-                mergedEdgeMap[oldEdgeIdx] = existingIdx;
-            }
-            else
-            {
-                // New edge
-                edge.vertex1 = newV1;
-                edge.vertex2 = newV2;
-                int newIdx = newEdges.size();
-                newEdges.push_back(edge);
-                newSegmentMap[{minV, maxV}] = newIdx;
-                mergedEdgeMap[oldEdgeIdx] = newIdx;
-            }
+
+            // Build segment from new endpoints
+            const Segment3 seg(out.vertices[aNew].coord, out.vertices[bNew].coord);
+            const int ne = out.AddSegmentEdge(aNew, bNew, seg);
+            oldToNewE[ei] = ne;
+
+            // Update pair -> edgeIndex lookup (always sorted pair)
+            const int vmin = std::min(aNew, bNew);
+            const int vmax = std::max(aNew, bNew);
+            out.segmentVertexPairToEdgeIndex[{vmin, vmax}] = ne;
         }
-        else if (CGAL::assign(ray, edge.edgeObject))
-        {
-            // Check for duplicate ray
-            bool found = false;
-            Point src = ray.source();
-            Vector3 dir = normalize_dir(ray.to_vector()); // Use normalized for compare
-            for (const auto &pair : rayList)
-            {
-                const Ray3 &existingRay = pair.first;
-                if (approx_equal_points(src, existingRay.source()) &&
-                    directions_approx_equal(dir, existingRay.to_vector()))
-                {
-                    // Merge facets
-                    int existingIdx = pair.second;
-                    newEdges[existingIdx].delaunayFacets.insert(
-                        newEdges[existingIdx].delaunayFacets.end(),
-                        edge.delaunayFacets.begin(), edge.delaunayFacets.end());
-                    mergedEdgeMap[oldEdgeIdx] = existingIdx;
-                    found = true;
-                    break;
-                }
+        else if (e.type == 1) { // ray
+            // Rays do not collapse via length. Reinsert as-is.
+            Ray3 ray; if (!CGAL::assign(ray, e.edgeObject)) {
+                // Fall back to (source, direction)
+                ray = Ray3(e.source, e.direction);
             }
-            if (!found)
-            {
-                int newIdx = newEdges.size();
-                newEdges.push_back(edge);
-                rayList.emplace_back(ray, newIdx);
-                mergedEdgeMap[oldEdgeIdx] = newIdx;
-            }
+            const int ne = out.AddRayEdge(ray);
+            oldToNewE[ei] = ne;
         }
-        else if (CGAL::assign(line, edge.edgeObject))
-        {
-            // Check for duplicate line
-            bool found = false;
-            Vector3 dir = normalize_dir(line.to_vector());
-            Point pt = line.point(0);
-            for (const auto &pair : lineList)
-            {
-                const Line3 &existingLine = pair.first;
-                if (directions_approx_equal(dir, existingLine.to_vector()) &&
-                    CGAL::squared_distance(pt, existingLine) < 1e-20)
-                { // Point on line
-                    // Merge facets
-                    int existingIdx = pair.second;
-                    newEdges[existingIdx].delaunayFacets.insert(
-                        newEdges[existingIdx].delaunayFacets.end(),
-                        edge.delaunayFacets.begin(), edge.delaunayFacets.end());
-                    mergedEdgeMap[oldEdgeIdx] = existingIdx;
-                    found = true;
-                    break;
-                }
+        else if (e.type == 2) { // line
+            Line3 line; if (!CGAL::assign(line, e.edgeObject)) {
+                line = Line3(e.source, e.direction);
             }
-            if (!found)
-            {
-                int newIdx = newEdges.size();
-                newEdges.push_back(edge);
-                lineList.emplace_back(line, newIdx);
-                mergedEdgeMap[oldEdgeIdx] = newIdx;
-            }
+            const int ne = out.AddLineEdge(line);
+            oldToNewE[ei] = ne;
+        }
+        else {
+            // Unknown type — skip
         }
     }
 
-    vd.edges = std::move(newEdges);
-    vd.segmentVertexPairToEdgeIndex.clear();
+    // 6) Rebuild Cells & Facets with remapped vertex indices. Drop degenerate
+    //    facets that end up with < 3 unique vertices after merging.
+    std::vector<int> oldToNewCell(nC, -1);
+    std::vector<int> oldToNewFacet(nF, -1);
 
-    // Rebuild segmentVertexPairToEdgeIndex for new edges
-    for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx)
-    {
-        const auto &edge = vd.edges[edgeIdx];
-        if (edge.type == 0 && edge.vertex1 >= 0 && edge.vertex2 >= 0)
-        {
-            int v1 = std::min(edge.vertex1, edge.vertex2);
-            int v2 = std::max(edge.vertex1, edge.vertex2);
-            vd.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
+    // clone cells in order to keep indices stable
+    for (int ci = 0; ci < nC; ++ci) {
+        const auto &oldCell = input_vd.cells[ci];
+        const int nc = out.AddCell(oldCell.delaunay_vertex);
+        oldToNewCell[ci] = nc;
+
+        // Remap the cell’s vertex list ( preserves the order of vertices and also do deduplicate )
+        std::vector<int> mappedVerts; mappedVerts.reserve(oldCell.vertices_indices.size());
+        for (int ov : oldCell.vertices_indices) {
+            if (ov < 0) continue;
+            int nv = oldToNewV[ov];
+            if (nv >= 0) mappedVerts.push_back(nv);
         }
+        mappedVerts = dedupKeepFirst(mappedVerts);
+        out.cells[nc].vertices_indices = std::move(mappedVerts);
+
+        // Copy scalar/iso bookkeeping (if any)
+        out.cells[nc].isoVertexStartIndex = oldCell.isoVertexStartIndex;
+        out.cells[nc].numIsoVertices      = oldCell.numIsoVertices;
     }
 
-    std::cout << "[DEBUG] New edge count: " << vd.edges.size() << "\n";
-    std::cout << "[DEBUG] Cleared segmentVertexPairToEdgeIndex\n";
+    // Then, rebuild facets in the same order so outside code can keep indices
+    for (int fi = 0; fi < nF; ++fi) {
+        const auto &oldFacet = input_vd.facets[fi];
+        std::vector<int> mappedFacetVerts; mappedFacetVerts.reserve(oldFacet.vertices_indices.size());
+        for (int ov : oldFacet.vertices_indices) {
+            if (ov < 0) continue; // defensive
+            const int nv = oldToNewV[ov];
+            if (nv >= 0) mappedFacetVerts.push_back(nv);
+        }
+        mappedFacetVerts = dedupKeepFirst(mappedFacetVerts);
 
-    // Rebuild facets (existing code, no change)
-    std::vector<VoronoiCellFacet> newFacets;
-    std::vector<int> oldToNewFacet(vd.facets.size(), -1);
-    for (size_t f = 0; f < vd.facets.size(); ++f)
-    {
-        VoronoiCellFacet oldF = vd.facets[f];
-        std::vector<int> newVertsList;
-        for (int oldV : oldF.vertices_indices)
-        {
-            int newV = oldToNewVertexIndex[oldV];
-            newVertsList.push_back(newV);
-        }
-        // Remove consecutive duplicates
-        std::vector<int> cleaned;
-        for (size_t k = 0; k < newVertsList.size(); ++k)
-        {
-            if (k == 0 || newVertsList[k] != newVertsList[k - 1])
-            {
-                cleaned.push_back(newVertsList[k]);
-            }
-        }
-        // Remove closing duplicate if cyclic
-        if (cleaned.size() > 1 && cleaned.front() == cleaned.back())
-        {
-            cleaned.pop_back();
-        }
-        if (cleaned.size() < 3)
-            continue; // Degenerate: discard
-        VoronoiCellFacet newF;
-        newF.vertices_indices = std::move(cleaned);
-        newF.mirror_facet_index = oldF.mirror_facet_index; // Temporary
-        int newFIdx = newFacets.size();
-        newFacets.push_back(newF);
-        oldToNewFacet[f] = newFIdx;
-    }
-    // Remap mirror indices
-    for (auto &newF : newFacets)
-    {
-        if (newF.mirror_facet_index >= 0)
-        {
-            newF.mirror_facet_index = oldToNewFacet[newF.mirror_facet_index];
-            if (newF.mirror_facet_index < 0)
-                newF.mirror_facet_index = -1; // Mirror was degenerate
-        }
-    }
-    vd.facets = std::move(newFacets);
-
-    // Rebuild cells
-    for (auto &cell : vd.cells)
-    {
-        // Remap vertices (unique)
-        std::set<int> newVerts;
-        for (int oldV : cell.vertices_indices)
-        {
-            newVerts.insert(oldToNewVertexIndex[oldV]);
-        }
-        cell.vertices_indices.assign(newVerts.begin(), newVerts.end());
-        // Remap facets
-        std::vector<int> newFacetIndices;
-        for (int oldF : cell.facet_indices)
-        {
-            int newF = oldToNewFacet[oldF];
-            if (newF >= 0)
-                newFacetIndices.push_back(newF);
-        }
-        cell.facet_indices = std::move(newFacetIndices);
-        // Clear polyhedron (can rebuild if needed, but not used post-collapse)
-        cell.polyhedron.clear();
-    }
-
-    // Update cell edges without full clear
-    std::vector<VoronoiCellEdge> updatedCellEdges;
-    for (const auto &ce : vd.cellEdges)
-    {
-        auto it = mergedEdgeMap.find(ce.edgeIndex);
-        if (it != mergedEdgeMap.end() && it->second != -1)
-        {
-            VoronoiCellEdge newCE = ce;
-            newCE.edgeIndex = it->second;
-            newCE.nextCellEdge = -1; // Reset for re-linking
-            updatedCellEdges.push_back(newCE);
-        }
-        // Discarded if edge collapsed or not mapped
-    }
-
-    // Re-group by new edgeIndex and re-link rings
-    std::unordered_map<int, std::vector<size_t>> newEdgeToCEIndices;
-    for (size_t newCEIdx = 0; newCEIdx < updatedCellEdges.size(); ++newCEIdx)
-    {
-        int newEdge = updatedCellEdges[newCEIdx].edgeIndex;
-        newEdgeToCEIndices[newEdge].push_back(newCEIdx);
-    }
-
-    for (auto &kv : newEdgeToCEIndices)
-    {
-        auto &indices = kv.second;
-        size_t M = indices.size();
-        if (M < 1)
+        if (mappedFacetVerts.size() < 3) {
+            // degenerate after collapsing — drop it
+            oldToNewFacet[fi] = -1;
             continue;
-        for (size_t j = 0; j < M; ++j)
-        {
-            size_t ceIdx = indices[j];
-            size_t nextIdx = indices[(j + 1) % M];
-            updatedCellEdges[ceIdx].nextCellEdge = nextIdx; // For M==1, next=self
+        }
+
+        const int nf = out.AddCellFacet(mappedFacetVerts);
+        oldToNewFacet[fi] = nf;
+
+        // Carry auxiliary fields when present
+        out.facets[nf].orientation        = input_vd.facets[fi].orientation;
+        out.facets[nf].mirror_facet_index = -1; // will be repaired if needed elsewhere
+        out.facets[nf].voronoi_facet_index= -1; // re-created later by create_global_facets()
+    }
+
+    // Patch each cell’s facet_indices with the new facet ids, skipping dropped
+    // ones; preserve order of the remaining facets.
+    for (int ci = 0; ci < nC; ++ci) {
+        const auto &oldCell = input_vd.cells[ci];
+        auto &newCell = out.cells[ oldToNewCell[ci] ];
+        newCell.facet_indices.clear();
+        newCell.facet_indices.reserve(oldCell.facet_indices.size());
+        for (int of : oldCell.facet_indices) {
+            if (of < 0 || of >= nF) continue;
+            const int nf = oldToNewFacet[of];
+            if (nf >= 0) newCell.facet_indices.push_back(nf);
         }
     }
 
-    vd.cellEdges = std::move(updatedCellEdges);
+    // 7) Rebuild VoronoiCellEdges and cellEdgeLookup by remapping & filtering
+    //     collapsed edges. We also rebuild the nextCellEdge ring per edge.
+    // If input cellEdges are not critical in your downstream pipeline, this
+    // section can be simplified safely. Here we attempt to preserve order.
+    std::vector<int> oldToNewCE; oldToNewCE.reserve(input_vd.cellEdges.size());
+    for (size_t i = 0; i < input_vd.cellEdges.size(); ++i) oldToNewCE.push_back(-1);
 
-    // Rebuild cellEdgeLookup
-    vd.cellEdgeLookup.clear();
-    for (size_t ceIdx = 0; ceIdx < vd.cellEdges.size(); ++ceIdx)
-    {
-        const VoronoiCellEdge &ce = vd.cellEdges[ceIdx];
-        vd.cellEdgeLookup[{ce.cellIndex, ce.edgeIndex}] = ceIdx;
+    // First pass: insert only those cell-edges whose Voronoi edge survived
+    for (size_t cei = 0; cei < input_vd.cellEdges.size(); ++cei) {
+        const auto &oce = input_vd.cellEdges[cei];
+        if (oce.edgeIndex < 0 || oce.edgeIndex >= nE) continue;
+        const int ne = oldToNewE[oce.edgeIndex];
+        if (ne < 0) continue; // collapsed away -> skip this cell-edge
+
+        const int nc = (oce.cellIndex >= 0 && oce.cellIndex < nC) ? oldToNewCell[oce.cellIndex] : -1;
+        if (nc < 0) continue;
+
+        VoronoiCellEdge nce;
+        nce.cellIndex = nc;
+        nce.edgeIndex = ne;
+        nce.cycleIndices.clear(); // cycles remap is optional and pipeline-specific
+        nce.nextCellEdge = -1;    // will be wired in the second pass
+
+        const int newIdx = static_cast<int>(out.cellEdges.size());
+        out.cellEdges.push_back(nce);
+        out.cellEdgeLookup[{nc, ne}] = newIdx;
+        oldToNewCE[cei] = newIdx;
     }
 
-    return vd;
+    // Second pass: rebuild the per-edge ring (nextCellEdge) keeping original
+    // relative ordering as much as possible.
+    {
+        // Group new cell-edge indices by Voronoi edge index
+        std::unordered_map<int, std::vector<int>> edgeToCEs;
+        edgeToCEs.reserve(out.cellEdges.size());
+        for (int idx = 0; idx < static_cast<int>(out.cellEdges.size()); ++idx) {
+            edgeToCEs[out.cellEdges[idx].edgeIndex].push_back(idx);
+        }
+        for (auto &kv : edgeToCEs) {
+            auto &ring = kv.second;
+            // Preserve insertion order: already in the order we pushed.
+            if (ring.size() >= 1) {
+                const int m = static_cast<int>(ring.size());
+                for (int i = 0; i < m; ++i) {
+                    const int cur = ring[i];
+                    const int nxt = ring[(i + 1) % m];
+                    out.cellEdges[cur].nextCellEdge = nxt;
+                }
+            }
+        }
+    }
+
+    // 8) Optional: rebuild/refresh global facets & other derived structures.
+    // Callers who depend on these can enable them here.
+    out.create_global_facets();
+    out.compute_bipolar_matches(/*isovalue*/ 0.5);
+
+    // 9) Sanity checks (optional, guarded to avoid expensive checks in prod)
+    out.check(false);
+    out.checkAdvanced(false);
+
+    return out;
 }
 
 //! @brief Checks internal consistency of the VoronoiDiagram.

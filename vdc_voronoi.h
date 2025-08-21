@@ -106,6 +106,7 @@ struct VoronoiFacet
     int index = -1;                                                                         //!< Index of the facet in voronoi_facets.
     int primary_cell_facet_index = -1;                                                      //!< Index in facets of the primary cell-facet.
     BIPOLAR_MATCH_METHOD bipolar_match_method = BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE; //!< Matching method for bipolar edges.
+    std::vector<int> edge_indices;                                                          // edge_indices[i] is the global edge index for local edge i (between vertices i and i+1)
     std::vector<std::pair<int, int>> bipolar_matches;                                       //!< Pairs of edge indices for matched bipolar edges.
     std::vector<int> bipolar_edge_indices;                                                  // Full-facet edge indices (0 to num-1) where bipolarstd::vector<int> bipolar_voronoi_edge_indices;
 };
