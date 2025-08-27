@@ -80,7 +80,7 @@ struct MidpointNode
     std::vector<int> connected_to; //!< Indices of midpoints connected to this one, forming graph edges.
     int facet_index;               //!< Index of the facet this midpoint lies on.
     int cycle_index;               //!< Index of the cycle this midpoint belongs to.
-    int global_edge_index;
+    int global_edge_index = -1;
     bool is_bipolar = false;
 };
 

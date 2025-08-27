@@ -39,12 +39,12 @@ void VoronoiDiagram::create_global_facets()
         vf.voronoi_edge_indices = collectFacetVoronoiEdges(*this, vf.vertices_indices);
         if (vf.voronoi_edge_indices.size() != vf.vertices_indices.size())
         {
-            // Defensive fix: either resize with -1s or drop face
+            // Defensive fix: resize with -1s
             vf.voronoi_edge_indices.resize(vf.vertices_indices.size(), -1);
         }
 
         vf.primary_cell_facet_index = primary;
-        vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // Default value, can be changed
+        vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // Default value of matching method, can be changed
         global_facets.push_back(vf);
 
         facets[primary].voronoi_facet_index = vf.index;
@@ -66,27 +66,6 @@ void VoronoiDiagram::create_global_facets()
 
 // --- helper: classify and pair facet bipolar edges -------------------------
 
-inline int sign_class(float v, float iso)
-{
-    if (v > iso)
-        return +1; // positive
-    if (v < iso)
-        return -1; // negative
-    return 0;      // treat exact hit as non-separating
-}
-
-inline bool is_segment_edge(const VoronoiDiagram &vd, int edgeIdx)
-{
-    if (edgeIdx < 0 || edgeIdx >= (int)vd.edges.size())
-        return false;
-    const auto &e = vd.edges[edgeIdx];
-    return (e.type == 0);
-}
-
-inline bool is_bipolar_vals(float v0, float v1, float iso)
-{
-    return (v0 - iso) * (v1 - iso) < 0.0f;
-}
 
 // Pairs bipolar edges inside a VoronoiFacet according to the method:
 //  - SEP_NEG: start from first (+,−) edge, then pair (start,next), (next2,next3), ...
@@ -116,7 +95,7 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
         int i0 = vf.vertices_indices[k];
         int i1 = vf.vertices_indices[(k + 1) % m];
 
-        // Optional: skip if not a finite segment edge in global map
+        // skip if not a finite segment edge in global map
         if (k < (int)vf.voronoi_edge_indices.size()) {
             int ei = vf.voronoi_edge_indices[k];
             if (ei < 0 || ei >= (int)vd.edges.size() || vd.edges[ei].type != 0) continue;
@@ -134,8 +113,8 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
     const int nB = (int)vf.bipolar_edge_indices.size();
     if (nB == 0) return;
 
-    // (Optional) ensure nB is even; if not, you can warn or drop the last one.
-    // if (nB % 2) std::cerr << "[warn] facet " << vf.index << " has odd # bipolar edges\n";
+    // ensure nB is even
+    if (nB % 2) std::cerr << "[warn] facet " << vf.index << " has odd # bipolar edges\n";
 
     const int want = (vf.bipolar_match_method == BIPOLAR_MATCH_METHOD::SEP_POS) ? +1 : -1;
 
