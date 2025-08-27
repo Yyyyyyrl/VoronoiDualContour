@@ -129,7 +129,7 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
     for (int t = 0; t + 1 < nB; t += 2) {
         int a = vf.bipolar_edge_indices[(startPos + t) % nB];
         int b = vf.bipolar_edge_indices[(startPos + t + 1) % nB];
-        vf.bipolar_matches.emplace_back(a, b); // a,b are boundary slots
+        vf.bipolar_matches.emplace_back(a, b);
     }
 }
 
