@@ -1,16 +1,34 @@
 #include "vdc_voronoi.h"
 
+static std::vector<int> collectFacetVoronoiEdges(const VoronoiDiagram &vd, const std::vector<int> &verts)
+{
+    std::vector<int> out;
+    const int n = (int)verts.size();
+    out.reserve(n);
+    for (int i = 0; i < n; ++i)
+    {
+        int a = verts[i], b = verts[(i + 1) % n];
+        int vmin = std::min(a, b), vmax = std::max(a, b);
+        auto it = vd.segmentVertexPairToEdgeIndex.find({vmin, vmax});
+        out.push_back(it == vd.segmentVertexPairToEdgeIndex.end() ? -1 : it->second);
+    }
+    return out;
+}
 
-void VoronoiDiagram::create_global_facets() {
+void VoronoiDiagram::create_global_facets()
+{
     std::map<std::tuple<int, int, int>, std::vector<int>> hashToCellFacets;
-    for (size_t fi = 0; fi < facets.size(); ++fi) {
+    for (size_t fi = 0; fi < facets.size(); ++fi)
+    {
         auto key = getFacetHashKey(facets[fi].vertices_indices);
         hashToCellFacets[key].push_back(static_cast<int>(fi));
     }
 
-    for (const auto& kv : hashToCellFacets) {
-        const auto& fvec = kv.second;
-        if (fvec.size() > 2) {
+    for (const auto &kv : hashToCellFacets)
+    {
+        const auto &fvec = kv.second;
+        if (fvec.size() > 2)
+        {
             throw std::runtime_error("Facet shared by more than 2 cells.");
         }
 
@@ -18,160 +36,226 @@ void VoronoiDiagram::create_global_facets() {
         vf.index = static_cast<int>(global_facets.size());
         int primary = fvec[0];
         vf.vertices_indices = facets[primary].vertices_indices;
+        vf.voronoi_edge_indices = collectFacetVoronoiEdges(*this, vf.vertices_indices);
+        if (vf.voronoi_edge_indices.size() != vf.vertices_indices.size())
+        {
+            // Defensive fix: either resize with -1s or drop face
+            vf.voronoi_edge_indices.resize(vf.vertices_indices.size(), -1);
+        }
+
         vf.primary_cell_facet_index = primary;
+        vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // Default value, can be changed
         global_facets.push_back(vf);
 
         facets[primary].voronoi_facet_index = vf.index;
         facets[primary].orientation = 1;
 
-        if (fvec.size() == 2) {
+        if (fvec.size() == 2)
+        {
             int secondary = fvec[1];
             bool opposite = haveOppositeOrientation(facets[primary].vertices_indices, facets[secondary].vertices_indices);
-            if (!opposite) {
+            if (!opposite)
+            {
                 throw std::runtime_error("Paired facets " + std::to_string(primary) + " and " + std::to_string(secondary) + " do not have opposite orientations.");
             }
             facets[secondary].voronoi_facet_index = vf.index;
             facets[secondary].orientation = -1;
         }
     }
-
 }
 
-void VoronoiDiagram::compute_bipolar_matches(float isovalue) {
-    for (auto& vf : global_facets) {
-        // Collect bipolar edges and their types
-        std::vector<bool> types;
-        std::vector<int> bipolar_edge_indices;
-        const auto& vert_indices = vf.vertices_indices;
-        int num = vert_indices.size();
-        int num_sep_neg = 0;
-        int num_sep_pos = 0;
-        for (int i = 0; i < num; ++i) {
-            int vi0 = vert_indices[i];
-            int vi1 = vert_indices[(i + 1) % num];
-            float val0 = vertices[vi0].value;
-            float val1 = vertices[vi1].value;
-            if (is_bipolar(val0, val1, isovalue)) {
-                bipolar_edge_indices.push_back(i);  // Index in full facet edges
-                if (val0 >= isovalue && val1 < isovalue) {
-                    types.push_back(false);  // pos → neg
-                    num_sep_neg++;
-                } else {
-                    types.push_back(true);  // neg → pos
-                    num_sep_pos++;
-                }
-            }
-        }
-        vf.bipolar_edge_indices = bipolar_edge_indices;  // Store in vf
+// --- helper: classify and pair facet bipolar edges -------------------------
 
-        // Check for non-alternating types (should always be equal in valid facets)
-        if (num_sep_neg != num_sep_pos) {
-            std::cerr << "[DEBUG] Facet " << vf.index << ": num_sep_neg=" << num_sep_neg << ", num_sep_pos=" << num_sep_pos << ", values=";
-            for (int vi : vf.vertices_indices) std::cerr << " " << vertices[vi].value;
-            std::cerr << "\nVertices: ";
-            for (int vi : vf.vertices_indices) std::cerr << " " << vertices[vi].coord;
-            std::cerr << "\n";  
-            throw std::runtime_error("Non-alternating bipolar edge types on facet " + std::to_string(vf.index) + ". This indicates a potential error in facet construction or value interpolation.");
-        }
-
-        int num_bipolar = types.size();
-        if (num_bipolar == 0 || num_bipolar % 2 != 0) {
-            vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE;
-            vf.bipolar_matches.clear();
-            continue;
-        }
-
-        // Determine match method (set as member of vf)
-        BIPOLAR_MATCH_METHOD match_method = vf.bipolar_match_method;
-
-        // Compute matches using the new routine
-        match_facet_bipolar_edges(vf, types, match_method, num_bipolar);
-    }
+inline int sign_class(float v, float iso)
+{
+    if (v > iso)
+        return +1; // positive
+    if (v < iso)
+        return -1; // negative
+    return 0;      // treat exact hit as non-separating
 }
 
-void VoronoiDiagram::match_facet_bipolar_edges(VoronoiFacet &vf, const std::vector<bool> &types, BIPOLAR_MATCH_METHOD match_method, int num_bipolar) {
+inline bool is_segment_edge(const VoronoiDiagram &vd, int edgeIdx)
+{
+    if (edgeIdx < 0 || edgeIdx >= (int)vd.edges.size())
+        return false;
+    const auto &e = vd.edges[edgeIdx];
+    return (e.type == 0);
+}
 
-    std::vector<std::pair<int, int>> matches;
+inline bool is_bipolar_vals(float v0, float v1, float iso)
+{
+    return (v0 - iso) * (v1 - iso) < 0.0f;
+}
 
-    if (match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH) {
-        // Arbitrary consecutive pairing 
-        for (int k = 0; k < num_bipolar; k += 2) {
-            matches.emplace_back(k, k + 1);
+// Pairs bipolar edges inside a VoronoiFacet according to the method:
+//  - SEP_NEG: start from first (+,−) edge, then pair (start,next), (next2,next3), ...
+//  - SEP_POS: start from first (−,+) edge, then pair likewise
+//  - UNCONSTRAINED_MATCH: pair consecutive in the bipolar list
+//
+// Output:
+//  - vf.bipolar_edge_indices: indices k (edges) around the facet boundary that are bipolar
+//  - vf.bipolar_matches: pairs of indices into vf.bipolar_edge_indices (NOT global edge ids)
+// Replace the body of match_facet_bipolar_edges with this:
+
+static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
+                                      VoronoiFacet &vf,
+                                      float isovalue)
+{
+    vf.bipolar_edge_indices.clear();
+    vf.bipolar_matches.clear();
+
+    const int m = (int)vf.vertices_indices.size();
+    if (m < 2) return;
+
+    // Classify edges in the facet’s OWN boundary order
+    // edgeType[k] = +1 for (− → +), -1 for (+ → −), 0 otherwise
+    std::vector<int> edgeType(m, 0);
+    for (int k = 0; k < m; ++k)
+    {
+        int i0 = vf.vertices_indices[k];
+        int i1 = vf.vertices_indices[(k + 1) % m];
+
+        // Optional: skip if not a finite segment edge in global map
+        if (k < (int)vf.voronoi_edge_indices.size()) {
+            int ei = vf.voronoi_edge_indices[k];
+            if (ei < 0 || ei >= (int)vd.edges.size() || vd.edges[ei].type != 0) continue;
         }
-    } else {
-        // Standard pairing based on method (connect to next in circular order)
-        bool use_pos_neg_start = (match_method == BIPOLAR_MATCH_METHOD::SEP_POS); // Will be true for SEP_POS, false for SEP_NEG
-        std::vector<int> starts;
-        for (int k = 0; k < num_bipolar; ++k) {
-            if (types[k] == use_pos_neg_start) {  
-                starts.push_back(k);
-            }
-        }
-        for (int s : starts) {
-            int next = (s + 1) % num_bipolar;
-            matches.emplace_back(s, next);
+
+        float v0 = vd.vertices[i0].value;
+        float v1 = vd.vertices[i1].value;
+        if ((v0 - isovalue) * (v1 - isovalue) < 0.0f)
+        {
+            edgeType[k] = (v0 < isovalue && v1 > isovalue) ? +1 : -1;
+            vf.bipolar_edge_indices.push_back(k); // store boundary slot k
         }
     }
 
-    vf.bipolar_matches = matches;
+    const int nB = (int)vf.bipolar_edge_indices.size();
+    if (nB == 0) return;
+
+    // (Optional) ensure nB is even; if not, you can warn or drop the last one.
+    // if (nB % 2) std::cerr << "[warn] facet " << vf.index << " has odd # bipolar edges\n";
+
+    const int want = (vf.bipolar_match_method == BIPOLAR_MATCH_METHOD::SEP_POS) ? +1 : -1;
+
+    // Find anchor: first bipolar slot with desired sign; if missing, fall back to 0
+    int startPos = -1;
+    for (int i = 0; i < nB; ++i) {
+        if (edgeType[vf.bipolar_edge_indices[i]] == want) { startPos = i; break; }
+    }
+    if (startPos < 0) startPos = 0;
+
+    // Disjoint, circular pairing: (s, s+1), (s+2, s+3), ...
+    for (int t = 0; t + 1 < nB; t += 2) {
+        int a = vf.bipolar_edge_indices[(startPos + t) % nB];
+        int b = vf.bipolar_edge_indices[(startPos + t + 1) % nB];
+        vf.bipolar_matches.emplace_back(a, b); // a,b are boundary slots
+    }
 }
 
-std::vector<int> VoronoiDiagram::get_vertices_for_facet(int cell_facet_index) const {
+void VoronoiDiagram::compute_bipolar_matches(float isovalue)
+{
+    for (auto &vf : global_facets)
+    {
+        match_facet_bipolar_edges(*this, vf, isovalue);
+    }
+}
+
+std::vector<int> VoronoiDiagram::get_vertices_for_facet(int cell_facet_index) const
+{
     int vfi = facets[cell_facet_index].voronoi_facet_index;
     std::vector<int> vert = global_facets[vfi].vertices_indices;
-    if (facets[cell_facet_index].orientation == -1) {
+    if (facets[cell_facet_index].orientation == -1)
+    {
         std::reverse(vert.begin(), vert.end());
     }
     return vert;
 }
 
-std::string matchMethodToString(BIPOLAR_MATCH_METHOD method) {
-    switch (method) {
-        case BIPOLAR_MATCH_METHOD::SEP_POS: return "SEP_POS";
-        case BIPOLAR_MATCH_METHOD::SEP_NEG: return "SEP_NEG";
-        case BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH: return "UNCONSTRAINED_MATCH";
-        case BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE: return "UNDEFINED_MATCH_TYPE";
-        default: return "UNKNOWN";
+std::string matchMethodToString(BIPOLAR_MATCH_METHOD method)
+{
+    switch (method)
+    {
+    case BIPOLAR_MATCH_METHOD::SEP_POS:
+        return "SEP_POS";
+    case BIPOLAR_MATCH_METHOD::SEP_NEG:
+        return "SEP_NEG";
+    case BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH:
+        return "UNCONSTRAINED_MATCH";
+    case BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE:
+        return "UNDEFINED_MATCH_TYPE";
+    default:
+        return "UNKNOWN";
     }
 }
 
-namespace {
+namespace
+{
 
-// --------- Small utilities -------------------------------------------------
+    // --------- Small utilities -------------------------------------------------
 
-struct DSU {
-    std::vector<int> p, r;  // parent, rank
-    explicit DSU(int n = 0) : p(n), r(n, 0) { std::iota(p.begin(), p.end(), 0); }
-    void reset(int n) { p.resize(n); r.assign(n,0); std::iota(p.begin(), p.end(), 0); }
-    int find(int x){ return p[x] == x ? x : p[x] = find(p[x]); }
-    void unite(int a, int b){ a = find(a); b = find(b); if (a==b) return; if (r[a]<r[b]) std::swap(a,b); p[b]=a; if (r[a]==r[b]) ++r[a]; }
-};
+    struct DSU
+    {
+        std::vector<int> p, r; // parent, rank
+        explicit DSU(int n = 0) : p(n), r(n, 0) { std::iota(p.begin(), p.end(), 0); }
+        void reset(int n)
+        {
+            p.resize(n);
+            r.assign(n, 0);
+            std::iota(p.begin(), p.end(), 0);
+        }
+        int find(int x) { return p[x] == x ? x : p[x] = find(p[x]); }
+        void unite(int a, int b)
+        {
+            a = find(a);
+            b = find(b);
+            if (a == b)
+                return;
+            if (r[a] < r[b])
+                std::swap(a, b);
+            p[b] = a;
+            if (r[a] == r[b])
+                ++r[a];
+        }
+    };
 
-inline bool isFiniteSegmentEdge(const VoronoiEdge& e) {
-    return e.type == 0 && e.vertex1 >= 0 && e.vertex2 >= 0;
+    inline bool isFiniteSegmentEdge(const VoronoiEdge &e)
+    {
+        return e.type == 0 && e.vertex1 >= 0 && e.vertex2 >= 0;
+    }
+
+    inline double sqr(double x) { return x * x; }
+
+    inline double squaredDist(const Point &a, const Point &b)
+    {
+        return sqr(a.x() - b.x()) + sqr(a.y() - b.y()) + sqr(a.z() - b.z());
+    }
+
+    // Keep representative vertex as the one with smallest original index.  This is
+    // stable/deterministic and matches common collapse conventions.
+    int chooseRepresentative(const std::vector<int> &group)
+    {
+        return *std::min_element(group.begin(), group.end());
+    }
+
+    // Deduplicate a sequence while keeping the first occurrence order.
+    static inline std::vector<int> dedupKeepFirst(const std::vector<int> &seq)
+    {
+        std::vector<int> out;
+        out.reserve(seq.size());
+        std::unordered_set<int> seen;
+        seen.reserve(seq.size() * 2 + 1);
+        for (int v : seq)
+            if (!seen.count(v))
+            {
+                seen.insert(v);
+                out.push_back(v);
+            }
+        return out;
+    }
+
 }
-
-inline double sqr(double x) { return x * x; }
-
-inline double squaredDist(const Point& a, const Point& b) {
-    return sqr(a.x() - b.x()) + sqr(a.y() - b.y()) + sqr(a.z() - b.z());
-}
-
-// Keep representative vertex as the one with smallest original index.  This is
-// stable/deterministic and matches common collapse conventions.
-int chooseRepresentative(const std::vector<int>& group) {
-    return *std::min_element(group.begin(), group.end());
-}
-
-// Deduplicate a sequence while keeping the first occurrence order.
-static inline std::vector<int> dedupKeepFirst(const std::vector<int>& seq) {
-    std::vector<int> out; out.reserve(seq.size());
-    std::unordered_set<int> seen; seen.reserve(seq.size()*2+1);
-    for (int v : seq) if (!seen.count(v)) { seen.insert(v); out.push_back(v); }
-    return out;
-}
-
-} // anonymous namespace
 
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
 /*!
@@ -202,7 +286,6 @@ int VoronoiDiagram::AddVertex(const Point &p, float value)
 
     // Add to vertex list
     vertices.push_back(v);
-
 
     return idx;
 }
@@ -386,11 +469,9 @@ int VoronoiDiagram::AddCell(Vertex_handle delaunay_vertex)
     return cellIdx;
 }
 
-
 /*
  * Small Edge Collapsing Routines
  */
-
 
 // Helper for union-find
 static int find(std::vector<int> &mapto, int x)
@@ -401,6 +482,39 @@ static int find(std::vector<int> &mapto, int x)
     }
     return mapto[x];
 }
+
+//! @brief Computes the centroid of a cycle using the associated midpoints.
+/*!
+ * Calculates the geometric center (isovertex) of a cycle by averaging the positions
+ * of its constituent midpoints using CGAL's centroid function.
+ *
+ * Mathematical properties:
+ * - Computes the arithmetic mean of point coordinates
+ * - Result is the geometric center of mass
+ * - Only valid for non-empty midpoint sets
+ *
+ * @param midpoints Vector of all MidpointNode objects in the diagram
+ * @note Skips computation if midpoint_indices is empty
+ * @see Cycle::compute_centroid(const std::vector<VoronoiVertex>&)
+ */
+void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
+{
+    if (midpoint_indices.empty())
+    {
+        return; // No midpoints to compute centroid.
+    }
+
+    // Collect the points corresponding to the midpoint indices.
+    std::vector<Point> points;
+    for (int idx : midpoint_indices)
+    {
+        points.push_back(midpoints[idx].point);
+    }
+
+    // Compute the centroid using CGAL's centroid function.
+    isovertex = CGAL::centroid(points.begin(), points.end());
+}
+
 
 bool approx_equal_points(const Point &p1, const Point &p2, double eps_sq = 1e-20)
 {
@@ -461,8 +575,8 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
                                   Delaunay & /*dt*/)
 {
     // 0) Set up
-    VoronoiDiagram out;            // fresh diagram — we won’t mutate input_vd
-    const double D2 = D * D;       // compare squared distances (robust + faster)
+    VoronoiDiagram out;      // fresh diagram — don't mutate input_vd
+    const double D2 = D * D; // squared distances
 
     const int nV = static_cast<int>(input_vd.vertices.size());
     const int nE = static_cast<int>(input_vd.edges.size());
@@ -471,51 +585,63 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
 
     // 1) Decide merges: union endpoints of every segment edge shorter than D.
     DSU dsu(nV);
-    for (int ei = 0; ei < nE; ++ei) {
+    for (int ei = 0; ei < nE; ++ei)
+    {
         const VoronoiEdge &e = input_vd.edges[ei];
-        if (!isFiniteSegmentEdge(e)) continue;
+        if (!isFiniteSegmentEdge(e))
+            continue;
         const Point &a = input_vd.vertices[e.vertex1].coord;
         const Point &b = input_vd.vertices[e.vertex2].coord;
-        if (squaredDist(a, b) < D2) {
+        if (squaredDist(a, b) < D2)
+        {
             dsu.unite(e.vertex1, e.vertex2); // collapse this short edge
         }
     }
 
     // 2) Build groups and pick a representative per merged set.
-    std::unordered_map<int, std::vector<int>> groups; groups.reserve(nV);
-    for (int v = 0; v < nV; ++v) groups[dsu.find(v)].push_back(v);
+    std::unordered_map<int, std::vector<int>> groups;
+    groups.reserve(nV);
+    for (int v = 0; v < nV; ++v)
+        groups[dsu.find(v)].push_back(v);
 
     // 3) oldV -> representative oldV (root); then oldV -> newV index mapping
     std::vector<int> oldRoot(nV);
-    for (int v = 0; v < nV; ++v) oldRoot[v] = dsu.find(v);
+    for (int v = 0; v < nV; ++v)
+        oldRoot[v] = dsu.find(v);
 
     // Determine insertion order for new vertices by ascending representative.
     // Also select a deterministic representative element within each group.
-    std::vector<int> reps; reps.reserve(groups.size());
-    for (auto &kv : groups) reps.push_back( chooseRepresentative(kv.second) );
+    std::vector<int> reps;
+    reps.reserve(groups.size());
+    for (auto &kv : groups)
+        reps.push_back(chooseRepresentative(kv.second));
     std::sort(reps.begin(), reps.end());
 
     std::vector<int> oldToNewV(nV, -1);
 
     // 4) Insert merged vertices into `out`.
-    //    Policy: represent a merged vertex by the *representative* original
+    //    represent a merged vertex by the *representative* original
     //    vertex’s coordinate/value, and union of cell membership.
-    for (int rep : reps) {
-        const auto &bucket = groups[ dsu.find(rep) ];
+    for (int rep : reps)
+    {
+        const auto &bucket = groups[dsu.find(rep)];
 
         // Representative: smallest original index in the bucket
         const int chosen = chooseRepresentative(bucket);
         const VoronoiVertex &origVV = input_vd.vertices[chosen];
 
-        // Merge cell memberships (if used elsewhere). We keep unique set.
+        // Merge cell memberships (if used elsewhere) and only keep unique set.
         std::vector<int> mergedCells;
         {
             std::unordered_set<int> s;
-            for (int vOld : bucket) {
-                for (int ci : input_vd.vertices[vOld].cellIndices) s.insert(ci);
+            for (int vOld : bucket)
+            {
+                for (int ci : input_vd.vertices[vOld].cellIndices)
+                    s.insert(ci);
             }
             mergedCells.reserve(s.size());
-            for (int ci : s) mergedCells.push_back(ci);
+            for (int ci : s)
+                mergedCells.push_back(ci);
             std::sort(mergedCells.begin(), mergedCells.end());
         }
 
@@ -524,53 +650,98 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         out.vertices[newIdx].cellIndices = std::move(mergedCells);
 
         // Map all old vertices in the bucket to this new index
-        for (int vOld : bucket) oldToNewV[vOld] = newIdx;
+        for (int vOld : bucket)
+            oldToNewV[vOld] = newIdx;
     }
 
     // 5) Rebuild edges — only keep UNcollapsed ones. Also build oldE->newE map.
+    //    Preserve and MERGE edge.delaunayFacets across duplicates after collapse.
     std::vector<int> oldToNewE(nE, -1);
 
-    for (int ei = 0; ei < nE; ++ei) {
+    // Helper to append unique Facets (Delaunay::Facet is usually a pair<Cell_handle,int>)
+    auto appendUniqueFacets = [](std::vector<Facet> &dst, const std::vector<Facet> &src)
+    {
+        for (const auto &f : src)
+        {
+            if (std::find(dst.begin(), dst.end(), f) == dst.end())
+                dst.push_back(f);
+        }
+    };
+
+    // Local cache for segment edges keyed by normalized (vmin,vmax)
+    std::map<std::pair<int, int>, int> localSegMap;
+
+    for (int ei = 0; ei < nE; ++ei)
+    {
         const VoronoiEdge &e = input_vd.edges[ei];
 
-        if (e.type == 0) { // segment
-            // map endpoints
-            if (e.vertex1 < 0 || e.vertex2 < 0) continue; // safety
+        if (e.type == 0)
+        { // segment
+            if (e.vertex1 < 0 || e.vertex2 < 0)
+            {
+                oldToNewE[ei] = -1;
+                continue;
+            }
             const int aNew = oldToNewV[e.vertex1];
             const int bNew = oldToNewV[e.vertex2];
-            if (aNew == bNew) {
-                // collapsed away
+            if (aNew == bNew || aNew < 0 || bNew < 0)
+            { // collapsed or invalid
+                oldToNewE[ei] = -1;
                 continue;
             }
 
-            // Build segment from new endpoints
+            const int vmin = std::min(aNew, bNew);
+            const int vmax = std::max(aNew, bNew);
+            const auto key = std::make_pair(vmin, vmax);
+
+            // If already have this segment in the new diagram, merge facets
+            auto it = localSegMap.find(key);
+            if (it != localSegMap.end())
+            {
+                const int existing = it->second;
+                oldToNewE[ei] = existing;
+                appendUniqueFacets(out.edges[existing].delaunayFacets, e.delaunayFacets);
+                continue;
+            }
+
+            // Otherwise create it and copy facets
             const Segment3 seg(out.vertices[aNew].coord, out.vertices[bNew].coord);
             const int ne = out.AddSegmentEdge(aNew, bNew, seg);
             oldToNewE[ei] = ne;
 
-            // Update pair -> edgeIndex lookup (always sorted pair)
-            const int vmin = std::min(aNew, bNew);
-            const int vmax = std::max(aNew, bNew);
-            out.segmentVertexPairToEdgeIndex[{vmin, vmax}] = ne;
+            // Preserve original edge's delaunayFacets
+            out.edges[ne].delaunayFacets.clear();
+            appendUniqueFacets(out.edges[ne].delaunayFacets, e.delaunayFacets);
+
+            // Maintain both the local and public lookups
+            localSegMap[key] = ne;
+            out.segmentVertexPairToEdgeIndex[key] = ne;
         }
-        else if (e.type == 1) { // ray
-            // Rays do not collapse via length. Reinsert as-is.
-            Ray3 ray; if (!CGAL::assign(ray, e.edgeObject)) {
-                // Fall back to (source, direction)
+        else if (e.type == 1)
+        { // ray
+            Ray3 ray;
+            if (!CGAL::assign(ray, e.edgeObject))
                 ray = Ray3(e.source, e.direction);
-            }
             const int ne = out.AddRayEdge(ray);
             oldToNewE[ei] = ne;
+
+            // Preserve facets for rays
+            out.edges[ne].delaunayFacets = e.delaunayFacets;
         }
-        else if (e.type == 2) { // line
-            Line3 line; if (!CGAL::assign(line, e.edgeObject)) {
+        else if (e.type == 2)
+        { // line
+            Line3 line;
+            if (!CGAL::assign(line, e.edgeObject))
                 line = Line3(e.source, e.direction);
-            }
             const int ne = out.AddLineEdge(line);
             oldToNewE[ei] = ne;
+
+            // Preserve facets for lines
+            out.edges[ne].delaunayFacets = e.delaunayFacets;
         }
-        else {
-            // Unknown type — skip
+        else
+        {
+            oldToNewE[ei] = -1; // unknown type
         }
     }
 
@@ -580,38 +751,49 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     std::vector<int> oldToNewFacet(nF, -1);
 
     // clone cells in order to keep indices stable
-    for (int ci = 0; ci < nC; ++ci) {
+    for (int ci = 0; ci < nC; ++ci)
+    {
         const auto &oldCell = input_vd.cells[ci];
         const int nc = out.AddCell(oldCell.delaunay_vertex);
         oldToNewCell[ci] = nc;
 
         // Remap the cell’s vertex list ( preserves the order of vertices and also do deduplicate )
-        std::vector<int> mappedVerts; mappedVerts.reserve(oldCell.vertices_indices.size());
-        for (int ov : oldCell.vertices_indices) {
-            if (ov < 0) continue;
+        std::vector<int> mappedVerts;
+        mappedVerts.reserve(oldCell.vertices_indices.size());
+        for (int ov : oldCell.vertices_indices)
+        {
+            if (ov < 0)
+                continue;
             int nv = oldToNewV[ov];
-            if (nv >= 0) mappedVerts.push_back(nv);
+            if (nv >= 0)
+                mappedVerts.push_back(nv);
         }
         mappedVerts = dedupKeepFirst(mappedVerts);
         out.cells[nc].vertices_indices = std::move(mappedVerts);
 
         // Copy scalar/iso bookkeeping (if any)
         out.cells[nc].isoVertexStartIndex = oldCell.isoVertexStartIndex;
-        out.cells[nc].numIsoVertices      = oldCell.numIsoVertices;
+        out.cells[nc].numIsoVertices = oldCell.numIsoVertices;
     }
 
     // Then, rebuild facets in the same order so outside code can keep indices
-    for (int fi = 0; fi < nF; ++fi) {
+    for (int fi = 0; fi < nF; ++fi)
+    {
         const auto &oldFacet = input_vd.facets[fi];
-        std::vector<int> mappedFacetVerts; mappedFacetVerts.reserve(oldFacet.vertices_indices.size());
-        for (int ov : oldFacet.vertices_indices) {
-            if (ov < 0) continue; // defensive
+        std::vector<int> mappedFacetVerts;
+        mappedFacetVerts.reserve(oldFacet.vertices_indices.size());
+        for (int ov : oldFacet.vertices_indices)
+        {
+            if (ov < 0)
+                continue; // defensive
             const int nv = oldToNewV[ov];
-            if (nv >= 0) mappedFacetVerts.push_back(nv);
+            if (nv >= 0)
+                mappedFacetVerts.push_back(nv);
         }
         mappedFacetVerts = dedupKeepFirst(mappedFacetVerts);
 
-        if (mappedFacetVerts.size() < 3) {
+        if (mappedFacetVerts.size() < 3)
+        {
             // degenerate after collapsing — drop it
             oldToNewFacet[fi] = -1;
             continue;
@@ -621,41 +803,51 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         oldToNewFacet[fi] = nf;
 
         // Carry auxiliary fields when present
-        out.facets[nf].orientation        = input_vd.facets[fi].orientation;
-        out.facets[nf].mirror_facet_index = -1; // will be repaired if needed elsewhere
-        out.facets[nf].voronoi_facet_index= -1; // re-created later by create_global_facets()
+        out.facets[nf].orientation = input_vd.facets[fi].orientation;
+        out.facets[nf].mirror_facet_index = -1;  // will be repaired if needed elsewhere
+        out.facets[nf].voronoi_facet_index = -1; // re-created later by create_global_facets()
     }
 
     // Patch each cell’s facet_indices with the new facet ids, skipping dropped
     // ones; preserve order of the remaining facets.
-    for (int ci = 0; ci < nC; ++ci) {
+    for (int ci = 0; ci < nC; ++ci)
+    {
         const auto &oldCell = input_vd.cells[ci];
-        auto &newCell = out.cells[ oldToNewCell[ci] ];
+        auto &newCell = out.cells[oldToNewCell[ci]];
         newCell.facet_indices.clear();
         newCell.facet_indices.reserve(oldCell.facet_indices.size());
-        for (int of : oldCell.facet_indices) {
-            if (of < 0 || of >= nF) continue;
+        for (int of : oldCell.facet_indices)
+        {
+            if (of < 0 || of >= nF)
+                continue;
             const int nf = oldToNewFacet[of];
-            if (nf >= 0) newCell.facet_indices.push_back(nf);
+            if (nf >= 0)
+                newCell.facet_indices.push_back(nf);
         }
     }
 
     // 7) Rebuild VoronoiCellEdges and cellEdgeLookup by remapping & filtering
-    //     collapsed edges. We also rebuild the nextCellEdge ring per edge.
+    //     collapsed edges. Also rebuild the nextCellEdge ring per edge.
     // If input cellEdges are not critical in your downstream pipeline, this
-    // section can be simplified safely. Here we attempt to preserve order.
-    std::vector<int> oldToNewCE; oldToNewCE.reserve(input_vd.cellEdges.size());
-    for (size_t i = 0; i < input_vd.cellEdges.size(); ++i) oldToNewCE.push_back(-1);
+    // section can be simplified safely. Here attempt to preserve order.
+    std::vector<int> oldToNewCE;
+    oldToNewCE.reserve(input_vd.cellEdges.size());
+    for (size_t i = 0; i < input_vd.cellEdges.size(); ++i)
+        oldToNewCE.push_back(-1);
 
     // First pass: insert only those cell-edges whose Voronoi edge survived
-    for (size_t cei = 0; cei < input_vd.cellEdges.size(); ++cei) {
+    for (size_t cei = 0; cei < input_vd.cellEdges.size(); ++cei)
+    {
         const auto &oce = input_vd.cellEdges[cei];
-        if (oce.edgeIndex < 0 || oce.edgeIndex >= nE) continue;
+        if (oce.edgeIndex < 0 || oce.edgeIndex >= nE)
+            continue;
         const int ne = oldToNewE[oce.edgeIndex];
-        if (ne < 0) continue; // collapsed away -> skip this cell-edge
+        if (ne < 0)
+            continue; // collapsed away -> skip this cell-edge
 
         const int nc = (oce.cellIndex >= 0 && oce.cellIndex < nC) ? oldToNewCell[oce.cellIndex] : -1;
-        if (nc < 0) continue;
+        if (nc < 0)
+            continue;
 
         VoronoiCellEdge nce;
         nce.cellIndex = nc;
@@ -675,15 +867,19 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         // Group new cell-edge indices by Voronoi edge index
         std::unordered_map<int, std::vector<int>> edgeToCEs;
         edgeToCEs.reserve(out.cellEdges.size());
-        for (int idx = 0; idx < static_cast<int>(out.cellEdges.size()); ++idx) {
+        for (int idx = 0; idx < static_cast<int>(out.cellEdges.size()); ++idx)
+        {
             edgeToCEs[out.cellEdges[idx].edgeIndex].push_back(idx);
         }
-        for (auto &kv : edgeToCEs) {
+        for (auto &kv : edgeToCEs)
+        {
             auto &ring = kv.second;
-            // Preserve insertion order: already in the order we pushed.
-            if (ring.size() >= 1) {
+            // Preserve insertion order
+            if (ring.size() >= 1)
+            {
                 const int m = static_cast<int>(ring.size());
-                for (int i = 0; i < m; ++i) {
+                for (int i = 0; i < m; ++i)
+                {
                     const int cur = ring[i];
                     const int nxt = ring[(i + 1) % m];
                     out.cellEdges[cur].nextCellEdge = nxt;
@@ -703,6 +899,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
 
     return out;
 }
+
 
 //! @brief Checks internal consistency of the VoronoiDiagram.
 /*!
@@ -866,7 +1063,7 @@ void VoronoiDiagram::checkEdgeCycles() const
         {
             std::cerr << "ERROR: For edgeIndex=" << eIdx
                       << ", visited " << visited.size()
-                      << " edges, but we expected " << ceIndices.size() << ".\n"
+                      << " edges, but expected " << ceIndices.size() << ".\n"
                       << "Implying there's a second disconnected cycle or missing edges.\n";
             throw std::runtime_error("Ring does not include all edges for edgeIndex.");
         }
@@ -971,27 +1168,33 @@ std::tuple<int, int, int> VoronoiDiagram::getFacetHashKey(const std::vector<int>
  * @return true if sequences match under any cyclic shift
  * @note O(n²) time complexity for n-vertex facets
  */
-bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1, const std::vector<int> &f2) const {
-    if (f1.size() != f2.size()) {
+bool VoronoiDiagram::haveSameOrientation(const std::vector<int> &f1, const std::vector<int> &f2) const
+{
+    if (f1.size() != f2.size())
+    {
         throw std::runtime_error("Facet vertex counts differ: " + std::to_string(f1.size()) + " vs " + std::to_string(f2.size()));
     }
     size_t n = f1.size();
-    if (n <= 1) {
-        return true;  // Both empty or single element
+    if (n <= 1)
+    {
+        return true; // Both empty or single element
     }
-    
+
     // Find location of f1[0] in f2
     auto it = std::find(f2.begin(), f2.end(), f1[0]);
-    if (it == f2.end()) {
+    if (it == f2.end())
+    {
         throw std::runtime_error("f1[0] not found in f2 - facets have different vertex sets");
     }
     size_t iloc = std::distance(f2.begin(), it);
-    
+
     // Check the rest sequentially with wrap-around
-    for (size_t i = 1; i < n; ++i) {
+    for (size_t i = 1; i < n; ++i)
+    {
         iloc = (iloc + 1) % n;
-        if (f1[i] != f2[iloc]) {
-            return false;  // Mismatch in sequence (implies different ordering or sets)
+        if (f1[i] != f2[iloc])
+        {
+            return false; // Mismatch in sequence (implies different ordering or sets)
         }
     }
     return true;
@@ -1279,30 +1482,36 @@ void VoronoiDiagram::checkAdvanced(bool check_norm) const
     }
 }
 
-std::string get_directory(const std::string& path) {
+std::string get_directory(const std::string &path)
+{
     size_t pos = path.find_last_of("/\\");
-    if (pos == std::string::npos) return "";
+    if (pos == std::string::npos)
+        return "";
     return path.substr(0, pos + 1);
 }
 
-std::string get_basename_without_ext(const std::string& path) {
+std::string get_basename_without_ext(const std::string &path)
+{
     std::string filename = path.substr(path.find_last_of("/\\") + 1);
     size_t dot_pos = filename.find_last_of('.');
-    if (dot_pos == std::string::npos) return filename;
+    if (dot_pos == std::string::npos)
+        return filename;
     return filename.substr(0, dot_pos);
 }
 
-void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename) {
+void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename)
+{
     std::string dir = get_directory(output_filename);
     std::string base = get_basename_without_ext(output_filename);
     std::string txt_filename = dir + "VoronoiDiagram_" + base + ".txt";
 
     std::ofstream file(txt_filename);
-    if (!file) {
+    if (!file)
+    {
         std::cerr << "Error opening output file: " << txt_filename << "\n";
         exit(EXIT_FAILURE);
     }
-    
+
     file << "VoronoiDiagram:\n";
 
     file << vd;
