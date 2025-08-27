@@ -498,7 +498,7 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiFacet &vf)
     {
         os << be << " ";
     }
-    os << "]\n  Bipoar Matches: [ ";
+    os << "]\n  Bipolar Matches: [ ";
     if (vf.bipolar_matches.empty())
     {
         os << "(none)";
