@@ -736,34 +736,36 @@ static void collect_midpoints(
 }
 
 // Helper: get undirected edge key from a global facet boundary slot
-static inline std::pair<int,int>
-facet_slot_edge_key(const VoronoiFacet& gf, int slot)
+static inline std::pair<int, int>
+facet_slot_edge_key(const VoronoiFacet &gf, int slot)
 {
     int m = (int)gf.vertices_indices.size();
     int a = gf.vertices_indices[slot];
     int b = gf.vertices_indices[(slot + 1) % m];
-    return (a < b) ? std::make_pair(a,b) : std::make_pair(b,a);
+    return (a < b) ? std::make_pair(a, b) : std::make_pair(b, a);
 }
 
 // It reuses the canonical pairing from global_facets.
 static void connect_midpoints_via_global_matches(
-    const VoronoiDiagram& vd,
-    const VoronoiCell& vc,
-    const std::map<std::pair<int,int>, int>& edge_to_midpoint_index,
-    std::vector<MidpointNode>& midpoints)
+    const VoronoiDiagram &vd,
+    const VoronoiCell &vc,
+    const std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
+    std::vector<MidpointNode> &midpoints)
 {
     for (int cf : vc.facet_indices)
     {
-        if (cf < 0 || cf >= (int)vd.facets.size()) continue;
+        if (cf < 0 || cf >= (int)vd.facets.size())
+            continue;
 
-        const auto& cellFacet = vd.facets[cf];
+        const auto &cellFacet = vd.facets[cf];
         int vfi = cellFacet.voronoi_facet_index;
-        if (vfi < 0 || vfi >= (int)vd.global_facets.size()) continue;
+        if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+            continue;
 
-        const auto& gf = vd.global_facets[vfi];
-        for (const auto& pr : gf.bipolar_matches)
+        const auto &gf = vd.global_facets[vfi];
+        for (const auto &pr : gf.bipolar_matches)
         {
-            int sA = pr.first;   // boundary slot in global facet order
+            int sA = pr.first; // boundary slot in global facet order
             int sB = pr.second;
 
             auto ekA = facet_slot_edge_key(gf, sA);
@@ -915,7 +917,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         std::vector<std::vector<int>> facet_midpoint_indices;
 
         collect_midpoints(vc, voronoiDiagram, isovalue, midpoints, edge_to_midpoint_index, facet_midpoint_indices);
-        //connect_midpoints(facet_midpoint_indices, midpoints);
+        // connect_midpoints(facet_midpoint_indices, midpoints);
         connect_midpoints_via_global_matches(voronoiDiagram, vc, edge_to_midpoint_index, midpoints);
 
         std::vector<std::vector<int>> cycles;
@@ -939,7 +941,6 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedG
     int d1 = facet.axis_dir[0];
     int d2 = facet.axis_dir[1];
 
-    // We have bounding-box in facet.minIndex[], facet.maxIndex[],
     // and localSize[] = (maxIndex[i] - minIndex[i] + 1)
     // The grid spacing in each dimension
     double dx[3] = {data_grid.dx, data_grid.dy, data_grid.dz};
@@ -1418,8 +1419,7 @@ static VoronoiCellFacet build_facet_from_edge(
             const int globalEdge = eit->second;
 
             // 2) find the cell-edge for (this cell, globalEdge)
-            // (vc is the owning VoronoiCell; if you don’t have it here, pass cell index in)
-            const int thisCellIndex = vcIdx; // adapt if named differently
+            const int thisCellIndex = vcIdx;
             const auto ceit = voronoiDiagram.cellEdgeLookup.find({thisCellIndex, globalEdge});
             facet.cell_edge_indices.push_back(ceit == voronoiDiagram.cellEdgeLookup.end() ? -1 : ceit->second);
         }
@@ -1816,7 +1816,7 @@ void construct_voronoi_edges(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
                 }
             }
         }
-        // Lines are not expected for finite facets, so we skip them
+        // Lines are not expected for finite facets
     }
 }
 
