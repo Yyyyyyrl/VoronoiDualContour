@@ -147,6 +147,8 @@ void construct_voronoi_edges(
     VoronoiDiagram &voronoiDiagram,
     Delaunay &dt);
 
+
+
 //! @brief Constructs and links Voronoi cell edges in the Voronoi diagram.
 /*!
  * Builds cell edges for each Voronoi edge, links them in a circular ring, and
@@ -513,7 +515,7 @@ static void collect_cell_vertices(Delaunay &dt, Vertex_handle delaunay_vertex, V
  * @param edge_to_facets Map tracking which facets share each edge.
  * @return The constructed Voronoi facet, or an empty facet if invalid.
  */
-static VoronoiCellFacet build_facet_from_edge(Delaunay &dt, const Edge &ed, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &facet_indices, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets);
+static VoronoiCellFacet build_facet_from_edge(Delaunay &dt, const Edge &ed, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &facet_indices, std::map<std::pair<int, int>, std::vector<int>>& edge_to_facets, int vcIdx);
 
 //! @brief Processes incident edges to build facets for a Voronoi cell.
 /*!
