@@ -773,8 +773,11 @@ static void connect_midpoints_via_global_matches(
 
             auto itA = edge_to_midpoint_index.find(ekA);
             auto itB = edge_to_midpoint_index.find(ekB);
-            if (itA == edge_to_midpoint_index.end() || itB == edge_to_midpoint_index.end())
+
+            if (itA == edge_to_midpoint_index.end() || itB == edge_to_midpoint_index.end()){
+                
                 continue; // this cell doesn't have both midpoints (e.g., not bipolar here), skip
+            }
 
             int iA = itA->second, iB = itB->second;
             midpoints[iA].connected_to.push_back(iB);
@@ -794,46 +797,47 @@ static void extract_cycles(
     const std::vector<MidpointNode> &midpoints,
     std::vector<std::vector<int>> &cycles)
 {
-    std::set<int> visited;
+    const int n = (int)midpoints.size();
+    std::vector<char> used(n, 0);
 
-    for (size_t i = 0; i < midpoints.size(); ++i)
-    {
-        if (visited.find(i) == visited.end())
-        {
-            std::vector<int> cycle;
-            std::stack<int> stack;
-            stack.push(i);
+    // build unique adjacency
+    std::vector<std::vector<int>> adj(n);
+    for (int i = 0; i < n; ++i) {
+        std::unordered_set<int> uniq(midpoints[i].connected_to.begin(), midpoints[i].connected_to.end());
+        adj[i].assign(uniq.begin(), uniq.end());
+    }
 
-            while (!stack.empty())
-            {
-                int current = stack.top();
-                stack.pop();
+    //alert if degree != 2
+    for (int i = 0; i < n; ++i) {
+        if (!adj[i].empty() && adj[i].size() != 2) {
+            std::cerr << "[warn] midpoint " << i << " has degree " << adj[i].size() << " (expected 2)\n";
+        }
+    }
 
-                if (visited.find(current) != visited.end())
-                {
-                    continue;
-                }
+    for (int s = 0; s < n; ++s) {
+        if (used[s] || adj[s].empty()) continue;
+        int prev = -1, cur = s;
+        std::vector<int> cyc;
+        while (true) {
+            used[cur] = 1;
+            cyc.push_back(cur);
 
-                visited.insert(current);
-                cycle.push_back(current);
+            if (adj[cur].empty()) break; // broken
 
-                for (int neighbor : midpoints[current].connected_to)
-                {
-                    if (visited.find(neighbor) == visited.end())
-                    {
-                        stack.push(neighbor);
-                    }
-                }
+            int nxt = (adj[cur].size()==1) ? adj[cur][0] : (adj[cur][0]==prev ? adj[cur][1] : adj[cur][0]);
+
+            if (nxt == s) { cycles.push_back(cyc); break; }        // closed
+            if (nxt < 0 || nxt >= n || used[nxt]) {                 // broken/self-intersecting
+                cycles.push_back(cyc); break;
             }
 
-            if (!cycle.empty())
-            {
-                cycles.push_back(cycle);
-            }
+            prev = cur;
+            cur = nxt;
         }
     }
 }
 
+// TODO: Rename the routine to show its true functionality, as it computes the isovertices AND the cycle centroids.
 //! @brief Computes centroids for cycles and updates the isosurface.
 /*!
  * Calculates the centroid for each cycle, updates the Voronoi cell's cycles,
@@ -910,6 +914,7 @@ static void compute_cycle_centroids(
  */
 void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface)
 {
+    voronoiDiagram.compute_bipolar_matches(isovalue);
     for (auto &vc : voronoiDiagram.cells)
     {
         std::vector<MidpointNode> midpoints;
@@ -920,6 +925,15 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         // connect_midpoints(facet_midpoint_indices, midpoints);
         connect_midpoints_via_global_matches(voronoiDiagram, vc, edge_to_midpoint_index, midpoints);
 
+        size_t num_edges_added = 0;
+        for (auto &n : midpoints)
+            num_edges_added += n.connected_to.size();
+        if (num_edges_added == 0)
+        {
+            std::cerr << "[DBG] cell " << vc.cellIndex
+                      << " had " << midpoints.size()
+                      << " midpoints but 0 connections; check bipolar_matches and keys.\n";
+        }
         std::vector<std::vector<int>> cycles;
         extract_cycles(midpoints, cycles);
 
@@ -2043,8 +2057,6 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
         std::cout << "construct cell edges Execution time: " << duration5 << " seconds" << std::endl;
 
         vd.create_global_facets();
-
-        vd.compute_bipolar_matches(vdc_param.isovalue);
     }
 
     std::clock_t t2 = std::clock();
