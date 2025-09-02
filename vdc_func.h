@@ -7,6 +7,8 @@
 #include "vdc_commandline.h"
 #include "vdc_voronoi.h"
 
+bool directions_equal(const Vector3 &d1, const Vector3 &d2, double epsilon);
+
 //! @brief Computes the dual triangles for the final mesh in the single isovertex case.
 /*!
  * This function calculates the Delaunay triangles dual to bipolar edges in

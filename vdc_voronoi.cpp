@@ -75,8 +75,6 @@ void VoronoiDiagram::create_global_facets()
 // Output:
 //  - vf.bipolar_edge_indices: indices k (edges) around the facet boundary that are bipolar
 //  - vf.bipolar_matches: pairs of indices into vf.bipolar_edge_indices (NOT global edge ids)
-// Replace the body of match_facet_bipolar_edges with this:
-
 static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
                                       VoronoiFacet &vf,
                                       float isovalue)
@@ -103,9 +101,9 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
 
         float v0 = vd.vertices[i0].value;
         float v1 = vd.vertices[i1].value;
-        if ((v0 - isovalue) * (v1 - isovalue) < 0.0f)
+        if (((v0 < isovalue) && (v1 >= isovalue)) || ((v0 >= isovalue) && (v1 < isovalue)))
         {
-            edgeType[k] = (v0 < isovalue && v1 > isovalue) ? +1 : -1;
+            edgeType[k] = (((v0 < isovalue) && (v1 >= isovalue)) || ((v0 >= isovalue) && (v1 < isovalue))) ? +1 : -1;
             vf.bipolar_edge_indices.push_back(k); // store boundary slot k
         }
     }
@@ -867,12 +865,11 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         }
     }
 
-    // 8) Optional: rebuild/refresh global facets & other derived structures.
-    // Callers who depend on these can enable them here.
+    // 8) Rebuild/refresh global facets & other derived structures.
     out.create_global_facets();
-    out.compute_bipolar_matches(/*isovalue*/ 0.5);
+    //out.compute_bipolar_matches(/*isovalue*/ 0.5);
 
-    // 9) Sanity checks (optional, guarded to avoid expensive checks in prod)
+    // 9) Sanity checks
     out.check(false);
     out.checkAdvanced(false);
 

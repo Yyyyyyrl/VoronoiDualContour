@@ -77,6 +77,7 @@ struct VoronoiEdge
 struct MidpointNode
 {
     Point point;                   //!< Geometric coordinates of the midpoint.
+    //TODO: Change this into a tuple ( should expect fixed size of 2)
     std::vector<int> connected_to; //!< Indices of midpoints connected to this one, forming graph edges.
     int facet_index;               //!< Index of the facet this midpoint lies on.
     int cycle_index;               //!< Index of the cycle this midpoint belongs to.
@@ -190,7 +191,8 @@ struct VoronoiDiagram
     std::vector<VoronoiEdge> edges;          //!< List of edges in the diagram
     std::vector<VoronoiCellEdge> cellEdges;  //!< List of Cell Edges in the diagram
     std::vector<VoronoiCell> cells;          //!< List of Voronoi cells in the diagram.
-    std::vector<VoronoiCellFacet> facets;    //!< List of facets in the diagram.
+    //TODO: Rename CellFacet->cell_facets ; Rename global_facets->surface_facets
+    std::vector<VoronoiCellFacet> facets;    //!< List of facets in the diagram. 
     std::vector<VoronoiFacet> global_facets; //!< List of unique Voronoi facets.
 
     std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
@@ -424,6 +426,10 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Cycle &cycle)
     os << "Cycle:\n";
     os << "  Isovertex: " << cycle.isovertex << "\n";
     os << "  Voronoi cell index: " << cycle.voronoi_cell_index << "\n";
+    os << "  midpoints indices: ";
+    for (int i = 0; i < cycle.midpoint_indices.size(); i++) {
+        os << i << " ";
+    }
     return os;
 }
 
