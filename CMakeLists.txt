@@ -43,18 +43,18 @@ message(STATUS "Found Teem lib:     ${TEEM_LIBRARY}")
 
 # ─── Include & link directories ──────────────────────────────────────────────
 # (CGAL::CGAL already brings in its include dirs)
-include_directories(${TEEM_INCLUDE_DIR})
+include_directories(${TEEM_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # ─── Common source files (all vdc*.cpp except vdc.cpp) ───────────────────────
 file(GLOB_RECURSE COMMON_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/vdc_*.cpp"  # Matches vdc_* but not vdc.cpp
+     "${CMAKE_CURRENT_SOURCE_DIR}/src/vdc_*.cpp"  # Matches vdc_* but not vdc.cpp
 )
 
 # ─── Main executable ─────────────────────────────────────────────────────────
-add_executable(vdc vdc.cpp ${COMMON_SOURCES})
+add_executable(vdc src/vdc.cpp ${COMMON_SOURCES})
 
 # ─── Test executable ─────────────────────────────────────────────────────────
-add_executable(test_vor test_vor.cpp ${COMMON_SOURCES})
+add_executable(test_vor src/test_vor.cpp ${COMMON_SOURCES})
 
 # ─── Link libraries ──────────────────────────────────────────────────────────
 target_link_libraries(vdc
