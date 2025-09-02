@@ -15,7 +15,7 @@ VDC is a C++ implementation of a Voronoi diagram-based dual contouring method fo
 
 ### Building from Source
 ```bash
-git clone https://github.com/yourusername/voronoi-dual-contouring.git
+git clone https://github.com/Yyyyyyrl/voronoi-dual-contouring.git
 cd voronoi-dual-contouring
 mkdir build && cd build
 cmake ..
