@@ -17,46 +17,66 @@ static std::vector<int> collectFacetVoronoiEdges(const VoronoiDiagram &vd, const
 
 void VoronoiDiagram::create_global_facets()
 {
-    std::map<std::tuple<int, int, int>, std::vector<int>> hashToCellFacets;
+    // Group cell-facets by canonical full-vertex key (order-invariant, no collisions).
+    std::map<std::vector<int>, std::vector<int>> keyToCellFacets;
+
     for (size_t fi = 0; fi < facets.size(); ++fi)
     {
-        auto key = getFacetHashKey(facets[fi].vertices_indices);
-        hashToCellFacets[key].push_back(static_cast<int>(fi));
+        const auto &F = facets[fi].vertices_indices;
+        auto key = getFacetHashKey(F);
+        keyToCellFacets[key].push_back(static_cast<int>(fi));
     }
 
-    for (const auto &kv : hashToCellFacets)
+    // Build unique (global) facets from the groups
+    for (const auto &kv : keyToCellFacets)
     {
         const auto &fvec = kv.second;
         if (fvec.size() > 2)
         {
-            throw std::runtime_error("Facet shared by more than 2 cells.");
+            // With a correct key, this should never happen for a proper 3D Voronoi complex.
+            // If it does, the input geometry/topology is degenerate or inconsistent.
+            std::ostringstream oss;
+            oss << "Facet shared by more than 2 cells. Key has " << fvec.size() << " facets; "
+                << "vertices: ";
+            for (int v : kv.first) oss << v << " ";
+            throw std::runtime_error(oss.str());
         }
 
         VoronoiFacet vf;
         vf.index = static_cast<int>(global_facets.size());
-        int primary = fvec[0];
+
+        // Choose a primary representative facet from this group
+        const int primary = fvec[0];
         vf.vertices_indices = facets[primary].vertices_indices;
+
+        // Boundary Voronoi edges for this polygon (k -> edge(v[k], v[k+1]))
         vf.voronoi_edge_indices = collectFacetVoronoiEdges(*this, vf.vertices_indices);
         if (vf.voronoi_edge_indices.size() != vf.vertices_indices.size())
         {
-            // Defensive fix: resize with -1s
+            // Defensive: keep sizes consistent; mark missing with -1
             vf.voronoi_edge_indices.resize(vf.vertices_indices.size(), -1);
         }
 
         vf.primary_cell_facet_index = primary;
-        vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // Default value of matching method, can be changed
+        vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // default; can be changed later
         global_facets.push_back(vf);
 
+        // Wire the primary back to this global facet
         facets[primary].voronoi_facet_index = vf.index;
         facets[primary].orientation = 1;
 
+        // If there is exactly one mirror, it must have opposite winding
         if (fvec.size() == 2)
         {
-            int secondary = fvec[1];
-            bool opposite = haveOppositeOrientation(facets[primary].vertices_indices, facets[secondary].vertices_indices);
+            const int secondary = fvec[1];
+            const bool opposite =
+                haveOppositeOrientation(facets[primary].vertices_indices,
+                                        facets[secondary].vertices_indices);
             if (!opposite)
             {
-                throw std::runtime_error("Paired facets " + std::to_string(primary) + " and " + std::to_string(secondary) + " do not have opposite orientations.");
+                throw std::runtime_error(
+                    "Paired facets " + std::to_string(primary) + " and " +
+                    std::to_string(secondary) + " do not have opposite orientations.");
             }
             facets[secondary].voronoi_facet_index = vf.index;
             facets[secondary].orientation = -1;
@@ -1120,14 +1140,20 @@ void VoronoiDiagram::checkCellFacets() const
  * @return Tuple of three smallest indices in ascending order
  * @throws std::invalid_argument if verts has fewer than 3 elements
  */
-std::tuple<int, int, int> VoronoiDiagram::getFacetHashKey(const std::vector<int> &verts) const
+std::vector<int> VoronoiDiagram::getFacetHashKey(const std::vector<int> &verts) const
 {
-    // pick three smallest indices
-    std::array<int, 3> a;
-    std::vector<int> tmp = verts;
-    std::sort(tmp.begin(), tmp.end());
-    a = {tmp[0], tmp[1], tmp[2]};
-    return std::make_tuple(a[0], a[1], a[2]);
+    if (verts.size() < 3)
+        throw std::invalid_argument("getFacetHashKey: facet must have at least 3 vertices.");
+
+    // Canonicalize: sort + deduplicate the complete vertex set
+    std::vector<int> key = verts;
+    std::sort(key.begin(), key.end());
+    key.erase(std::unique(key.begin(), key.end()), key.end());
+
+    if (key.size() < 3)
+        throw std::runtime_error("getFacetHashKey: facet has fewer than 3 unique vertices after dedup.");
+
+    return key;
 }
 
 //! @brief Checks if two facets have the same vertex ordering.
@@ -1246,15 +1272,23 @@ void VoronoiDiagram::checkCellFacetCount() const
  */
 void VoronoiDiagram::checkFacetCellCount() const
 {
-    std::map<std::tuple<int, int, int>, std::vector<int>> hashToFacets;
+    std::map<std::vector<int>, std::vector<int>> keyToFacets;
+
     for (size_t fi = 0; fi < facets.size(); ++fi)
     {
-        auto key = getFacetHashKey(facets[fi].vertices_indices);
-        hashToFacets[key].push_back((int)fi);
-        if (hashToFacets[key].size() > 2)
-            throw std::runtime_error("Facet with hash “" + std::to_string(std::get<0>(key)) + "," +
-                                     std::to_string(std::get<1>(key)) + "," + std::to_string(std::get<2>(key)) +
-                                     "” appears in >2 cells.");
+        const auto &F = facets[fi].vertices_indices;
+        auto key = getFacetHashKey(F);
+        auto &bucket = keyToFacets[key];
+        bucket.push_back(static_cast<int>(fi));
+
+        if (bucket.size() > 2)
+        {
+            std::ostringstream oss;
+            oss << "Facet key appears in >2 cells (count=" << bucket.size() << "). "
+                << "Vertices: ";
+            for (int v : key) oss << v << " ";
+            throw std::runtime_error(oss.str());
+        }
     }
 }
 
@@ -1424,24 +1458,41 @@ void VoronoiDiagram::checkFacetNormals() const
  */
 void VoronoiDiagram::checkPairedFacetOrientations() const
 {
-    std::map<std::tuple<int, int, int>, std::vector<int>> hashToFacets;
+    std::map<std::vector<int>, std::vector<int>> keyToFacets;
+
     for (size_t fi = 0; fi < facets.size(); ++fi)
     {
         auto key = getFacetHashKey(facets[fi].vertices_indices);
-        hashToFacets[key].push_back((int)fi);
+        keyToFacets[key].push_back(static_cast<int>(fi));
     }
-    for (auto const &kv : hashToFacets)
+
+    for (const auto &kv : keyToFacets)
     {
-        auto const &fvec = kv.second;
+        const auto &fvec = kv.second;
+
         if (fvec.size() == 2)
         {
-            auto &A = facets[fvec[0]].vertices_indices;
-            auto &B = facets[fvec[1]].vertices_indices;
+            const auto &A = facets[fvec[0]].vertices_indices;
+            const auto &B = facets[fvec[1]].vertices_indices;
+
             if (!haveOppositeOrientation(A, B))
-                throw std::runtime_error("Facet “" + std::to_string(fvec[0]) + "” and “" +
-                                         std::to_string(fvec[1]) +
-                                         "” do not have opposite orientations in their two cells.");
+            {
+                std::ostringstream oss;
+                oss << "Facet \"" << fvec[0] << "\" and \"" << fvec[1]
+                    << "\" do not have opposite orientations.";
+                throw std::runtime_error(oss.str());
+            }
         }
+        else if (fvec.size() > 2)
+        {
+            // Should have been caught by checkFacetCellCount; keep this here defensively.
+            std::ostringstream oss;
+            oss << "Facet key appears in >2 cells (count=" << fvec.size() << "). "
+                << "Vertices: ";
+            for (int v : kv.first) oss << v << " ";
+            throw std::runtime_error(oss.str());
+        }
+        // fvec.size()==1 is fine (boundary facet)
     }
 }
 

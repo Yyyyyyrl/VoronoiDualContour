@@ -287,7 +287,8 @@ private:
     void checkEdgeCycles() const;
 
     /// Hash a facet by its three smallest vertex indices (for “at most two cells” check)
-    std::tuple<int, int, int> getFacetHashKey(const std::vector<int> &verts) const;
+    std::vector<int> getFacetHashKey(const std::vector<int> &verts) const;
+
 };
 
 static void collect_facet_bipolars(
