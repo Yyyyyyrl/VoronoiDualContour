@@ -21,10 +21,6 @@ int main(int argc, char *argv[])
     if (vdc_param.supersample)
     {
         data_grid = supersample_grid(data_grid, vdc_param.supersample_r);
-        if (debug) // Print the supersampled grid if debugging is enabled.
-        {
-            data_grid.print_grid();
-        }
     }
 
     // Identify active cubes in the grid based on the given isovalue.
@@ -34,7 +30,13 @@ int main(int argc, char *argv[])
     // Separate active cubes to ensure non-adjacency if requested.
     if (vdc_param.sep_isov)
     {
+        std::cout << "Performing separation, original # of active cubes: " << activeCubes.size() << std::endl;
         activeCubes = separate_active_cubes_greedy(activeCubes, data_grid);
+        //activeCubes = separate_active_cubes_graph(activeCubes, data_grid);
+        std::cout << "After separating, # of active Cubes: " << activeCubes.size() << std::endl;
+        for (auto c : activeCubes) {
+            std::cout << c.center.x() << ", " << c.center.y() << ", " << c.center.z() << std::endl;
+        }
     }
 
     // Create grid facets from the active cubes for further processing.

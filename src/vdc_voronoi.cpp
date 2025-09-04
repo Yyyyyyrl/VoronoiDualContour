@@ -887,7 +887,6 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
 
     // 8) Rebuild/refresh global facets & other derived structures.
     out.create_global_facets();
-    //out.compute_bipolar_matches(/*isovalue*/ 0.5);
 
     // 9) Sanity checks
     out.check(false);

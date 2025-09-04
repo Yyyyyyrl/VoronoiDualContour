@@ -288,6 +288,7 @@ void find_active_cubes(const UnifiedGrid &grid, float isovalue, std::vector<Cube
                 {
                     Point repVertex(i * grid.dx + grid.min_x, j * grid.dy + grid.min_y, k * grid.dz + grid.min_z);
                     Point center((i + 0.5f) * grid.dx + grid.min_x, (j + 0.5f) * grid.dy + grid.min_y, (k + 0.5f) * grid.dz + grid.min_z);
+                    std::cout << center.x() << "," << center.y() << "," << center.z() << std::endl;
                     cubes.push_back(Cube(repVertex, center, i, j, k));
                 }
             }
@@ -485,34 +486,46 @@ std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes)
 }
 
 // Greedy cube separation
-std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes, const UnifiedGrid &grid)
-{
-    std::unordered_map<int, Cube> indexToCubeMap;
-    std::vector<Cube> separatedCubes;
+// Helper: consistent linear index for a cell (i,j,k)
+static inline int linear_cell_index(int i, int j, int k, const UnifiedGrid& g) {
+    return k * (g.nx - 1) * (g.ny - 1) + j * (g.nx - 1) + i;
+}
 
-    for (const Cube &cube : activeCubes)
-    {
-        int index = get_cube_index(cube.repVertex, grid);
-        bool isAdj = false;
-        for (int dk = -1; dk <= 1 && !isAdj; ++dk)
-            for (int dj = -1; dj <= 1 && !isAdj; ++dj)
-                for (int di = -1; di <= 1 && !isAdj; ++di)
-                {
-                    int ni = cube.i + di, nj = cube.j + dj, nk = cube.k + dk;
-                    if (ni >= 0 && ni < grid.nx - 1 && nj >= 0 && nj < grid.ny - 1 && nk >= 0 && nk < grid.nz - 1)
-                    {
-                        int neighborIndex = nk * (grid.nx - 1) * (grid.ny - 1) + nj * (grid.nx - 1) + ni;
-                        if (indexToCubeMap.find(neighborIndex) != indexToCubeMap.end())
-                            isAdj = true;
-                    }
+std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube>& activeCubes,
+                                               const UnifiedGrid& grid)
+{
+    std::unordered_map<int, Cube> kept;   // key: linear cell index
+    std::vector<Cube> out;
+    out.reserve(activeCubes.size());
+
+
+    for (const Cube& c : activeCubes) {
+        const int ci = c.i, cj = c.j, ck = c.k;
+
+        bool hasFaceNbrKept = false;
+        for (int dk = -1; dk <= 1 && !hasFaceNbrKept; ++dk) {
+            for (int dj = -1; dj <= 1 && !hasFaceNbrKept; ++dj) {
+                for (int di = -1; di <= 1 && !hasFaceNbrKept; ++di) {
+                    // only 6-neighbors: |di|+|dj|+|dk| == 1
+                    if (std::abs(di) + std::abs(dj) + std::abs(dk) != 1) continue;
+
+                    const int ni = ci + di, nj = cj + dj, nk = ck + dk;
+                    if (ni < 0 || nj < 0 || nk < 0) continue;
+                    if (ni >= grid.nx - 1 || nj >= grid.ny - 1 || nk >= grid.nz - 1) continue;
+
+                    const int nIdx = linear_cell_index(ni, nj, nk, grid);
+                    if (kept.find(nIdx) != kept.end()) hasFaceNbrKept = true;
                 }
-        if (!isAdj)
-        {
-            separatedCubes.push_back(cube);
-            indexToCubeMap[index] = cube;
+            }
+        }
+
+        if (!hasFaceNbrKept) {
+            const int myIdx = linear_cell_index(ci, cj, ck, grid);
+            kept.emplace(myIdx, c);
+            out.push_back(c);
         }
     }
-    return separatedCubes;
+    return out;
 }
 
 // Graph-based cube separation

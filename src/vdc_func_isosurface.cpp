@@ -918,7 +918,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         size_t num_edges_added = 0;
         for (auto &n : midpoints)
             num_edges_added += n.connected_to.size();
-        if (num_edges_added == 0)
+        if ((num_edges_added == 0) && (midpoints.size() != 0))
         {
             std::cerr << "[DBG] cell " << vc.cellIndex
                       << " had " << midpoints.size()
