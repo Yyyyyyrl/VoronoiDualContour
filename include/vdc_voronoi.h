@@ -102,6 +102,17 @@ struct VoronoiCellFacet
     VoronoiCellFacet() = default;
 };
 
+// One iso-segment per bipolar match inside a global facet.
+// No geometry stored; this is bookkeeping only.
+struct IsoSegment {
+    int global_facet_index = -1;   // vfi
+    int slotA = -1;                // boundary slot in global facet
+    int slotB = -1;                // boundary slot in global facet
+    int edgeA = -1;                // global Voronoi edge id for slotA (optional, for logging/asserts)
+    int edgeB = -1;                // global Voronoi edge id for slotB
+    int comp[2] = { -1, -1 };      // component (=cycle id) in incident cells C0/C1; -1 if none/unknown
+};
+
 //! @brief Represents a facet in the Voronoi diagram (unique, shared by cells).
 struct VoronoiFacet
 {
@@ -109,12 +120,21 @@ struct VoronoiFacet
     std::vector<int> voronoi_edge_indices;                                                  //!< ordered edges along boundary; k -> edge(v[k], v[k+1])
     int index = -1;                                                                         //!< Index of the facet in voronoi_facets.
     int primary_cell_facet_index = -1;                                                      //!< Index in facets of the primary cell-facet.
+    //TODO: make a tuple cell_facets[2] and int num_incident_cells for tracking and getting back to the cells from the global facet
     BIPOLAR_MATCH_METHOD bipolar_match_method = BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE; //!< Matching method for bipolar edges.
 
     std::vector<std::pair<int, int>> bipolar_matches;                                       //!< Pairs of edge indices for matched bipolar edges.
     std::vector<int> bipolar_edge_indices;                                                  //!< Full-facet edge indices (0 to num-1) where bipolarstd::vector<int> bipolar_voronoi_edge_indices;
+
+    // NEW
+    std::array<int,2> incident_cell_indices        = { -1, -1 }; // {C0, C1} or {-1, X}
+    std::array<int,2> incident_cell_facet_indices  = { -1, -1 }; // cell-facet indices for C0/C1
+    std::vector<IsoSegment> iso_segments;          
+
 };
 
+
+//TODO: Create class for each bipolar_match
 //! @brief Represents a closed cycle in a Voronoi cell formed by midpoints.
 /*!
  * A cycle is a loop of midpoints connected by edges. Each cycle is associated
@@ -674,6 +694,45 @@ inline std::ostream &operator<<(std::ostream &os, IsoSurface const &iso)
     return os;
 }
 
+void populate_incident_cells_for_global_facets(VoronoiDiagram& vd);
+
+// Map a global facet slot index to the local slot index in a given cell facet,
+// accounting for orientation (CW/CCW) of that cell facet w.r.t. the global facet.
+int map_global_slot_to_cell(const VoronoiFacet& vf,
+                            const VoronoiCellFacet& cf,
+                            int slot_global);
+
+// Return the cycle id for the bipolar edge at given local slot in cell facet cf
+// (single-slot lookup via cf.cell_edge_indices[local_slot]; NO hashing).
+int find_cycle_for_bipolar_edge(const VoronoiDiagram& vd,
+                                int cellIndex,
+                                int cellFacetIndex,
+                                int slot_global);
+
+// Build vf.iso_segments and fill comp[2] via single-slot lookup per side.
+// Pre: bipolar_matches exist; cellEdges[*].cycleIndices filled.
+void build_iso_segments_for_facet(VoronoiDiagram& vd,
+                                  int vfi,
+                                  float isovalue);
+
+// Detect whether a facet has duplicate (comp0, comp1) among its iso-segments.
+// Returns true if problematic; optionally returns one offending pair index.
+bool facet_has_problematic_iso_segments(const VoronoiDiagram& vd,
+                                        int vfi,
+                                        std::pair<int,int>* offending_pair = nullptr);
+
+// Flip matching method for a facet (SEP_POS <-> SEP_NEG).
+void flip_bipolar_match_method(VoronoiFacet& vf);
+
+// Recompute cycles for a single cell after facet-local rematching.
+// Clears tags in that cell, rebuilds midpoint graph using current global matches,
+// extracts cycles, and writes cycle tags to vd.cellEdges[*].cycleIndices.
+void recompute_cell_cycles_for_matches_single_cell(VoronoiDiagram& vd,
+                                                   int cellIndex,
+                                                   float isovalue);
+
+// Full “modify cycles” pass over all global facets at this isovalue.
+void modify_cycles_pass(VoronoiDiagram& vd, float isovalue);
 // Helper function declarations (internal linkage)
 std::tuple<int, int, int> getFacetHashKey(const std::vector<int> &vertices);
 bool haveSameOrientation(const std::vector<int> &facet1, const std::vector<int> &facet2);
