@@ -140,8 +140,6 @@ void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std
     double collect_time = static_cast<double>(after_collect - start) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Time to build point list: " << collect_time << " seconds" << std::endl;
 
-    std::cout << "[DEBUG] Number of vertices: " << delaunay_points.size() << std::endl;
-
     dt.clear();
 
     // Batch insert all points
