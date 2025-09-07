@@ -6,6 +6,7 @@
 #include "vdc_io.h"
 #include "vdc_commandline.h"
 #include "vdc_voronoi.h"
+#include "vdc_debug.h"
 
 bool directions_equal(const Vector3 &d1, const Vector3 &d2, double epsilon);
 
