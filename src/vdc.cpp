@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
     if (vdc_param.supersample)
     {
         data_grid = supersample_grid(data_grid, vdc_param.supersample_r);
+        data_grid.print_grid();
     }
 
     // Identify active cubes in the grid based on the given isovalue.
