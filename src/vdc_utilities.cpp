@@ -55,7 +55,8 @@ bool is_degenerate(Delaunay::Cell_handle cell)
 //! Checks if two scalar values are bipolar.
 bool is_bipolar(float val1, float val2, float isovalue)
 {
-    return ((val1 < isovalue) && (val2 >= isovalue)) || ((val1 >= isovalue) && (val2 < isovalue));
+    //return ((val1 <= isovalue) && (val2 > isovalue)) || ((val1 > isovalue) && (val2 <= isovalue));
+    return ((val1 <= isovalue) && (val2 > isovalue)) || ((val1 > isovalue) && (val2 <= isovalue)) || ((val1 < isovalue) && (val2 >= isovalue)) || ((val1 >= isovalue) && (val2 < isovalue));
 }
 
 //! Computes the centroid of a set of points (with optional supersampling).
