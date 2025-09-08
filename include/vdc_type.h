@@ -367,7 +367,7 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Delaunay &dt)
            << "\n";
 
         // Limit the number of vertices to display to avoid excessive output
-        if (++vertex_count >= 10)
+        if (++vertex_count >= 30)
         {
             os << "  ... and " << (total_vertices - 10) << " more vertices\n";
             break;
