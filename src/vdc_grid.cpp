@@ -288,7 +288,6 @@ void find_active_cubes(const UnifiedGrid &grid, float isovalue, std::vector<Cube
                 {
                     Point repVertex(i * grid.dx + grid.min_x, j * grid.dy + grid.min_y, k * grid.dz + grid.min_z);
                     Point center((i + 0.5f) * grid.dx + grid.min_x, (j + 0.5f) * grid.dy + grid.min_y, (k + 0.5f) * grid.dz + grid.min_z);
-                    std::cout << center.x() << "," << center.y() << "," << center.z() << std::endl;
                     cubes.push_back(Cube(repVertex, center, i, j, k));
                 }
             }

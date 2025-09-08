@@ -35,9 +35,6 @@ int main(int argc, char *argv[])
         activeCubes = separate_active_cubes_greedy(activeCubes, data_grid);
         //activeCubes = separate_active_cubes_graph(activeCubes, data_grid);
         std::cout << "After separating, # of active Cubes: " << activeCubes.size() << std::endl;
-        for (auto c : activeCubes) {
-            std::cout << c.center.x() << ", " << c.center.y() << ", " << c.center.z() << std::endl;
-        }
     }
 
     // Create grid facets from the active cubes for further processing.
@@ -105,6 +102,7 @@ int main(int argc, char *argv[])
     double duration_vd2check = static_cast<double>(check2_time - collapse_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Checking vd2 time: " << std::to_string(duration_vd2check) << " seconds." << std::endl;
 
+    std::cout << dt <<std::endl;
     if (indicator)
     {
         std::cout << "[INFO] Constructing Iso Surface..." << std::endl;
