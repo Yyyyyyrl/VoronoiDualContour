@@ -1,5 +1,64 @@
 #include "vdc_func.h"
 
+// ===== Debug instrumentation for isosurface pipeline =====
+#include <cstdlib>
+#include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <unordered_set>
+
+static int ISO_DBG_FOCUS_CELL  = -1;
+static int ISO_DBG_FOCUS_GFACET= -1;
+static int ISO_DBG_FOCUS_EDGE  = -1;
+static bool ISO_DBG_ONLY_ERRORS= false;
+static bool ISO_DBG_ENABLED    = true;  // set false to silence all
+
+static int iso_getenv_int(const char* k, int defv){ if(const char* v=std::getenv(k)){ try{ return std::stoi(v);}catch(...){}} return defv; }
+static bool iso_getenv_bool(const char* k, bool defv){ if(const char* v=std::getenv(k)){ std::string s(v); for(char &c: s) c=std::tolower(c); if(s=="1"||s=="true"||s=="yes"||s=="on") return true; if(s=="0"||s=="false"||s=="no"||s=="off") return false;} return defv; }
+
+static void ISO_DBG_LOAD_ENV(){
+    ISO_DBG_FOCUS_CELL   = iso_getenv_int("ISO_DEBUG_CELL", -1);
+    ISO_DBG_FOCUS_GFACET = iso_getenv_int("ISO_DEBUG_GLOBAL_FACET", -1);
+    ISO_DBG_FOCUS_EDGE   = iso_getenv_int("ISO_DEBUG_EDGE", -1);
+    ISO_DBG_ONLY_ERRORS  = iso_getenv_bool("ISO_DEBUG_ONLY_ERRORS", false);
+    ISO_DBG_ENABLED      = !iso_getenv_bool("ISO_DEBUG_OFF", false);
+}
+
+static inline bool iso_dbg_cell_ok(int c){ return ISO_DBG_FOCUS_CELL < 0 || ISO_DBG_FOCUS_CELL == c; }
+static inline bool iso_dbg_gfacet_ok(int g){ return ISO_DBG_FOCUS_GFACET < 0 || ISO_DBG_FOCUS_GFACET == g; }
+static inline bool iso_dbg_edge_ok(int e){ return ISO_DBG_FOCUS_EDGE < 0 || ISO_DBG_FOCUS_EDGE == e; }
+
+struct IsoStats {
+    size_t cells_seen=0, cells_with_midpts=0, cells_with_zero_connect=0, cycles_total=0;
+    size_t edges_seg=0, edges_ray=0, edges_line=0;
+    size_t seg_bip=0, seg_skip=0, ray_bip=0, ray_skip=0, line_bip=0, line_skip=0;
+    size_t tri_ok=0, tri_bad=0, tri_dupverts=0, sel_fail=0, sel_fallback=0;
+    void dump_summary() const {
+        if(!ISO_DBG_ENABLED) return;
+        std::cerr << "[ISO] ===== Isosurface Summary =====\n"
+                  << "[ISO] Cells: seen=" << cells_seen
+                  << " with_midpoints=" << cells_with_midpts
+                  << " zero_connections=" << cells_with_zero_connect
+                  << " cycles=" << cycles_total << "\n"
+                  << "[ISO] Edges: seg=" << edges_seg << " ray=" << edges_ray << " line=" << edges_line << "\n"
+                  << "[ISO] Bipolar pass: seg=" << seg_bip << "/" << (seg_bip+seg_skip)
+                  << " ray=" << ray_bip << "/" << (ray_bip+ray_skip)
+                  << " line=" << line_bip << "/" << (line_bip+line_skip) << "\n"
+                  << "[ISO] Triangles: ok=" << tri_ok
+                  << " bad=" << tri_bad
+                  << " dupVerts=" << tri_dupverts
+                  << " isoSelectFail=" << sel_fail
+                  << " isoSelectFallback=" << sel_fallback << "\n"
+                  << "[ISO] Filters: CELL=" << ISO_DBG_FOCUS_CELL
+                  << " GFACET=" << ISO_DBG_FOCUS_GFACET
+                  << " EDGE=" << ISO_DBG_FOCUS_EDGE
+                  << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS? "1":"0") << "\n"
+                  << "[ISO] =================================\n";
+    }
+};
+static IsoStats ISO_STATS;
+// ===== End debug instrumentation header =====
+
 //! @brief Generates a Delaunay triangle based on orientation and cell finiteness.
 /*!
  * Adds a triangle to the dualTriangles vector, adjusting vertex order based on
@@ -244,38 +303,74 @@ void compute_dual_triangles(
     iso_surface.isosurfaceTrianglesSingle = dualTriangles;
 }
 
+// Pick an isovertex index for a given (cell, globalEdge).
+// Strategy: try exact (cell,edge)→cellEdge→cycle mapping; if none,
+// fall back to the first iso-vertex in that cell; else fail (-1).
 static inline int select_isovertex_from_cell_edge(
-    const VoronoiDiagram &voronoiDiagram,
+    const VoronoiDiagram &vd,
     int cellIndex, int globalEdgeIndex)
 {
-    // Lookup the VoronoiCellEdge
-    auto it = voronoiDiagram.cellEdgeLookup.find(std::make_pair(cellIndex, globalEdgeIndex));
-    if (it == voronoiDiagram.cellEdgeLookup.end())
-    {
-        // No such cell-edge found, pass
-        std::cout << "didn't find cell-edge for edge " << globalEdgeIndex << std::endl;
+    // Guard: valid cell index
+    if (cellIndex < 0 || cellIndex >= static_cast<int>(vd.cells.size())) {
+        ISO_STATS.sel_fail++;
         return -1;
     }
-    int ceIdx = it->second;
-    int starting = ceIdx;
-    VoronoiCellEdge cellEdge = voronoiDiagram.cellEdges[ceIdx];
 
-    while (cellEdge.cycleIndices.empty())
-    {
-        if (cellEdge.nextCellEdge == starting)
+    // 1) Exact (cell,edge) lookup → walk ring to a cellEdge carrying cycles
+    auto it = vd.cellEdgeLookup.find(std::make_pair(cellIndex, globalEdgeIndex));
+    if (it != vd.cellEdgeLookup.end()) {
+        int ceIdx = it->second;
+        const int start = ceIdx;
+
+        // Walk nextCellEdge ring until a non-empty cycleIndices is found
+        while (ceIdx >= 0 &&
+               ceIdx < static_cast<int>(vd.cellEdges.size()) &&
+               vd.cellEdges[ceIdx].cycleIndices.empty())
         {
-            return -1;
+            const int nxt = vd.cellEdges[ceIdx].nextCellEdge;
+            if (nxt < 0 || nxt == start) break;
+            ceIdx = nxt;
         }
-        else
+
+        if (ceIdx >= 0 &&
+            ceIdx < static_cast<int>(vd.cellEdges.size()) &&
+            !vd.cellEdges[ceIdx].cycleIndices.empty())
         {
-            cellEdge = voronoiDiagram.cellEdges[cellEdge.nextCellEdge];
+            const int cycLocal = vd.cellEdges[ceIdx].cycleIndices[0];
+            const VoronoiCell &vc = vd.cells[cellIndex];
+
+            if (cycLocal >= 0 && cycLocal < vc.numIsoVertices) {
+                if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex)) {
+                    std::cerr << "[ISO] pick cell " << cellIndex
+                              << " edge " << globalEdgeIndex
+                              << " via cellEdge#" << ceIdx
+                              << " cycleLocal=" << cycLocal << "\n";
+                }
+                return vc.isoVertexStartIndex + cycLocal;
+            }
         }
     }
 
-    const VoronoiCell &vc = voronoiDiagram.cells[cellIndex];
-    // The final isosurface vertex index in iso_surface.isosurfaceVertices:
-    int isoVtxIndex = vc.isoVertexStartIndex + cellEdge.cycleIndices[0];
-    return isoVtxIndex;
+    // 2) Fallback: use the first iso-vertex in this cell if any exist
+    const VoronoiCell &vc = vd.cells[cellIndex];
+    if (vc.numIsoVertices > 0) {
+        if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex)) {
+            std::cerr << "[ISO] pick cell " << cellIndex
+                      << " edge " << globalEdgeIndex
+                      << " FALLBACK first isoVert\n";
+        }
+        ISO_STATS.sel_fallback++;
+        return vc.isoVertexStartIndex; // first cycle’s isovertex in this cell
+    }
+
+    // 3) No iso-vertices in this cell at all
+    if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex)) {
+        std::cerr << "[ISO] pick cell " << cellIndex
+                  << " edge " << globalEdgeIndex
+                  << " FAIL (no iso-verts)\n";
+    }
+    ISO_STATS.sel_fail++;
+    return -1;
 }
 
 //! @brief Generates a triangle for the multi-isovertex case.
@@ -290,22 +385,38 @@ static inline int select_isovertex_from_cell_edge(
  * @param iOrient Orientation value determining vertex order.
  * @param isValid Flag indicating if the triangle is valid.
  */
+// Emit a triangle (by isovertex indices) if valid; count & log otherwise.
+// iOrient has the same meaning as in single-isov mode: >=0 keeps (1,2,3), <0 swaps 2<->3.
 static void generate_triangle_multi(
     IsoSurface &iso_surface,
     int idx1, int idx2, int idx3,
     int iOrient,
     bool isValid)
 {
-    if (isValid)
-    {
-        if (iOrient < 0)
-        {
-            iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+    if (!isValid) {
+        ISO_STATS.tri_bad++;
+        if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS) {
+            std::cerr << "[ISO] TRI SKIP invalid indices (" << idx1 << "," << idx2 << "," << idx3 << ")\n";
         }
-        else
-        {
-            iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
+        return;
+    }
+    if (idx1 == idx2 || idx2 == idx3 || idx1 == idx3) {
+        ISO_STATS.tri_dupverts++;
+        if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS) {
+            std::cerr << "[ISO] TRI SKIP duplicate indices (" << idx1 << "," << idx2 << "," << idx3 << ")\n";
         }
+        return;
+    }
+
+    ISO_STATS.tri_ok++;
+    if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS) {
+        std::cerr << "[ISO] TRI EMIT (" << idx1 << "," << idx2 << "," << idx3 << ")\n";
+    }
+
+    if (iOrient >= 0) {
+        iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
+    } else {
+        iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
     }
 }
 
@@ -325,37 +436,52 @@ static void generate_triangle_multi(
  * @param cellIndex3 Output parameter for the third cell index.
  * @return True if the vertices are valid, false otherwise.
  */
-static bool select_isovertices(
+static inline bool select_isovertices(
     const VoronoiDiagram &voronoiDiagram,
     const Facet &facet,
     int globalEdgeIndex,
     int &idx1, int &idx2, int &idx3,
     int &cellIndex1, int &cellIndex2, int &cellIndex3)
 {
-    int iFacet = facet.second;
+    idx1 = idx2 = idx3 = -1;
+    cellIndex1 = cellIndex2 = cellIndex3 = -1;
+
+    const int iFacet = facet.second;
     Cell_handle c = facet.first;
-    int d1 = (iFacet + 1) % 4;
-    int d2 = (iFacet + 2) % 4;
-    int d3 = (iFacet + 3) % 4;
 
-    Vertex_handle delaunay_vertex1 = c->vertex(d1);
-    Vertex_handle delaunay_vertex2 = c->vertex(d2);
-    Vertex_handle delaunay_vertex3 = c->vertex(d3);
+    const int d1 = (iFacet + 1) % 4;
+    const int d2 = (iFacet + 2) % 4;
+    const int d3 = (iFacet + 3) % 4;
 
-    if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
-    {
+    Vertex_handle v1 = c->vertex(d1);
+    Vertex_handle v2 = c->vertex(d2);
+    Vertex_handle v3 = c->vertex(d3);
+
+    // Skip facets involving dummy vertices
+    if (v1->info().is_dummy || v2->info().is_dummy || v3->info().is_dummy) {
         return false;
     }
 
-    cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
-    cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
-    cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
+    cellIndex1 = v1->info().voronoiCellIndex;
+    cellIndex2 = v2->info().voronoiCellIndex;
+    cellIndex3 = v3->info().voronoiCellIndex;
 
     idx1 = select_isovertex_from_cell_edge(voronoiDiagram, cellIndex1, globalEdgeIndex);
     idx2 = select_isovertex_from_cell_edge(voronoiDiagram, cellIndex2, globalEdgeIndex);
     idx3 = select_isovertex_from_cell_edge(voronoiDiagram, cellIndex3, globalEdgeIndex);
 
-    return (idx1 != idx2 && idx2 != idx3 && idx1 != idx3 && idx1 >= 0 && idx2 >= 0 && idx3 >= 0);
+    if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) {
+        std::cerr << "[ISO] facet pick edge=" << globalEdgeIndex
+                  << " cells=(" << cellIndex1 << "," << cellIndex2 << "," << cellIndex3 << ")"
+                  << " iso=(" << idx1 << "," << idx2 << "," << idx3 << ")";
+        if (idx1 < 0 || idx2 < 0 || idx3 < 0) std::cerr << " [MISS]";
+        else if (idx1 == idx2 || idx2 == idx3 || idx1 == idx3) std::cerr << " [DUP]";
+        else std::cerr << " [OK]";
+        std::cerr << "\n";
+    }
+
+    return (idx1 >= 0 && idx2 >= 0 && idx3 >= 0 &&
+            idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
 }
 
 //! @brief Processes a segment edge for multi-isovertex triangle computation.
@@ -375,6 +501,7 @@ static void process_segment_edge_multi(
     float isovalue,
     IsoSurface &iso_surface)
 {
+    ISO_STATS.edges_seg++;
 
     int idx_v1 = edge.vertex1;
     int idx_v2 = edge.vertex2;
@@ -383,7 +510,13 @@ static void process_segment_edge_multi(
     float val1 = voronoiDiagram.vertices[idx_v1].value;
     float val2 = voronoiDiagram.vertices[idx_v2].value;
 
-    if (is_bipolar(val1, val2, isovalue))
+    if (!is_bipolar(val1, val2, isovalue))
+    {
+        ISO_STATS.seg_skip++;
+        if(ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS){ std::cerr << "[ISO] SEG non-bipolar v=("<<val1<<","<<val2<<") iso="<<isovalue<<"\n"; }
+        return;
+    }
+    ISO_STATS.seg_bip++;
     {
         if (idx_v1 > idx_v2)
             std::swap(idx_v1, idx_v2);
@@ -392,6 +525,7 @@ static void process_segment_edge_multi(
             return;
 
         int globalEdgeIndex = itEdge->second;
+        if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) std::cerr << "[ISO] SEG bipolar edge → globalEdge="<<globalEdgeIndex<<" dualFacets="<<edge.delaunayFacets.size()<<"\n";
 
         for (const auto &facet : edge.delaunayFacets)
         {
@@ -408,6 +542,8 @@ static void process_segment_edge_multi(
  * Intersects the ray with the bounding box, checks bipolarity, and generates
  * triangles using the first isovertex from each cell.
  *
+ * @param globalEdgeIndex The global edge index.
+ * @param source_pt The index of the source point.
  * @param ray The ray edge to process.
  * @param edge The CGAL object representing the edge.
  * @param voronoiDiagram The Voronoi diagram containing edge and cell data.
@@ -417,6 +553,7 @@ static void process_segment_edge_multi(
  * @param iso_surface The isosurface to store triangles.
  */
 static void process_ray_edge_multi(
+    int globalEdgeIndex,
     int source_pt,
     const Ray3 &ray,
     std::vector<Facet> dualDelaunayFacets,
@@ -426,50 +563,33 @@ static void process_ray_edge_multi(
     CGAL::Epick::Iso_cuboid_3 &bbox,
     IsoSurface &iso_surface)
 {
+    ISO_STATS.edges_ray++;
     CGAL::Object intersectObj = CGAL::intersection(bbox, ray);
     Segment3 iseg;
     if (CGAL::assign(iseg, intersectObj))
     {
         Point v1 = ray.source();
         Point v2 = iseg.target();
-        int idx_v1 = source_pt;
-        float val1 = voronoiDiagram.vertices[idx_v1].value;
-        float val2 = trilinear_interpolate(v2, grid);
+        float val1 = voronoiDiagram.vertices[source_pt].value;
+        float val2 = trilinear_interpolate(adjust_outside_bound_points(v2, grid, v1, v2), grid);
 
-        if (is_bipolar(val1, val2, isovalue))
+        if (!is_bipolar(val1, val2, isovalue)){
+            ISO_STATS.ray_skip++;
+            if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex) && !ISO_DBG_ONLY_ERRORS){ std::cerr << "[ISO] RAY non-bipolar edge="<<globalEdgeIndex<<" v=("<<val1<<","<<val2<<")\n"; }
+            return; }
+        ISO_STATS.ray_bip++;
+        if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) std::cerr << "[ISO] RAY bipolar edge="<<globalEdgeIndex<<" dualFacets="<<dualDelaunayFacets.size()<<"\n";
+
+        for (const auto &facet : dualDelaunayFacets)
         {
-
-            for (const auto &facet : dualDelaunayFacets)
-            {
-                int iFacet = facet.second;
-                Cell_handle c = facet.first;
-                int d1 = (iFacet + 1) % 4;
-                int d2 = (iFacet + 2) % 4;
-                int d3 = (iFacet + 3) % 4;
-
-                Vertex_handle delaunay_vertex1 = c->vertex(d1);
-                Vertex_handle delaunay_vertex2 = c->vertex(d2);
-                Vertex_handle delaunay_vertex3 = c->vertex(d3);
-
-                if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
-                    continue;
-
-                int cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
-                int cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
-                int cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
-
-                VoronoiCell &vc1 = voronoiDiagram.cells[cellIndex1];
-                VoronoiCell &vc2 = voronoiDiagram.cells[cellIndex2];
-                VoronoiCell &vc3 = voronoiDiagram.cells[cellIndex3];
-
-                int idx1 = vc1.isoVertexStartIndex;
-                int idx2 = vc2.isoVertexStartIndex;
-                int idx3 = vc3.isoVertexStartIndex;
-
-                int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
-                bool isValid = (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
-                generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid);
-            }
+            int idx1, idx2, idx3, cellIndex1, cellIndex2, cellIndex3;
+            // Use the same facet/edge-aware vertex selection used for finite segments.
+            bool ok = select_isovertices(voronoiDiagram, facet, globalEdgeIndex,
+                                         idx1, idx2, idx3,
+                                         cellIndex1, cellIndex2, cellIndex3);
+            int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
+            bool isValid = ok && (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
+            generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid);
         }
     }
 }
@@ -479,6 +599,7 @@ static void process_ray_edge_multi(
  * Intersects the line with the bounding box, checks bipolarity, and generates
  * triangles using the first isovertex from each cell.
  *
+ * @param globalEdgeIndex The global index of the edge.
  * @param line The line edge to process.
  * @param edge The CGAL object representing the edge.
  * @param voronoiDiagram The Voronoi diagram containing edge and cell data.
@@ -488,6 +609,7 @@ static void process_ray_edge_multi(
  * @param iso_surface The isosurface to store triangles.
  */
 static void process_line_edge_multi(
+    int globalEdgeIndex,
     const Line3 &line,
     std::vector<Facet> dualDelaunayFacets,
     VoronoiDiagram &voronoiDiagram,
@@ -496,49 +618,33 @@ static void process_line_edge_multi(
     CGAL::Epick::Iso_cuboid_3 &bbox,
     IsoSurface &iso_surface)
 {
+    ISO_STATS.edges_line++;
     CGAL::Object intersectObj = CGAL::intersection(bbox, line);
     Segment3 iseg;
     if (CGAL::assign(iseg, intersectObj))
     {
         Point v1 = iseg.source();
         Point v2 = iseg.target();
-        float val1 = trilinear_interpolate(v1, grid);
-        float val2 = trilinear_interpolate(v2, grid);
+        // Interpolate values at the clipped segment endpoints
+        float val1 = trilinear_interpolate(adjust_outside_bound_points(v1, grid, v1, v2), grid);
+        float val2 = trilinear_interpolate(adjust_outside_bound_points(v2, grid, v1, v2), grid);
 
-        if (is_bipolar(val1, val2, isovalue))
+        if (!is_bipolar(val1, val2, isovalue)){
+            ISO_STATS.line_skip++;
+            if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex) && !ISO_DBG_ONLY_ERRORS){ std::cerr << "[ISO] LINE non-bipolar edge="<<globalEdgeIndex<<" v=("<<val1<<","<<val2<<")\n"; }
+            return; }
+        ISO_STATS.line_bip++;
+        if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) std::cerr << "[ISO] LINE bipolar edge="<<globalEdgeIndex<<" dualFacets="<<dualDelaunayFacets.size()<<"\n";
+
+        for (const auto &facet : dualDelaunayFacets)
         {
-
-            for (const auto &facet : dualDelaunayFacets)
-            {
-                int iFacet = facet.second;
-                Cell_handle c = facet.first;
-                int d1 = (iFacet + 1) % 4;
-                int d2 = (iFacet + 2) % 4;
-                int d3 = (iFacet + 3) % 4;
-
-                Vertex_handle delaunay_vertex1 = c->vertex(d1);
-                Vertex_handle delaunay_vertex2 = c->vertex(d2);
-                Vertex_handle delaunay_vertex3 = c->vertex(d3);
-
-                if (delaunay_vertex1->info().is_dummy || delaunay_vertex2->info().is_dummy || delaunay_vertex3->info().is_dummy)
-                    continue;
-
-                int cellIndex1 = delaunay_vertex1->info().voronoiCellIndex;
-                int cellIndex2 = delaunay_vertex2->info().voronoiCellIndex;
-                int cellIndex3 = delaunay_vertex3->info().voronoiCellIndex;
-
-                VoronoiCell &vc1 = voronoiDiagram.cells[cellIndex1];
-                VoronoiCell &vc2 = voronoiDiagram.cells[cellIndex2];
-                VoronoiCell &vc3 = voronoiDiagram.cells[cellIndex3];
-
-                int idx1 = vc1.isoVertexStartIndex;
-                int idx2 = vc2.isoVertexStartIndex;
-                int idx3 = vc3.isoVertexStartIndex;
-
-                int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
-                bool isValid = (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
-                generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid);
-            }
+            int idx1, idx2, idx3, cellIndex1, cellIndex2, cellIndex3;
+            bool ok = select_isovertices(voronoiDiagram, facet, globalEdgeIndex,
+                                         idx1, idx2, idx3,
+                                         cellIndex1, cellIndex2, cellIndex3);
+            int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
+            bool isValid = ok && (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
+            generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid);
         }
     }
 }
@@ -561,30 +667,37 @@ void compute_dual_triangles_multi(
     float isovalue,
     IsoSurface &iso_surface)
 {
-    for (const auto &edge : voronoiDiagram.edges)
+    // Iterate with a stable edge index so we can pass the edge id to downstream selectors.
+    for (int edgeIdx = 0; edgeIdx < static_cast<int>(voronoiDiagram.edges.size()); ++edgeIdx)
     {
+        const auto &edge = voronoiDiagram.edges[edgeIdx];
         Segment3 seg;
         Ray3 ray;
         Line3 line;
-        std::vector<Facet> dualDelaunayFacets = edge.delaunayFacets;
+        const std::vector<Facet> &dualDelaunayFacets = edge.delaunayFacets;
 
-        // std::cout << "[DEBUG] processing edge (" << edge.vertex1 << ", " << edge.vertex2 << "), type = " << edge.type << std::endl;
         if (edge.type == 0)
         {
+            // Finite segment: existing path already uses select_isovertices via the segment map.
             process_segment_edge_multi(edge, voronoiDiagram, isovalue, iso_surface);
         }
         else if (edge.type == 1)
         {
+            // Ray: use edgeIdx to bind facet -> cell-edge -> local cycle -> isovertex
             CGAL::assign(ray, edge.edgeObject);
-            int source = edge.vertex1;
-            process_ray_edge_multi(source, ray, dualDelaunayFacets, voronoiDiagram, grid, isovalue, bbox, iso_surface);
+            const int source = edge.vertex1; // Voronoi vertex index of the ray source
+            process_ray_edge_multi(edgeIdx, source, ray, dualDelaunayFacets,
+                                   voronoiDiagram, grid, isovalue, bbox, iso_surface);
         }
         else if (edge.type == 2)
         {
+            // Line: same unification as ray
             CGAL::assign(line, edge.edgeObject);
-            process_line_edge_multi(line, dualDelaunayFacets, voronoiDiagram, grid, isovalue, bbox, iso_surface);
+            process_line_edge_multi(edgeIdx, line, dualDelaunayFacets,
+                                    voronoiDiagram, grid, isovalue, bbox, iso_surface);
         }
     }
+    if(ISO_DBG_ENABLED){ ISO_STATS.dump_summary(); }
 }
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
@@ -663,6 +776,9 @@ static void collect_midpoints(
     std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
     std::vector<std::vector<int>> &facet_midpoint_indices)
 {
+    if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)) {
+        std::cerr << "[ISO] cell " << vc.cellIndex << " collecting midpoints; facets=" << vc.facet_indices.size() << "\n";
+    }
     for (size_t i = 0; i < vc.facet_indices.size(); ++i)
     {
         int facet_index = vc.facet_indices[i];
@@ -721,6 +837,9 @@ static void collect_midpoints(
             }
         }
 
+        if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex) && (!ISO_DBG_ONLY_ERRORS || !current_facet_midpoints.empty())){
+            std::cerr << "  [ISO] cell " << vc.cellIndex << " facet#" << facet_index << " midpoints=" << current_facet_midpoints.size() << "\n";
+        }
         facet_midpoint_indices.push_back(current_facet_midpoints);
     }
 }
@@ -742,6 +861,9 @@ static void connect_midpoints_via_global_matches(
     const std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
     std::vector<MidpointNode> &midpoints)
 {
+    if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)) {
+        std::cerr << "[ISO] cell " << vc.cellIndex << " connect via global matches\n";
+    }
     for (int cf : vc.facet_indices)
     {
         if (cf < 0 || cf >= (int)vd.facets.size())
@@ -797,6 +919,15 @@ static void extract_cycles(
         adj[i].assign(uniq.begin(), uniq.end());
     }
 
+    // degree histogram for diagnostics
+    if(ISO_DBG_ENABLED){
+        int d0=0,d1=0,d2=0,dg=0;
+        for(int i=0;i<n;++i){int d=(int)adj[i].size(); if(d==0)++d0; else if(d==1)++d1; else if(d==2)++d2; else ++dg;}
+        if(!ISO_DBG_ONLY_ERRORS || (d0||d1||dg)){
+            std::cerr << "[ISO] adj degree histogram: deg0="<<d0<<" deg1="<<d1<<" deg2="<<d2<<" deg>=3="<<dg<<"\n";
+        }
+    }
+
     //alert if degree != 2
     for (int i = 0; i < n; ++i) {
         if (!adj[i].empty() && adj[i].size() != 2) {
@@ -816,9 +947,9 @@ static void extract_cycles(
 
             int nxt = (adj[cur].size()==1) ? adj[cur][0] : (adj[cur][0]==prev ? adj[cur][1] : adj[cur][0]);
 
-            if (nxt == s) { cycles.push_back(cyc); break; }        // closed
+            if (nxt == s) { cycles.push_back(cyc); if(ISO_DBG_ENABLED){ std::cerr << "[ISO] cycle "<< (int)cycles.size()-1 << " len=" << (int)cyc.size() << "\n"; } break; }        // closed
             if (nxt < 0 || nxt >= n || used[nxt]) {                 // broken/self-intersecting
-                cycles.push_back(cyc); break;
+                cycles.push_back(cyc); if(ISO_DBG_ENABLED){ std::cerr << "[ISO] cycle "<< (int)cycles.size()-1 << " len=" << (int)cyc.size() << " (BROKEN/OPEN)\n"; } break;
             }
 
             prev = cur;
@@ -846,6 +977,10 @@ static void compute_cycle_centroids(
     const std::vector<std::vector<int>> &cycles,
     IsoSurface &iso_surface)
 {
+    if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)){
+        std::cerr << "[ISO] cell " << vc.cellIndex << " cycles=" << cycles.size() << "\n";
+    }
+    ISO_STATS.cycles_total += cycles.size();
     vc.isoVertexStartIndex = iso_surface.isosurfaceVertices.size();
     vc.numIsoVertices = cycles.size();
 
@@ -889,6 +1024,12 @@ static void compute_cycle_centroids(
 
         vc.cycles.push_back(cycle);
         iso_surface.isosurfaceVertices.push_back(cycle.isovertex);
+        if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)){
+            int isoIdx = (int)iso_surface.isosurfaceVertices.size()-1;
+            std::cerr << "  [ISO] cell " << vc.cellIndex << " isoV@" << isoIdx
+                      << " centroid=(" << std::fixed << std::setprecision(6)
+                      << cycle.isovertex.x() << "," << cycle.isovertex.y() << "," << cycle.isovertex.z() << ")\n";
+        }
         cycIdx++;
     }
 }
@@ -904,6 +1045,7 @@ static void compute_cycle_centroids(
  */
 void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface)
 {
+    ISO_DBG_LOAD_ENV();
     voronoiDiagram.compute_bipolar_matches(isovalue);
     for (auto &vc : voronoiDiagram.cells)
     {
@@ -918,11 +1060,15 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         size_t num_edges_added = 0;
         for (auto &n : midpoints)
             num_edges_added += n.connected_to.size();
-        if ((num_edges_added == 0) && (midpoints.size() != 0))
-        {
-            std::cerr << "[DBG] cell " << vc.cellIndex
-                      << " had " << midpoints.size()
-                      << " midpoints but 0 connections; check bipolar_matches and keys.\n";
+        ISO_STATS.cells_seen++;
+        if (!midpoints.empty()) {
+            ISO_STATS.cells_with_midpts++;
+            if (num_edges_added == 0) {
+                ISO_STATS.cells_with_zero_connect++;
+                if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)){
+                    std::cerr << "[ISO] WARN cell " << vc.cellIndex << " midpoints=" << midpoints.size() << " but 0 connections (check gf matches)\n";
+                }
+            }
         }
         std::vector<std::vector<int>> cycles;
         extract_cycles(midpoints, cycles);
@@ -935,6 +1081,8 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
 // ！@brief Wrap up function for constructing iso surface
 void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox)
 {
+    ISO_DBG_LOAD_ENV();
+    if(ISO_DBG_ENABLED){ std::cerr << "[ISO] Debug filters: CELL="<<ISO_DBG_FOCUS_CELL<<" GFACET="<<ISO_DBG_FOCUS_GFACET<<" EDGE="<<ISO_DBG_FOCUS_EDGE<<" ONLY_ERRORS="<<(ISO_DBG_ONLY_ERRORS? "1":"0")<<"\n"; }
     std::clock_t start_time = std::clock();
     if (vdc_param.multi_isov)
     {
