@@ -7,43 +7,73 @@
 #include <iomanip>
 #include <unordered_set>
 
-static int ISO_DBG_FOCUS_CELL  = -1;
-static int ISO_DBG_FOCUS_GFACET= -1;
-static int ISO_DBG_FOCUS_EDGE  = -1;
-static bool ISO_DBG_ONLY_ERRORS= false;
-static bool ISO_DBG_ENABLED    = true;  // set false to silence all
+static int ISO_DBG_FOCUS_CELL = -1;
+static int ISO_DBG_FOCUS_GFACET = -1;
+static int ISO_DBG_FOCUS_EDGE = -1;
+static bool ISO_DBG_ONLY_ERRORS = false;
+static bool ISO_DBG_ENABLED = true; // set false to silence all
 
-static int iso_getenv_int(const char* k, int defv){ if(const char* v=std::getenv(k)){ try{ return std::stoi(v);}catch(...){}} return defv; }
-static bool iso_getenv_bool(const char* k, bool defv){ if(const char* v=std::getenv(k)){ std::string s(v); for(char &c: s) c=std::tolower(c); if(s=="1"||s=="true"||s=="yes"||s=="on") return true; if(s=="0"||s=="false"||s=="no"||s=="off") return false;} return defv; }
-
-static void ISO_DBG_LOAD_ENV(){
-    ISO_DBG_FOCUS_CELL   = iso_getenv_int("ISO_DEBUG_CELL", -1);
-    ISO_DBG_FOCUS_GFACET = iso_getenv_int("ISO_DEBUG_GLOBAL_FACET", -1);
-    ISO_DBG_FOCUS_EDGE   = iso_getenv_int("ISO_DEBUG_EDGE", -1);
-    ISO_DBG_ONLY_ERRORS  = iso_getenv_bool("ISO_DEBUG_ONLY_ERRORS", false);
-    ISO_DBG_ENABLED      = !iso_getenv_bool("ISO_DEBUG_OFF", false);
+static int iso_getenv_int(const char *k, int defv)
+{
+    if (const char *v = std::getenv(k))
+    {
+        try
+        {
+            return std::stoi(v);
+        }
+        catch (...)
+        {
+        }
+    }
+    return defv;
+}
+static bool iso_getenv_bool(const char *k, bool defv)
+{
+    if (const char *v = std::getenv(k))
+    {
+        std::string s(v);
+        for (char &c : s)
+            c = std::tolower(c);
+        if (s == "1" || s == "true" || s == "yes" || s == "on")
+            return true;
+        if (s == "0" || s == "false" || s == "no" || s == "off")
+            return false;
+    }
+    return defv;
 }
 
-static inline bool iso_dbg_cell_ok(int c){ return ISO_DBG_FOCUS_CELL < 0 || ISO_DBG_FOCUS_CELL == c; }
-static inline bool iso_dbg_gfacet_ok(int g){ return ISO_DBG_FOCUS_GFACET < 0 || ISO_DBG_FOCUS_GFACET == g; }
-static inline bool iso_dbg_edge_ok(int e){ return ISO_DBG_FOCUS_EDGE < 0 || ISO_DBG_FOCUS_EDGE == e; }
+static void ISO_DBG_LOAD_ENV()
+{
+    ISO_DBG_FOCUS_CELL = iso_getenv_int("ISO_DEBUG_CELL", -1);
+    ISO_DBG_FOCUS_GFACET = iso_getenv_int("ISO_DEBUG_GLOBAL_FACET", -1);
+    ISO_DBG_FOCUS_EDGE = iso_getenv_int("ISO_DEBUG_EDGE", -1);
+    ISO_DBG_ONLY_ERRORS = iso_getenv_bool("ISO_DEBUG_ONLY_ERRORS", false);
+    ISO_DBG_ENABLED = !iso_getenv_bool("ISO_DEBUG_OFF", false);
+}
 
-struct IsoStats {
-    size_t cells_seen=0, cells_with_midpts=0, cells_with_zero_connect=0, cycles_total=0;
-    size_t edges_seg=0, edges_ray=0, edges_line=0;
-    size_t seg_bip=0, seg_skip=0, ray_bip=0, ray_skip=0, line_bip=0, line_skip=0;
-    size_t tri_ok=0, tri_bad=0, tri_dupverts=0, sel_fail=0, sel_fallback=0;
-    void dump_summary() const {
-        if(!ISO_DBG_ENABLED) return;
+static inline bool iso_dbg_cell_ok(int c) { return ISO_DBG_FOCUS_CELL < 0 || ISO_DBG_FOCUS_CELL == c; }
+static inline bool iso_dbg_gfacet_ok(int g) { return ISO_DBG_FOCUS_GFACET < 0 || ISO_DBG_FOCUS_GFACET == g; }
+static inline bool iso_dbg_edge_ok(int e) { return ISO_DBG_FOCUS_EDGE < 0 || ISO_DBG_FOCUS_EDGE == e; }
+
+struct IsoStats
+{
+    size_t cells_seen = 0, cells_with_midpts = 0, cells_with_zero_connect = 0, cycles_total = 0;
+    size_t edges_seg = 0, edges_ray = 0, edges_line = 0;
+    size_t seg_bip = 0, seg_skip = 0, ray_bip = 0, ray_skip = 0, line_bip = 0, line_skip = 0;
+    size_t tri_ok = 0, tri_bad = 0, tri_dupverts = 0, sel_fail = 0, sel_fallback = 0;
+    void dump_summary() const
+    {
+        if (!ISO_DBG_ENABLED)
+            return;
         std::cerr << "[ISO] ===== Isosurface Summary =====\n"
                   << "[ISO] Cells: seen=" << cells_seen
                   << " with_midpoints=" << cells_with_midpts
                   << " zero_connections=" << cells_with_zero_connect
                   << " cycles=" << cycles_total << "\n"
                   << "[ISO] Edges: seg=" << edges_seg << " ray=" << edges_ray << " line=" << edges_line << "\n"
-                  << "[ISO] Bipolar pass: seg=" << seg_bip << "/" << (seg_bip+seg_skip)
-                  << " ray=" << ray_bip << "/" << (ray_bip+ray_skip)
-                  << " line=" << line_bip << "/" << (line_bip+line_skip) << "\n"
+                  << "[ISO] Bipolar pass: seg=" << seg_bip << "/" << (seg_bip + seg_skip)
+                  << " ray=" << ray_bip << "/" << (ray_bip + ray_skip)
+                  << " line=" << line_bip << "/" << (line_bip + line_skip) << "\n"
                   << "[ISO] Triangles: ok=" << tri_ok
                   << " bad=" << tri_bad
                   << " dupVerts=" << tri_dupverts
@@ -52,7 +82,7 @@ struct IsoStats {
                   << "[ISO] Filters: CELL=" << ISO_DBG_FOCUS_CELL
                   << " GFACET=" << ISO_DBG_FOCUS_GFACET
                   << " EDGE=" << ISO_DBG_FOCUS_EDGE
-                  << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS? "1":"0") << "\n"
+                  << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n"
                   << "[ISO] =================================\n";
     }
 };
@@ -311,14 +341,16 @@ static inline int select_isovertex_from_cell_edge(
     int cellIndex, int globalEdgeIndex)
 {
     // Guard: valid cell index
-    if (cellIndex < 0 || cellIndex >= static_cast<int>(vd.cells.size())) {
+    if (cellIndex < 0 || cellIndex >= static_cast<int>(vd.cells.size()))
+    {
         ISO_STATS.sel_fail++;
         return -1;
     }
 
     // 1) Exact (cell,edge) lookup → walk ring to a cellEdge carrying cycles
     auto it = vd.cellEdgeLookup.find(std::make_pair(cellIndex, globalEdgeIndex));
-    if (it != vd.cellEdgeLookup.end()) {
+    if (it != vd.cellEdgeLookup.end())
+    {
         int ceIdx = it->second;
         const int start = ceIdx;
 
@@ -328,7 +360,8 @@ static inline int select_isovertex_from_cell_edge(
                vd.cellEdges[ceIdx].cycleIndices.empty())
         {
             const int nxt = vd.cellEdges[ceIdx].nextCellEdge;
-            if (nxt < 0 || nxt == start) break;
+            if (nxt < 0 || nxt == start)
+                break;
             ceIdx = nxt;
         }
 
@@ -339,8 +372,10 @@ static inline int select_isovertex_from_cell_edge(
             const int cycLocal = vd.cellEdges[ceIdx].cycleIndices[0];
             const VoronoiCell &vc = vd.cells[cellIndex];
 
-            if (cycLocal >= 0 && cycLocal < vc.numIsoVertices) {
-                if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex)) {
+            if (cycLocal >= 0 && cycLocal < vc.numIsoVertices)
+            {
+                if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex))
+                {
                     std::cerr << "[ISO] pick cell " << cellIndex
                               << " edge " << globalEdgeIndex
                               << " via cellEdge#" << ceIdx
@@ -353,8 +388,10 @@ static inline int select_isovertex_from_cell_edge(
 
     // 2) Fallback: use the first iso-vertex in this cell if any exist
     const VoronoiCell &vc = vd.cells[cellIndex];
-    if (vc.numIsoVertices > 0) {
-        if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex)) {
+    if (vc.numIsoVertices > 0)
+    {
+        if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex))
+        {
             std::cerr << "[ISO] pick cell " << cellIndex
                       << " edge " << globalEdgeIndex
                       << " FALLBACK first isoVert\n";
@@ -364,7 +401,8 @@ static inline int select_isovertex_from_cell_edge(
     }
 
     // 3) No iso-vertices in this cell at all
-    if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex)) {
+    if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex))
+    {
         std::cerr << "[ISO] pick cell " << cellIndex
                   << " edge " << globalEdgeIndex
                   << " FAIL (no iso-verts)\n";
@@ -393,29 +431,37 @@ static void generate_triangle_multi(
     int iOrient,
     bool isValid)
 {
-    if (!isValid) {
+    if (!isValid)
+    {
         ISO_STATS.tri_bad++;
-        if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS) {
+        if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS)
+        {
             std::cerr << "[ISO] TRI SKIP invalid indices (" << idx1 << "," << idx2 << "," << idx3 << ")\n";
         }
         return;
     }
-    if (idx1 == idx2 || idx2 == idx3 || idx1 == idx3) {
+    if (idx1 == idx2 || idx2 == idx3 || idx1 == idx3)
+    {
         ISO_STATS.tri_dupverts++;
-        if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS) {
+        if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS)
+        {
             std::cerr << "[ISO] TRI SKIP duplicate indices (" << idx1 << "," << idx2 << "," << idx3 << ")\n";
         }
         return;
     }
 
     ISO_STATS.tri_ok++;
-    if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS) {
+    if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS)
+    {
         std::cerr << "[ISO] TRI EMIT (" << idx1 << "," << idx2 << "," << idx3 << ")\n";
     }
 
-    if (iOrient >= 0) {
+    if (iOrient >= 0)
+    {
         iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx2, idx3);
-    } else {
+    }
+    else
+    {
         iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
     }
 }
@@ -458,7 +504,9 @@ static inline bool select_isovertices(
     Vertex_handle v3 = c->vertex(d3);
 
     // Skip facets involving dummy vertices
-    if (v1->info().is_dummy || v2->info().is_dummy || v3->info().is_dummy) {
+    if (v1->info().is_dummy || v2->info().is_dummy || v3->info().is_dummy)
+    {
+        std::cerr << "[ISO] SKIP FACET: contains dummy vertices\n";
         return false;
     }
 
@@ -470,13 +518,17 @@ static inline bool select_isovertices(
     idx2 = select_isovertex_from_cell_edge(voronoiDiagram, cellIndex2, globalEdgeIndex);
     idx3 = select_isovertex_from_cell_edge(voronoiDiagram, cellIndex3, globalEdgeIndex);
 
-    if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) {
+    if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
+    {
         std::cerr << "[ISO] facet pick edge=" << globalEdgeIndex
                   << " cells=(" << cellIndex1 << "," << cellIndex2 << "," << cellIndex3 << ")"
                   << " iso=(" << idx1 << "," << idx2 << "," << idx3 << ")";
-        if (idx1 < 0 || idx2 < 0 || idx3 < 0) std::cerr << " [MISS]";
-        else if (idx1 == idx2 || idx2 == idx3 || idx1 == idx3) std::cerr << " [DUP]";
-        else std::cerr << " [OK]";
+        if (idx1 < 0 || idx2 < 0 || idx3 < 0)
+            std::cerr << " [MISS]";
+        else if (idx1 == idx2 || idx2 == idx3 || idx1 == idx3)
+            std::cerr << " [DUP]";
+        else
+            std::cerr << " [OK]";
         std::cerr << "\n";
     }
 
@@ -513,11 +565,16 @@ static void process_segment_edge_multi(
     if (!is_bipolar(val1, val2, isovalue))
     {
         ISO_STATS.seg_skip++;
-        if(ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS){ std::cerr << "[ISO] SEG non-bipolar v=("<<val1<<","<<val2<<") iso="<<isovalue<<"\n"; }
+        if (ISO_DBG_ENABLED && !ISO_DBG_ONLY_ERRORS)
+        {
+            std::cerr << "[ISO] SEG non-bipolar v=(" << val1 << "," << val2 << ") iso=" << isovalue << "\n";
+        }
         return;
     }
-    ISO_STATS.seg_bip++;
+
+    else
     {
+        ISO_STATS.seg_bip++;
         if (idx_v1 > idx_v2)
             std::swap(idx_v1, idx_v2);
         auto itEdge = voronoiDiagram.segmentVertexPairToEdgeIndex.find(std::make_pair(idx_v1, idx_v2));
@@ -525,7 +582,8 @@ static void process_segment_edge_multi(
             return;
 
         int globalEdgeIndex = itEdge->second;
-        if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) std::cerr << "[ISO] SEG bipolar edge → globalEdge="<<globalEdgeIndex<<" dualFacets="<<edge.delaunayFacets.size()<<"\n";
+        if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
+            std::cerr << "[ISO] SEG bipolar edge -> globalEdge=" << globalEdgeIndex << " dualFacets=" << edge.delaunayFacets.size() << "\n";
 
         for (const auto &facet : edge.delaunayFacets)
         {
@@ -573,12 +631,18 @@ static void process_ray_edge_multi(
         float val1 = voronoiDiagram.vertices[source_pt].value;
         float val2 = trilinear_interpolate(adjust_outside_bound_points(v2, grid, v1, v2), grid);
 
-        if (!is_bipolar(val1, val2, isovalue)){
+        if (!is_bipolar(val1, val2, isovalue))
+        {
             ISO_STATS.ray_skip++;
-            if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex) && !ISO_DBG_ONLY_ERRORS){ std::cerr << "[ISO] RAY non-bipolar edge="<<globalEdgeIndex<<" v=("<<val1<<","<<val2<<")\n"; }
-            return; }
+            if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex) && !ISO_DBG_ONLY_ERRORS)
+            {
+                std::cerr << "[ISO] RAY non-bipolar edge=" << globalEdgeIndex << " v=(" << val1 << "," << val2 << ")\n";
+            }
+            return;
+        }
         ISO_STATS.ray_bip++;
-        if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) std::cerr << "[ISO] RAY bipolar edge="<<globalEdgeIndex<<" dualFacets="<<dualDelaunayFacets.size()<<"\n";
+        if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
+            std::cerr << "[ISO] RAY bipolar edge=" << globalEdgeIndex << " dualFacets=" << dualDelaunayFacets.size() << "\n";
 
         for (const auto &facet : dualDelaunayFacets)
         {
@@ -629,12 +693,18 @@ static void process_line_edge_multi(
         float val1 = trilinear_interpolate(adjust_outside_bound_points(v1, grid, v1, v2), grid);
         float val2 = trilinear_interpolate(adjust_outside_bound_points(v2, grid, v1, v2), grid);
 
-        if (!is_bipolar(val1, val2, isovalue)){
+        if (!is_bipolar(val1, val2, isovalue))
+        {
             ISO_STATS.line_skip++;
-            if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex) && !ISO_DBG_ONLY_ERRORS){ std::cerr << "[ISO] LINE non-bipolar edge="<<globalEdgeIndex<<" v=("<<val1<<","<<val2<<")\n"; }
-            return; }
+            if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex) && !ISO_DBG_ONLY_ERRORS)
+            {
+                std::cerr << "[ISO] LINE non-bipolar edge=" << globalEdgeIndex << " v=(" << val1 << "," << val2 << ")\n";
+            }
+            return;
+        }
         ISO_STATS.line_bip++;
-        if(ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) std::cerr << "[ISO] LINE bipolar edge="<<globalEdgeIndex<<" dualFacets="<<dualDelaunayFacets.size()<<"\n";
+        if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
+            std::cerr << "[ISO] LINE bipolar edge=" << globalEdgeIndex << " dualFacets=" << dualDelaunayFacets.size() << "\n";
 
         for (const auto &facet : dualDelaunayFacets)
         {
@@ -697,7 +767,10 @@ void compute_dual_triangles_multi(
                                     voronoiDiagram, grid, isovalue, bbox, iso_surface);
         }
     }
-    if(ISO_DBG_ENABLED){ ISO_STATS.dump_summary(); }
+    if (ISO_DBG_ENABLED)
+    {
+        ISO_STATS.dump_summary();
+    }
 }
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
@@ -776,7 +849,8 @@ static void collect_midpoints(
     std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
     std::vector<std::vector<int>> &facet_midpoint_indices)
 {
-    if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)) {
+    if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
+    {
         std::cerr << "[ISO] cell " << vc.cellIndex << " collecting midpoints; facets=" << vc.facet_indices.size() << "\n";
     }
     for (size_t i = 0; i < vc.facet_indices.size(); ++i)
@@ -837,7 +911,8 @@ static void collect_midpoints(
             }
         }
 
-        if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex) && (!ISO_DBG_ONLY_ERRORS || !current_facet_midpoints.empty())){
+        if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex) && (!ISO_DBG_ONLY_ERRORS || !current_facet_midpoints.empty()))
+        {
             std::cerr << "  [ISO] cell " << vc.cellIndex << " facet#" << facet_index << " midpoints=" << current_facet_midpoints.size() << "\n";
         }
         facet_midpoint_indices.push_back(current_facet_midpoints);
@@ -861,7 +936,8 @@ static void connect_midpoints_via_global_matches(
     const std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
     std::vector<MidpointNode> &midpoints)
 {
-    if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)) {
+    if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
+    {
         std::cerr << "[ISO] cell " << vc.cellIndex << " connect via global matches\n";
     }
     for (int cf : vc.facet_indices)
@@ -886,8 +962,9 @@ static void connect_midpoints_via_global_matches(
             auto itA = edge_to_midpoint_index.find(ekA);
             auto itB = edge_to_midpoint_index.find(ekB);
 
-            if (itA == edge_to_midpoint_index.end() || itB == edge_to_midpoint_index.end()){
-                
+            if (itA == edge_to_midpoint_index.end() || itB == edge_to_midpoint_index.end())
+            {
+
                 continue; // this cell doesn't have both midpoints (e.g., not bipolar here), skip
             }
 
@@ -914,42 +991,76 @@ static void extract_cycles(
 
     // build unique adjacency
     std::vector<std::vector<int>> adj(n);
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < n; ++i)
+    {
         std::unordered_set<int> uniq(midpoints[i].connected_to.begin(), midpoints[i].connected_to.end());
         adj[i].assign(uniq.begin(), uniq.end());
     }
 
     // degree histogram for diagnostics
-    if(ISO_DBG_ENABLED){
-        int d0=0,d1=0,d2=0,dg=0;
-        for(int i=0;i<n;++i){int d=(int)adj[i].size(); if(d==0)++d0; else if(d==1)++d1; else if(d==2)++d2; else ++dg;}
-        if(!ISO_DBG_ONLY_ERRORS || (d0||d1||dg)){
-            std::cerr << "[ISO] adj degree histogram: deg0="<<d0<<" deg1="<<d1<<" deg2="<<d2<<" deg>=3="<<dg<<"\n";
+    if (ISO_DBG_ENABLED)
+    {
+        int d0 = 0, d1 = 0, d2 = 0, dg = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            int d = (int)adj[i].size();
+            if (d == 0)
+                ++d0;
+            else if (d == 1)
+                ++d1;
+            else if (d == 2)
+                ++d2;
+            else
+                ++dg;
+        }
+        if (!ISO_DBG_ONLY_ERRORS || (d0 || d1 || dg))
+        {
+            std::cerr << "[ISO] adj degree histogram: deg0=" << d0 << " deg1=" << d1 << " deg2=" << d2 << " deg>=3=" << dg << "\n";
         }
     }
 
-    //alert if degree != 2
-    for (int i = 0; i < n; ++i) {
-        if (!adj[i].empty() && adj[i].size() != 2) {
+    // alert if degree != 2
+    for (int i = 0; i < n; ++i)
+    {
+        if (!adj[i].empty() && adj[i].size() != 2)
+        {
             std::cerr << "[warn] midpoint " << i << " has degree " << adj[i].size() << " (expected 2)\n";
         }
     }
 
-    for (int s = 0; s < n; ++s) {
-        if (used[s] || adj[s].empty()) continue;
+    for (int s = 0; s < n; ++s)
+    {
+        if (used[s] || adj[s].empty())
+            continue;
         int prev = -1, cur = s;
         std::vector<int> cyc;
-        while (true) {
+        while (true)
+        {
             used[cur] = 1;
             cyc.push_back(cur);
 
-            if (adj[cur].empty()) break; // broken
+            if (adj[cur].empty())
+                break; // broken
 
-            int nxt = (adj[cur].size()==1) ? adj[cur][0] : (adj[cur][0]==prev ? adj[cur][1] : adj[cur][0]);
+            int nxt = (adj[cur].size() == 1) ? adj[cur][0] : (adj[cur][0] == prev ? adj[cur][1] : adj[cur][0]);
 
-            if (nxt == s) { cycles.push_back(cyc); if(ISO_DBG_ENABLED){ std::cerr << "[ISO] cycle "<< (int)cycles.size()-1 << " len=" << (int)cyc.size() << "\n"; } break; }        // closed
-            if (nxt < 0 || nxt >= n || used[nxt]) {                 // broken/self-intersecting
-                cycles.push_back(cyc); if(ISO_DBG_ENABLED){ std::cerr << "[ISO] cycle "<< (int)cycles.size()-1 << " len=" << (int)cyc.size() << " (BROKEN/OPEN)\n"; } break;
+            if (nxt == s)
+            {
+                cycles.push_back(cyc);
+                if (ISO_DBG_ENABLED)
+                {
+                    std::cerr << "[ISO] cycle " << (int)cycles.size() - 1 << " len=" << (int)cyc.size() << "\n";
+                }
+                break;
+            } // closed
+            if (nxt < 0 || nxt >= n || used[nxt])
+            { // broken/self-intersecting
+                cycles.push_back(cyc);
+                if (ISO_DBG_ENABLED)
+                {
+                    std::cerr << "[ISO] cycle " << (int)cycles.size() - 1 << " len=" << (int)cyc.size() << " (BROKEN/OPEN)\n";
+                }
+                break;
             }
 
             prev = cur;
@@ -977,7 +1088,8 @@ static void compute_cycle_centroids(
     const std::vector<std::vector<int>> &cycles,
     IsoSurface &iso_surface)
 {
-    if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)){
+    if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
+    {
         std::cerr << "[ISO] cell " << vc.cellIndex << " cycles=" << cycles.size() << "\n";
     }
     ISO_STATS.cycles_total += cycles.size();
@@ -1024,8 +1136,9 @@ static void compute_cycle_centroids(
 
         vc.cycles.push_back(cycle);
         iso_surface.isosurfaceVertices.push_back(cycle.isovertex);
-        if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)){
-            int isoIdx = (int)iso_surface.isosurfaceVertices.size()-1;
+        if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
+        {
+            int isoIdx = (int)iso_surface.isosurfaceVertices.size() - 1;
             std::cerr << "  [ISO] cell " << vc.cellIndex << " isoV@" << isoIdx
                       << " centroid=(" << std::fixed << std::setprecision(6)
                       << cycle.isovertex.x() << "," << cycle.isovertex.y() << "," << cycle.isovertex.z() << ")\n";
@@ -1061,11 +1174,14 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         for (auto &n : midpoints)
             num_edges_added += n.connected_to.size();
         ISO_STATS.cells_seen++;
-        if (!midpoints.empty()) {
+        if (!midpoints.empty())
+        {
             ISO_STATS.cells_with_midpts++;
-            if (num_edges_added == 0) {
+            if (num_edges_added == 0)
+            {
                 ISO_STATS.cells_with_zero_connect++;
-                if(ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex)){
+                if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
+                {
                     std::cerr << "[ISO] WARN cell " << vc.cellIndex << " midpoints=" << midpoints.size() << " but 0 connections (check gf matches)\n";
                 }
             }
@@ -1077,12 +1193,14 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
     }
 }
 
-
 // ！@brief Wrap up function for constructing iso surface
 void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox)
 {
     ISO_DBG_LOAD_ENV();
-    if(ISO_DBG_ENABLED){ std::cerr << "[ISO] Debug filters: CELL="<<ISO_DBG_FOCUS_CELL<<" GFACET="<<ISO_DBG_FOCUS_GFACET<<" EDGE="<<ISO_DBG_FOCUS_EDGE<<" ONLY_ERRORS="<<(ISO_DBG_ONLY_ERRORS? "1":"0")<<"\n"; }
+    if (ISO_DBG_ENABLED)
+    {
+        std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
+    }
     std::clock_t start_time = std::clock();
     if (vdc_param.multi_isov)
     {
