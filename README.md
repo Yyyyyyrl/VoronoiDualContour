@@ -109,7 +109,8 @@ Advanced/debug options (subject to change):
 │       ├── test_vor.cpp
 │       └── test_modcyc.cpp
 ├── tools/
-│   └── plot_modcyc.py        # Visualize modify-cycles test cases
+│   ├── plot_modcyc.py        # Visualize modify-cycles test case
+│   └── compExec.py           # Compare execution output of different configurations
 ├── data/                     # Sample volumes (NRRD/NHDR/RAW) and the outputs
 ```
 
