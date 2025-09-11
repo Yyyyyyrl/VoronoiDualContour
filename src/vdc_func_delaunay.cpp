@@ -47,7 +47,8 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedG
             double cz = (g[2] + 0.5) * dx[2];
 
             // Offset by +/- dx[d]
-            double offset = (facet.side == 0) ? -dx[d] : dx[d];
+            // The offset multiplier is for avoid bipolar edges touching dummy voronoi cells
+            double offset = (facet.side == 0) ? -4*dx[d] : 4*dx[d];
             if (d == 0)
                 cx += offset;
             else if (d == 1)
