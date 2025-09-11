@@ -110,7 +110,6 @@ Advanced/debug options (subject to change):
 ├── tools/
 │   ├── plot_modcyc.py        # Visualize modify-cycles test case
 │   └── compExec.py           # Compare execution output of different configurations
-├── data/                     # Sample volumes (NRRD/NHDR/RAW) and the outputs
 ```
 
 ## API Documentation
