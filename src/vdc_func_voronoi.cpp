@@ -629,6 +629,9 @@ void construct_voronoi_edges(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
     std::map<int, std::vector<std::pair<Vector3, int>>> rayMap; // Maps vertex index to (direction, edgeIdx) pairs
     const double EPSILON = 1e-6;
 
+    // not filter by dummy vertices here; downstream selection
+    // handles invalid facets during isosurface construction.
+
     for (Delaunay::Finite_facets_iterator fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit)
     {
         Facet facet = *fit;

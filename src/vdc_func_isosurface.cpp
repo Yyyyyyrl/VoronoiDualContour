@@ -502,11 +502,18 @@ static inline bool select_isovertices(
     Vertex_handle v1 = c->vertex(d1);
     Vertex_handle v2 = c->vertex(d2);
     Vertex_handle v3 = c->vertex(d3);
+    
+    int b1 = (v1->info().is_dummy) ? 1 : 0;
+    int b2 = (v2->info().is_dummy) ? 1 : 0;
+    int b3 = (v3->info().is_dummy) ? 1 : 0;
 
-    // Skip facets involving dummy vertices
-    if (v1->info().is_dummy || v2->info().is_dummy || v3->info().is_dummy)
+    // Skip facets involving any dummy vertex (cannot map to 3 valid Voronoi cells)
+    if (b1 + b2 + b3 >= 1)
     {
         std::cerr << "[ISO] SKIP FACET: contains dummy vertices\n";
+        std::cerr << "v1: " << (v1->info().is_dummy ? "dummy" : "real") << ", coords: " << v1->point() << "\n";
+        std::cerr << "v2: " << (v2->info().is_dummy ? "dummy" : "real") << ", coords: " << v2->point() << "\n";
+        std::cerr << "v3: " << (v3->info().is_dummy ? "dummy" : "real") << ", coords: " << v3->point() << "\n";
         return false;
     }
 
@@ -584,6 +591,7 @@ static void process_segment_edge_multi(
         int globalEdgeIndex = itEdge->second;
         if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
             std::cerr << "[ISO] SEG bipolar edge -> globalEdge=" << globalEdgeIndex << " dualFacets=" << edge.delaunayFacets.size() << "\n";
+            std::cerr << voronoiDiagram.edges[globalEdgeIndex];
 
         for (const auto &facet : edge.delaunayFacets)
         {
@@ -643,6 +651,7 @@ static void process_ray_edge_multi(
         ISO_STATS.ray_bip++;
         if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
             std::cerr << "[ISO] RAY bipolar edge=" << globalEdgeIndex << " dualFacets=" << dualDelaunayFacets.size() << "\n";
+            std::cerr << voronoiDiagram.edges[globalEdgeIndex];
 
         for (const auto &facet : dualDelaunayFacets)
         {
@@ -1204,7 +1213,29 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     std::clock_t start_time = std::clock();
     if (vdc_param.multi_isov)
     {
+        // First pass: compute cycles and iso-vertices with current matches
         compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
+
+        // Guarded modify-cycles: rematch problematic facets and recompute cycles once
+        if (vdc_param.mod_cyc)
+        {
+            // Attempt to fix facet matches and update per-cell cycles
+            modify_cycles_pass(vd, vdc_param.isovalue);
+
+            // Reset iso-surface and per-cell cycle bookkeeping to rebuild coherently
+            iso_surface.isosurfaceVertices.clear();
+            for (auto &ce : vd.cellEdges)
+                ce.cycleIndices.clear();
+            for (auto &cell : vd.cells)
+            {
+                cell.cycles.clear();
+                cell.isoVertexStartIndex = -1;
+                cell.numIsoVertices = 0;
+            }
+
+            // Recompute with updated matches/cycles
+            compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
+        }
     }
     else
     {
