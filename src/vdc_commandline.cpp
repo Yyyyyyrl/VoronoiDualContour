@@ -14,6 +14,7 @@ void print_help()
     std::cout << "  -multi_isov                 : Use multi iso-vertices mode.\n";
     std::cout << "  -single_isov                : Use single iso-vertices mode (default).\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
+    std::cout << "  -mod_cyc                    : After initial cycles, try facet rematching and recompute cycles.\n";
     std::cout << "  --help                      : Print this help message.\n";
 }
 
@@ -83,6 +84,10 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         else if (arg == "--test_vor")
         {
             vp.test_vor = true;
+        }
+        else if (arg == "-mod_cyc")
+        {
+            vp.mod_cyc = true; // Enable modify-cycles pass (guarded)
         }
         else
         {
