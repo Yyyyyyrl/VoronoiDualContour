@@ -51,11 +51,11 @@ file(GLOB_RECURSE COMMON_SOURCES
 )
 
 # ─── Main executable ─────────────────────────────────────────────────────────
-add_executable(vdc src/vdc.cpp ${COMMON_SOURCES})
+add_executable(vdc src/app/vdc.cpp ${COMMON_SOURCES})
 
 # ─── Test executable ─────────────────────────────────────────────────────────
-add_executable(test_vor src/test_vor.cpp ${COMMON_SOURCES})
-add_executable(test_modcyc src/test_modcyc.cpp ${COMMON_SOURCES})
+add_executable(test_vor src/tests/test_vor.cpp ${COMMON_SOURCES})
+add_executable(test_modcyc src/tests/test_modcyc.cpp ${COMMON_SOURCES})
 
 # ─── Link libraries ──────────────────────────────────────────────────────────
 target_link_libraries(vdc

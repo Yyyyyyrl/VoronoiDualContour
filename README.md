@@ -58,30 +58,61 @@ Output options:
 
 ```
 .
-├── CMakeLists.txt          # CMake build configuration
-├── README.md               # Project documentation
-├── compExec.py             # Output comparison script
-├── visVD.py                # Mesh visualization tool
-├── visV3d.py               # 3D visualization tool
-├── include/                # Header files
-│   ├── vdc.h               # Main header
-│   ├── vdc_commandline.h   # Command line parsing
-│   ├── vdc_delaunay.h      # Delaunay triangulation
-│   ├── vdc_debug.h         # Debug utilities
-│   ├── vdc_func.h          # Core algorithm functions
-│   ├── vdc_grid.h          # Grid data structures
-│   ├── vdc_io.h            # I/O operations
-│   ├── vdc_type.h          # Type definitions
-│   └── vdc_voronoi.h       # Voronoi diagram operations
-└── src/                    # Source files
-    ├── vdc.cpp             # Main application
-    ├── vdc_commandline.cpp # Command line implementation
-    ├── vdc_delaunay.cpp    # Delaunay implementation
-    ├── vdc_debug.cpp       # Debug implementation
-    ├── vdc_func_*.cpp      # Algorithm implementations
-    ├── vdc_grid.cpp        # Grid operations
-    ├── vdc_io.cpp          # I/O implementation
-    └── vdc_voronoi.cpp     # Voronoi implementation
+├── CMakeLists.txt            # CMake build configuration
+├── README.md                 # Project documentation
+├── cmake/                    # CMake helpers (if any)
+├── include/                  # Header files
+│   ├── core/                 # Core types, utilities, CLI
+│   │   ├── vdc.h
+│   │   ├── vdc_type.h
+│   │   ├── vdc_utilities.h
+│   │   ├── vdc_debug.h
+│   │   └── vdc_commandline.h
+│   ├── grid/                 # Grid data structures
+│   │   └── vdc_grid.h
+│   ├── io/                   # IO helpers (NRRD)
+│   │   └── vdc_io.h
+│   ├── delaunay/             # Delaunay types/utilities
+│   │   └── vdc_delaunay.h
+│   ├── voronoi/              # Voronoi structures and ops
+│   │   └── vdc_voronoi.h
+│   ├── algo/                 # High-level algorithm declarations
+│   │   └── vdc_func.h
+│   └── test/                 # Test helpers
+│       └── test_vor.h
+├── src/                      # Source files
+│   ├── app/                  # Application entry points
+│   │   └── vdc.cpp
+│   ├── core/                 # Core utilities and CLI
+│   │   ├── vdc_commandline.cpp
+│   │   ├── vdc_debug.cpp
+│   │   └── vdc_utilities.cpp
+│   ├── grid/
+│   │   └── vdc_grid.cpp
+│   ├── io/
+│   │   └── vdc_io.cpp
+│   ├── algo/                 # Algorithm implementations
+│   │   ├── vdc_func_delaunay.cpp
+│   │   ├── vdc_func_helper.cpp
+│   │   ├── vdc_func_isosurface.cpp
+│   │   ├── vdc_func_modcyc.cpp
+│   │   └── vdc_func_voronoi.cpp
+│   ├── voronoi/              # Voronoi core and utilities
+│   │   ├── vdc_voronoi_collapse.cpp
+│   │   ├── vdc_voronoi_core.cpp
+│   │   └── vdc_voronoi_matching.cpp
+│   └── tests/                # Test drivers
+│       ├── test_vor.cpp
+│       └── test_modcyc.cpp
+├── tools/
+│   └── plot_modcyc.py        # Visualize modify-cycles test cases
+├── data/                     # Sample volumes (NRRD/NHDR/RAW) and the outputs
+├── compExec.py               # Output comparison helper
+├── visVD.py                  # Voronoi diagram visualization
+├── visV3d.py                 # 3D viewer helpers
+├── visDP.py                  # Data-plane visualization
+├── build/                    # Local build dir (generated)
+└── buildLocal/               # Local build dir (generated)
 ```
 
 ## API Documentation
@@ -90,4 +121,3 @@ The project provides comprehensive API documentation through Doxygen. To generat
 ```bash
 doxygen Doxyfile
 ```
-
