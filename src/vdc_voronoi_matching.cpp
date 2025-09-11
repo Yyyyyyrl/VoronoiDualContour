@@ -1,6 +1,5 @@
 #include "vdc_voronoi.h"
 
-
 static std::vector<int> collectFacetVoronoiEdges(const VoronoiDiagram &vd, const std::vector<int> &verts)
 {
     std::vector<int> out;
@@ -39,7 +38,8 @@ void VoronoiDiagram::create_global_facets()
             std::ostringstream oss;
             oss << "Facet shared by more than 2 cells. Key has " << fvec.size() << " facets; "
                 << "vertices: ";
-            for (int v : kv.first) oss << v << " ";
+            for (int v : kv.first)
+                oss << v << " ";
             throw std::runtime_error(oss.str());
         }
 
@@ -87,7 +87,6 @@ void VoronoiDiagram::create_global_facets()
 
 // --- helper: classify and pair facet bipolar edges -------------------------
 
-
 // Pairs bipolar edges inside a VoronoiFacet according to the method:
 //  - SEP_NEG: start from first (+,−) edge, then pair (start,next), (next2,next3), ...
 //  - SEP_POS: start from first (−,+) edge, then pair likewise
@@ -104,7 +103,8 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
     vf.bipolar_matches.clear();
 
     const int m = (int)vf.vertices_indices.size();
-    if (m < 2) return;
+    if (m < 2)
+        return;
 
     // Classify edges in the facet’s OWN boundary order
     // edgeType[k] = +1 for (− → +), -1 for (+ → −), 0 otherwise
@@ -115,27 +115,29 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
         int i1 = vf.vertices_indices[(k + 1) % m];
 
         // skip if not a finite segment edge in global map
-        if (k < (int)vf.voronoi_edge_indices.size()) {
+        if (k < (int)vf.voronoi_edge_indices.size())
+        {
             int ei = vf.voronoi_edge_indices[k];
-            if (ei < 0 || ei >= (int)vd.edges.size() || vd.edges[ei].type != 0) continue;
+            if (ei < 0 || ei >= (int)vd.edges.size() || vd.edges[ei].type != 0)
+                continue;
         }
 
         float v0 = vd.vertices[i0].value;
         float v1 = vd.vertices[i1].value;
-        const bool aAbove = (v0 >= isovalue);
-        const bool bAbove = (v1 >= isovalue);
-        if (aAbove != bAbove)
+        if (is_bipolar(v0, v1, isovalue))
         {
-            edgeType[k] = (!aAbove) ? +1 : -1;
+            edgeType[k] = (v0 < v1) ? +1 : -1;
             vf.bipolar_edge_indices.push_back(k); // store boundary slot k
         }
     }
 
-        // Debug: print the slot signs
-    if (debug) {
+    // Debug: print the slot signs
+    if (debug)
+    {
         std::ostringstream oss;
         oss << "[ISO-MATCH] gf=" << vf.index << " slots:";
-        for (int k = 0; k < m; ++k) {
+        for (int k = 0; k < m; ++k)
+        {
             char c = (edgeType[k] > 0) ? '+' : (edgeType[k] < 0 ? '-' : '.');
             oss << ' ' << c;
         }
@@ -143,49 +145,105 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
     }
 
     const int nB = (int)vf.bipolar_edge_indices.size();
-    if (nB < 2) {
-        if (debug) {
+    if (nB < 2)
+    {
+        if (debug)
+        {
             std::cerr << "[ISO-MATCH] gf=" << vf.index << " nBip=" << nB << " → matches (none)\n";
         }
         return;
     }
 
     // ensure nB is even
-    if (nB % 2) std::cerr << "[warn] facet " << vf.index << " has odd # bipolar edges at iso =" << isovalue <<" \n";
+    if (nB % 2)
+    {
+        std::cerr << "[warn] facet " << vf.index << " has odd # bipolar edges at iso =" << isovalue << " \n";
+        std::cerr << " voronoi edges in facet: \n";
+        for (int ei : vf.voronoi_edge_indices)
+        {
+            VoronoiEdge edge = vd.edges[ei];
+            Segment3 segment;
+            Line3 line;
+            Ray3 ray;
+
+            if (CGAL::assign(segment, edge.edgeObject))
+            {
+                std::cerr << "Segment(" << segment.source() << " - " << segment.target() << ")\n";
+            }
+            else if (CGAL::assign(line, edge.edgeObject))
+            {
+                std::cerr << "Line(" << line.point(0) << " - " << line.point(1) << ")\n";
+            }
+            else if (CGAL::assign(ray, edge.edgeObject))
+            {
+                std::cerr << "Ray(" << ray.source() << ", direction: " << ray.direction() << ")\n";
+            }
+            else
+            {
+                std::cerr << "Unknown edge type.\n";
+            }
+        }
+        std::cerr << " bipolar edges: ";
+        for (auto be : vf.bipolar_edge_indices) {
+            std::cerr << be << " ";
+        }
+        std::cerr << "\n";
+    }
 
     const int want = (vf.bipolar_match_method == BIPOLAR_MATCH_METHOD::SEP_POS) ? +1 : -1;
 
     // Find anchor: first bipolar slot with desired sign; if missing, fall back to 0
     int startPos = -1;
-    for (int i = 0; i < nB; ++i) {
-        if (edgeType[vf.bipolar_edge_indices[i]] == want) { startPos = i; break; }
+    for (int i = 0; i < nB; ++i)
+    {
+        if (edgeType[vf.bipolar_edge_indices[i]] == want)
+        {
+            startPos = i;
+            break;
+        }
     }
-    if (startPos < 0) startPos = 0;
+    if (startPos < 0)
+        startPos = 0;
 
     // Ensure even number by dropping one if odd (log it)
     int usable = (nB & 1) ? (nB - 1) : nB;
-    if (usable < nB && debug) {
+    if (usable < nB && debug)
+    {
         std::cerr << "[ISO-MATCH] gf=" << vf.index << " odd bipolar slots=" << nB << " → dropping last\n";
     }
 
     // Disjoint, circular pairing: (s, s+1), (s+2, s+3), ...
-    for (int t = 0; t + 1 < nB; t += 2) {
+    for (int t = 0; t + 1 < nB; t += 2)
+    {
         int a = vf.bipolar_edge_indices[(startPos + t) % nB];
         int b = vf.bipolar_edge_indices[(startPos + t + 1) % nB];
         vf.bipolar_matches.emplace_back(a, b);
     }
 
-    if (debug) {
+    if (debug)
+    {
         std::cerr << "[ISO-MATCH] gf=" << vf.index << " method=" << matchMethodToString(vf.bipolar_match_method)
                   << " nBip=" << nB << " pairs=" << vf.bipolar_matches.size() << "\n";
-        if (vf.bipolar_matches.empty()) {
+        if (vf.bipolar_matches.empty())
+        {
             std::cerr << "[ISO-MATCH] gf=" << vf.index << " matches: (none)\n";
-        } else {
+        }
+        else
+        {
             std::cerr << "[ISO-MATCH] gf=" << vf.index << " matches:";
-            for (auto &pr : vf.bipolar_matches) std::cerr << " (" << pr.first << "," << pr.second << ")";
+            for (auto &pr : vf.bipolar_matches)
+                std::cerr << " (" << pr.first << "," << pr.second << ")";
             std::cerr << "\n";
         }
     }
+}
+
+// Public wrapper: recompute matches for a single global facet using its current method.
+void recompute_bipolar_matches_for_facet(VoronoiDiagram &vd, int vfi, float isovalue)
+{
+    if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+        return;
+    match_facet_bipolar_edges(vd, vd.global_facets[vfi], isovalue);
 }
 
 void VoronoiDiagram::compute_bipolar_matches(float isovalue)
@@ -223,4 +281,3 @@ std::string matchMethodToString(BIPOLAR_MATCH_METHOD method)
         return "UNKNOWN";
     }
 }
-
