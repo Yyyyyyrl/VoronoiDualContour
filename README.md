@@ -8,18 +8,22 @@ VDC is a C++ implementation of a Voronoi diagram-based dual contouring method fo
 ## Installation
 
 ### Prerequisites
-- CMake (version 3.10 or higher)
-- CGAL (version 5.0 or higher)
-- Boost libraries (for filesystem and program options)
+- CMake (3.12+)
+- CGAL (5.x) with Core component
+- Zlib
+- Teem (for NRRD/NHDR IO)
 - Python 3 (for visualization scripts only)
 
 ### Building from Source
+- Ensure dependencies are installed and discoverable (e.g., via your package manager).
+- Teem does not provide a CMake config; if it is not in a default prefix, pass `-DTEEM_ROOT=/path/to/teem-prefix` where `include/` and `lib/` live.
+
 ```bash
 git clone https://github.com/Yyyyyyrl/voronoi-dual-contouring.git
 cd voronoi-dual-contouring
 mkdir build && cd build
-cmake ..
-make
+cmake -DTEEM_ROOT=/absolute/path/to/teem ..   # optional if Teem in default path
+make -j
 ```
 
 ## Usage
@@ -29,27 +33,27 @@ make
 ./vdc [OPTIONS] <isovalue> <(nhdr/nrrd) raw data file path>
 ```
 
-### Full Options
-```bash
-./vdc -i <input> -o <output> -v <value> [options]
+### Options
+- -o <file>: output basename (default derived from input)
+- -off: write mesh in OFF format (default)
+- -ply: write mesh in PLY format
+- -out_csv <file>: dump Voronoi diagram to CSV
+- -sep_isov: pick a subset of non-adjacent active cubes before triangulation
+- -supersample <factor>: supersample the input grid by factor
+- -multi_isov: enable multi iso-vertices mode
+- -single_isov: use single iso-vertex mode (default)
+- -conv_H: use CGAL convex hull for Voronoi cell construction
+- -mod_cyc: modify-cycles pass after initial cycles (advanced)
+- --help: print help
 
-Required parameters:
-  <file>          Input file path (NRRD format)
-  <isovalue>      Isovalue for surface extraction
+Advanced/debug options (subject to change):
+- -bound_cells: add bounding cells around the domain
 
-Processing options:
-  -multi_isov     Enable multi-isosurface mode
-  -single_isov    Enable separation of non-adjacent active cubes
-  --supersample N Supersample input data by factor N
-  --conv_H        Use convex hull method for Voronoi cells computation
-  --sep_isov      Subsampling the input data for isosurface extraction
-
-Output options:
-  --out_csv <file>    Export Voronoi diagram to CSV file
-  -off                Write the output in OFF format (default)
-  -ply                Write the output in PLY format
-
-```
+### Examples
+- Basic run (OFF output):
+  `./vdc 0.0 ./data/sphere-32.nrrd`
+- PLY output with supersampling x2:
+  `./vdc -ply -supersample 2 0.0 ./data/sphere-32.nrrd`
 
 
 ## File Structure
