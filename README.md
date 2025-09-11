@@ -58,8 +58,6 @@ Advanced/debug options (subject to change):
 
 ## File Structure
 
-## Detailed File Structure
-
 ```
 .
 ├── CMakeLists.txt            # CMake build configuration
