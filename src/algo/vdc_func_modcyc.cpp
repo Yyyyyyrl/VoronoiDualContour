@@ -19,7 +19,6 @@ struct PairHash
 {
     size_t operator()(const EdgeKey &k) const noexcept
     {
-        // Simple 64-bit mix for two 32-bit ints
         return (static_cast<size_t>(static_cast<uint32_t>(k.first)) << 32) ^ static_cast<uint32_t>(k.second);
     }
 };
@@ -35,7 +34,7 @@ static void collect_midpoints_for_cell(
     for (int cfIndex : vc.facet_indices)
     {
         const VoronoiCellFacet &facet = vd.facets[cfIndex];
-        const auto &verts = facet.vertices_indices; // Store-time order; ok for checking bipolar
+        const auto &verts = facet.vertices_indices;
         const size_t n = verts.size();
         if (n < 2)
             continue;
@@ -149,7 +148,7 @@ static void extract_cycles_from_midpoints(
                 break; // closed
             }
             if (nxt < 0 || nxt >= n || used[nxt])
-            { // broken/self-intersecting; still record
+            { // broken/self-intersecting
                 cycles.push_back(cyc);
                 break;
             }
@@ -170,7 +169,7 @@ int map_global_slot_to_cell(const VoronoiFacet &vf,
     const int a = vf.vertices_indices[slot_global];
     const int b = vf.vertices_indices[(slot_global + 1) % m];
     const int step = (cf.orientation == 1) ? +1 : -1;
-    const auto &C = cf.vertices_indices; // stored order
+    const auto &C = cf.vertices_indices;
     for (int i = 0; i < (int)C.size(); ++i)
     {
         const int j = (i + step + (int)C.size()) % (int)C.size();
@@ -205,10 +204,9 @@ int find_cycle_for_bipolar_edge(const VoronoiDiagram &vd,
 
     const VoronoiCellEdge &ce = vd.cellEdges[ceIdx];
     if (ce.cellIndex != cellIndex)
-        return -1; // safety check
+        return -1;
     if (ce.cycleIndices.empty())
         return -1;
-    // One edge → one cycle: pick the first.
     return ce.cycleIndices.front();
 }
 
@@ -290,7 +288,6 @@ void flip_bipolar_match_method(VoronoiFacet &vf)
         vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS;
         break;
     default:
-        // Default to SEP_NEG if undefined/unconstrained
         vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_NEG;
         break;
     }
@@ -341,9 +338,6 @@ void recompute_cell_cycles_for_matches_single_cell(VoronoiDiagram &vd,
         for (int mpIdx : single_cycle)
         {
             // Tag midpoint with its cycle id
-            // (not strictly required outside debug, but keeps consistency with other flows)
-            // midpoints[mpIdx].cycle_index = cycId; // local copy; not stored back
-
             const int globalEdgeIdx = midpoints[mpIdx].global_edge_index;
             if (globalEdgeIdx < 0)
                 continue;
@@ -399,10 +393,9 @@ void populate_incident_cells_for_global_facets(VoronoiDiagram &vd)
 // Full “modify cycles” pass over all global facets at this isovalue.
 void modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 {
-    // Ensure global facets know their incident cells (topology doesn’t change during pass)
+    // Ensure global facets know their incident cells
     populate_incident_cells_for_global_facets(vd);
 
-    // Ensure current bipolar matches exist once (respecting per-facet methods)
     vd.compute_bipolar_matches(isovalue);
 
     // First pass: detect problematic facets and flip locally, collecting affected cells
