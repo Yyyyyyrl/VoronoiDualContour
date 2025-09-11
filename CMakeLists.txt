@@ -55,6 +55,7 @@ add_executable(vdc src/vdc.cpp ${COMMON_SOURCES})
 
 # ─── Test executable ─────────────────────────────────────────────────────────
 add_executable(test_vor src/test_vor.cpp ${COMMON_SOURCES})
+add_executable(test_modcyc src/test_modcyc.cpp ${COMMON_SOURCES})
 
 # ─── Link libraries ──────────────────────────────────────────────────────────
 target_link_libraries(vdc
@@ -71,10 +72,19 @@ target_link_libraries(test_vor
       ${TEEM_LIBRARY}
 )
 
+target_link_libraries(test_modcyc
+    PRIVATE
+      CGAL::CGAL
+      ZLIB::ZLIB
+      ${TEEM_LIBRARY}
+)
+
 # ─── Installation (optional) ─────────────────────────────────────────────────
 install(TARGETS vdc test_vor
         RUNTIME DESTINATION bin
 )
+install(TARGETS test_modcyc
+        RUNTIME DESTINATION bin)
 
 # ─── Usage info ──────────────────────────────────────────────────────────────
 message(STATUS "To build:")
