@@ -9,7 +9,7 @@
 /*!
  * When set to `true`, debug-related print commands are executed.
  */
-bool debug = true;
+bool debug = false;
 
 //! @brief Global variable to enable or disable progress indicators.
 /*!

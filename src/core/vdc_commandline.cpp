@@ -1,4 +1,5 @@
 #include "core/vdc_commandline.h"
+#include "core/vdc_debug.h"
 
 //! Prints the help message for the program.
 void print_help()
@@ -15,6 +16,7 @@ void print_help()
     std::cout << "  -single_isov                : Use single iso-vertices mode (default).\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  -mod_cyc                    : After initial cycles, try facet rematching and recompute cycles.\n";
+    std::cout << "  --debug                     : Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]).\n";
     std::cout << "  --help                      : Print this help message.\n";
 }
 
@@ -88,6 +90,10 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         else if (arg == "-mod_cyc")
         {
             vp.mod_cyc = true; // Enable modify-cycles pass (guarded)
+        }
+        else if (arg == "--debug")
+        {
+            debug = true; // Enable global debug logging
         }
         else
         {

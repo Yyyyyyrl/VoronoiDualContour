@@ -6,12 +6,13 @@
 #include <sstream>
 #include <iomanip>
 #include <unordered_set>
+#include "core/vdc_debug.h"
 
 static int ISO_DBG_FOCUS_CELL = -1;
 static int ISO_DBG_FOCUS_GFACET = -1;
 static int ISO_DBG_FOCUS_EDGE = -1;
 static bool ISO_DBG_ONLY_ERRORS = false;
-static bool ISO_DBG_ENABLED = true; // set false to silence all
+static bool ISO_DBG_ENABLED = true; // set via ISO_DBG_LOAD_ENV(), tied to global 'debug'
 
 static int iso_getenv_int(const char *k, int defv)
 {
@@ -48,7 +49,8 @@ static void ISO_DBG_LOAD_ENV()
     ISO_DBG_FOCUS_GFACET = iso_getenv_int("ISO_DEBUG_GLOBAL_FACET", -1);
     ISO_DBG_FOCUS_EDGE = iso_getenv_int("ISO_DEBUG_EDGE", -1);
     ISO_DBG_ONLY_ERRORS = iso_getenv_bool("ISO_DEBUG_ONLY_ERRORS", false);
-    ISO_DBG_ENABLED = !iso_getenv_bool("ISO_DEBUG_OFF", false);
+    // Respect global 'debug' flag; allow env var to force off
+    ISO_DBG_ENABLED = debug && !iso_getenv_bool("ISO_DEBUG_OFF", false);
 }
 
 static inline bool iso_dbg_cell_ok(int c) { return ISO_DBG_FOCUS_CELL < 0 || ISO_DBG_FOCUS_CELL == c; }
@@ -510,10 +512,13 @@ static inline bool select_isovertices(
     // Skip facets involving any dummy vertex (cannot map to 3 valid Voronoi cells)
     if (b1 + b2 + b3 >= 1)
     {
-        std::cerr << "[ISO] SKIP FACET: contains dummy vertices\n";
-        std::cerr << "v1: " << (v1->info().is_dummy ? "dummy" : "real") << ", coords: " << v1->point() << "\n";
-        std::cerr << "v2: " << (v2->info().is_dummy ? "dummy" : "real") << ", coords: " << v2->point() << "\n";
-        std::cerr << "v3: " << (v3->info().is_dummy ? "dummy" : "real") << ", coords: " << v3->point() << "\n";
+        if (ISO_DBG_ENABLED)
+        {
+            std::cerr << "[ISO] SKIP FACET: contains dummy vertices\n";
+            std::cerr << "v1: " << (v1->info().is_dummy ? "dummy" : "real") << ", coords: " << v1->point() << "\n";
+            std::cerr << "v2: " << (v2->info().is_dummy ? "dummy" : "real") << ", coords: " << v2->point() << "\n";
+            std::cerr << "v3: " << (v3->info().is_dummy ? "dummy" : "real") << ", coords: " << v3->point() << "\n";
+        }
         return false;
     }
 
@@ -589,9 +594,9 @@ static void process_segment_edge_multi(
             return;
 
         int globalEdgeIndex = itEdge->second;
-        if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
+        if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) {
             std::cerr << "[ISO] SEG bipolar edge -> globalEdge=" << globalEdgeIndex << " dualFacets=" << edge.delaunayFacets.size() << "\n";
-            std::cerr << voronoiDiagram.edges[globalEdgeIndex];
+            std::cerr << voronoiDiagram.edges[globalEdgeIndex];}
 
         for (const auto &facet : edge.delaunayFacets)
         {
@@ -649,9 +654,9 @@ static void process_ray_edge_multi(
             return;
         }
         ISO_STATS.ray_bip++;
-        if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
+        if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) {
             std::cerr << "[ISO] RAY bipolar edge=" << globalEdgeIndex << " dualFacets=" << dualDelaunayFacets.size() << "\n";
-            std::cerr << voronoiDiagram.edges[globalEdgeIndex];
+            std::cerr << voronoiDiagram.edges[globalEdgeIndex];}
 
         for (const auto &facet : dualDelaunayFacets)
         {

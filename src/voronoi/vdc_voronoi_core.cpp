@@ -1,4 +1,5 @@
 #include "voronoi/vdc_voronoi.h"
+#include "core/vdc_debug.h"
 
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
 /*!
@@ -702,18 +703,21 @@ void VoronoiDiagram::checkEdgeFacetCount() const
                 }
                 if (uv_count != 1 || vu_count != 1)
                 {
-                    std::cerr << "[DEBUG] Inconsistent orientations in cell " << cell.cellIndex
-                              << " for edge {" << u << "," << v << "}: uv=" << uv_count << ", vu=" << vu_count << "\n";
-                    if (sharing_facets.size() == 2)
+                    if (debug)
                     {
-                        std::cerr << "[DEBUG] Sharing facets: " << sharing_facets[0] << " and " << sharing_facets[1] << "\n";
-                        std::cerr << "[DEBUG] Facet " << sharing_facets[0] << " vertices: ";
-                        for (int vi : facets[sharing_facets[0]].vertices_indices)
-                            std::cerr << vi << " ";
-                        std::cerr << "\n[DEBUG] Facet " << sharing_facets[1] << " vertices: ";
-                        for (int vi : facets[sharing_facets[1]].vertices_indices)
-                            std::cerr << vi << " ";
-                        std::cerr << "\n";
+                        std::cerr << "[DEBUG] Inconsistent orientations in cell " << cell.cellIndex
+                                  << " for edge {" << u << "," << v << "}: uv=" << uv_count << ", vu=" << vu_count << "\n";
+                        if (sharing_facets.size() == 2)
+                        {
+                            std::cerr << "[DEBUG] Sharing facets: " << sharing_facets[0] << " and " << sharing_facets[1] << "\n";
+                            std::cerr << "[DEBUG] Facet " << sharing_facets[0] << " vertices: ";
+                            for (int vi : facets[sharing_facets[0]].vertices_indices)
+                                std::cerr << vi << " ";
+                            std::cerr << "\n[DEBUG] Facet " << sharing_facets[1] << " vertices: ";
+                            for (int vi : facets[sharing_facets[1]].vertices_indices)
+                                std::cerr << vi << " ";
+                            std::cerr << "\n";
+                        }
                     }
                     throw std::runtime_error("In cell " + std::to_string(cell.cellIndex) + " edge {" + std::to_string(u) + "," + std::to_string(v) + "} does not have opposite orientations.");
                 }
@@ -770,17 +774,20 @@ void VoronoiDiagram::checkFacetNormals() const
             double dot = CGAL::scalar_product(normal, v);
             if (dot > 0 || (dot > -1e-10 && normal.squared_length() < 1e-20))
             { // Allow small negative or zero for degenerates
-                std::cerr << "[DEBUG] Facet " << fi << " in cell " << cell.cellIndex << " has dot " << dot << " (should <0), sq_normal " << normal.squared_length() << "\n";
-                std::cerr << "[DEBUG] Full vertices: ";
-                for (int vi : V)
-                    std::cerr << vi << " ";
-                std::cerr << "\n[DEBUG] Coords: \n";
-                for (int vi : V)
+                if (debug)
                 {
-                    const Point &p = vertices[vi].coord;
-                    std::cerr << p << "\n";
+                    std::cerr << "[DEBUG] Facet " << fi << " in cell " << cell.cellIndex << " has dot " << dot << " (should <0), sq_normal " << normal.squared_length() << "\n";
+                    std::cerr << "[DEBUG] Full vertices: ";
+                    for (int vi : V)
+                        std::cerr << vi << " ";
+                    std::cerr << "\n[DEBUG] Coords: \n";
+                    for (int vi : V)
+                    {
+                        const Point &p = vertices[vi].coord;
+                        std::cerr << p << "\n";
+                    }
+                    std::cerr << "[DEBUG] Centroid: " << centroid << ", site: " << site << "\n";
                 }
-                std::cerr << "[DEBUG] Centroid: " << centroid << ", site: " << site << "\n";
                 if (dot > 0)
                 {
                     throw std::runtime_error("Facet " + std::to_string(fi) +

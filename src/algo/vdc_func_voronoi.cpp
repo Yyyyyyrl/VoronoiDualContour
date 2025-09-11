@@ -1,4 +1,5 @@
 #include "algo/vdc_func.h"
+#include "core/vdc_debug.h"
 
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
@@ -264,7 +265,10 @@ static VoronoiCellFacet build_facet_from_edge(
         }
         if (cleaned.size() < 3)
         {
-            std::cout << "[DEBUG] Degenerate after cleaning: " << cleaned.size() << " verts\n";
+            if (debug)
+            {
+                std::cout << "[DEBUG] Degenerate after cleaning: " << cleaned.size() << " verts\n";
+            }
             return VoronoiCellFacet();
         }
         std::vector<int> orderedFacetVertices = std::move(cleaned);
@@ -322,7 +326,10 @@ static VoronoiCellFacet build_facet_from_edge(
     }
     else
     {
-        std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells\n";
+        if (debug)
+        {
+            std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells\n";
+        }
         return VoronoiCellFacet();
     }
 }

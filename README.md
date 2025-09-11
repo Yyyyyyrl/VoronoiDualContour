@@ -48,6 +48,7 @@ make -j
 
 Advanced/debug options (subject to change):
 - -bound_cells: add bounding cells around the domain
+- --debug: enable verbose debug logs ([DEBUG]/[ISO]/[ISO-MATCH])
 
 ### Examples
 - Basic run (OFF output):

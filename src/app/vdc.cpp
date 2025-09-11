@@ -21,7 +21,8 @@ int main(int argc, char *argv[])
     if (vdc_param.supersample)
     {
         data_grid = supersample_grid(data_grid, vdc_param.supersample_r);
-        data_grid.print_grid();
+        if (debug) {
+        data_grid.print_grid();}
     }
 
     // Identify active cubes in the grid based on the given isovalue.
@@ -94,15 +95,13 @@ int main(int argc, char *argv[])
     std::clock_t collapse_time = std::clock();
     double duration_col = static_cast<double>(collapse_time - cons_vd_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Collapsing time: " << std::to_string(duration_col) << " seconds." << std::endl;
-    //vd2.create_global_facets();
-    //vd2.compute_bipolar_matches(vdc_param.isovalue);
     
     vd2.check(true);
     std::clock_t check2_time = std::clock();
     double duration_vd2check = static_cast<double>(check2_time - collapse_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Checking vd2 time: " << std::to_string(duration_vd2check) << " seconds." << std::endl;
 
-    std::cout << dt <<std::endl;
+    //std::cout << dt <<std::endl;
     if (indicator)
     {
         std::cout << "[INFO] Constructing Iso Surface..." << std::endl;
