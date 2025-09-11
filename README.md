@@ -107,12 +107,6 @@ Output options:
 ├── tools/
 │   └── plot_modcyc.py        # Visualize modify-cycles test cases
 ├── data/                     # Sample volumes (NRRD/NHDR/RAW) and the outputs
-├── compExec.py               # Output comparison helper
-├── visVD.py                  # Voronoi diagram visualization
-├── visV3d.py                 # 3D viewer helpers
-├── visDP.py                  # Data-plane visualization
-├── build/                    # Local build dir (generated)
-└── buildLocal/               # Local build dir (generated)
 ```
 
 ## API Documentation
