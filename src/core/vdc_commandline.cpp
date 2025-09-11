@@ -129,7 +129,7 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
 
         if (vp.supersample)
         {
-            vp.output_filename += "_sup-" + std::to_string(vp.supersample_r);
+            vp.output_filename += "_sup" + std::to_string(vp.supersample_r);
         }
 
         if (vp.sep_isov)
@@ -140,6 +140,11 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         if (vp.convex_hull)
         {
             vp.output_filename += "_conv-H";
+        }
+
+        if (vp.mod_cyc)
+        {
+            vp.output_filename += "_modcyc";
         }
 
         // Add file format extension.
