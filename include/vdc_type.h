@@ -366,12 +366,12 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const Delaunay &dt)
            << " degree: " << dt.degree(vit)
            << "\n";
 
-        // Limit the number of vertices to display to avoid excessive output
+/*         // Limit the number of vertices to display to avoid excessive output
         if (++vertex_count >= 30)
         {
             os << "  ... and " << (total_vertices - 10) << " more vertices\n";
             break;
-        }
+        } */
     }
 
     return os;
@@ -441,7 +441,11 @@ struct PointApproxEqual
     }
 };
 
-// Comparator for Vector_3
+//! @brief Strict weak ordering for `Vector3` values.
+/*!
+ * Compares vectors lexicographically by x, then y, then z components.
+ * Useful for ordered containers like `std::map` and `std::set`.
+ */
 struct Vector3Comparator
 {
     bool operator()(const Vector3 &a, const Vector3 &b) const
@@ -458,7 +462,11 @@ struct Vector3Comparator
     }
 };
 
-// Comparator for Direction_3
+//! @brief Ordering for `Direction3` using underlying vector components.
+/*!
+ * Converts directions to vectors and applies `Vector3Comparator`.
+ * Note that opposite directions will be ordered based on raw component signs.
+ */
 struct Direction3Comparator
 {
     bool operator()(const Direction3 &a, const Direction3 &b) const
@@ -544,8 +552,16 @@ struct ObjectComparator
     }
 };
 
-struct PointHash {
-    std::size_t operator()(const Point& p) const {
+//! @brief Hash functor for `Point` to use in `unordered_*` containers.
+/*!
+ * Combines hashed Cartesian coordinates. Intended for exact‑coordinate keys; if
+ * approximate equivalence is required consider `PointApproxEqual` and custom
+ * bucketing.
+ */
+struct PointHash
+{
+    std::size_t operator()(const Point &p) const
+    {
         std::hash<double> h;
         return h(p.x()) ^ (h(p.y()) << 1) ^ (h(p.z()) << 2);
     }

@@ -226,7 +226,7 @@ bool is_point_inside_grid(const Point &p, const UnifiedGrid &grid);
  * @param val1 The scalar value at `p1`.
  * @param val2 The scalar value at `p2`.
  * @param isovalue The target scalar value for interpolation.
- * @param data_grid The grid containing the scalar data.
+ * @param grid The grid containing the scalar data.
  * @return The interpolated point.
  */
 Point interpolate(const Point &p1, const Point &p2, float val1, float val2, float isovalue, const UnifiedGrid &grid);
@@ -251,22 +251,67 @@ std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube>
 
 
 
-// Check if two cubes are adjacent in grid space
+//! @brief Tests 6-neighborhood adjacency between two cubes in grid space.
+/*! 
+ * Two cubes are adjacent if they share a face in the i/j/k lattice
+ * (Manhattan distance of 1 between indices).
+ *
+ * @param cubeA First cube (with i/j/k indices)
+ * @param cubeB Second cube (with i/j/k indices)
+ * @param grid Grid providing dimensions for bounds checks
+ * @return true if the cubes are face-adjacent; false otherwise
+ */
 bool is_adjacent(const Cube &cubeA, const Cube &cubeB, const UnifiedGrid &grid);
 
-// Calculate unique cube index
+//! @brief Computes a unique linear index for a cube.
+/*!
+ * Uses the integer grid coordinates derived from the representative vertex and
+ * maps them to a linear index in the (nx-1)×(ny-1)×(nz-1) active‑cell lattice.
+ *
+ * @param repVertex Representative vertex position of the cube (world coords)
+ * @param grid Grid describing spacing and origin
+ * @return Linear index in the active‑cell lattice
+ */
 int get_cube_index(const Point &repVertex, const UnifiedGrid &grid);
 
-// Find neighbor indices in grid space
+//! @brief Finds neighboring cube indices around a given cube.
+/*!
+ * Returns the linear indices of all valid 26‑neighbors around the cube that
+ * contains the representative vertex.
+ *
+ * @param repVertex Representative vertex position of the reference cube
+ * @param grid Grid describing spacing and size
+ * @return Vector of neighbor indices in the active‑cell lattice
+ */
 std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid &grid);
 
-// Get cube centers
+//! @brief Extracts world‑space centers for a list of cubes.
+/*!
+ * @param cubes Input cubes with precomputed centers
+ * @return Points at the center of each cube
+ */
 std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes);
 
-// Separate active cubes using greedy approach
+//! @brief Filters active cubes to a set without face adjacency (greedy).
+/*!
+ * Iterates active cubes and keeps a cube only if none of its six neighbors was
+ * kept before. Useful for quickly de‑clumping active regions.
+ *
+ * @param activeCubes Active cubes to filter
+ * @param grid Grid for bounds/neighbor checks
+ * @return A subset of input cubes with no face adjacency among them
+ */
 std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes, const UnifiedGrid &grid);
 
-// Separate active cubes using graph-based approach
+//! @brief Selects a large independent set of active cubes (graph‑based).
+/*!
+ * Builds an adjacency graph among active cubes and applies greedy coloring to
+ * choose the largest color class as an approximate maximum independent set.
+ *
+ * @param activeCubes Active cubes to split
+ * @param grid Grid for adjacency checks
+ * @return A separated subset of cubes with reduced adjacency
+ */
 std::vector<Cube> separate_active_cubes_graph(std::vector<Cube> &activeCubes, const UnifiedGrid &grid);
 
 #endif

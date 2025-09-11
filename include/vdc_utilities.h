@@ -93,8 +93,26 @@ std::array<Point, 8> get_cube_corners(const Point &center, float side_length);
 int get_orientation(const int iFacet, const Point v1, const Point v2, const float f1, const float f2);
 
 
+//! @brief Loads 3D points from a text file.
+/*! 
+ * Accepts simple whitespace/comma separated lines containing three numeric
+ * coordinates per line. Lines that cannot be parsed are ignored.
+ *
+ * @param filename Path to the input file
+ * @param points Output container receiving parsed points
+ * @return true on success, false if the file could not be opened
+ */
 bool readPointsFromFile(const std::string &filename, std::vector<Point> &points);
 
+//! @brief Writes a Delaunay triangulation and its input points for debugging.
+/*!
+ * Produces a text dump next to the given input file name to aid inspection of
+ * triangulation quality and topology.
+ *
+ * @param dt The triangulation to serialize
+ * @param points The set of points used to build the triangulation
+ * @param input_filename The original input filename used to derive an output stem
+ */
 void write_triangulation(Delaunay dt, std::vector<Point> &points, std::string &input_filename);
 
 #endif // VDC_UTILITIES_H

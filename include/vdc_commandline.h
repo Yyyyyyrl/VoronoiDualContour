@@ -26,6 +26,7 @@ struct VDC_PARAM {
     bool add_bounding_cells;       //!< Flag to include bounding cells in the Voronoi diagram.
     bool convex_hull;              //!< Flag to enable convex hull computation in building voronoi cells
     bool test_vor = false;         //!< Flag for testing the Voronoi diagram construction
+    bool mod_cyc = false;          //!< Guard: run modify-cycles pass (facet rematching + cycle recompute)
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
 
@@ -42,7 +43,8 @@ struct VDC_PARAM {
           supersample(false),
           add_bounding_cells(false),
           convex_hull(false),
-          supersample_r(1)
+          supersample_r(1),
+          mod_cyc(false)
     {}
 };
 

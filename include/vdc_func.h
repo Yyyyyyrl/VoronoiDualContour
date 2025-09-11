@@ -8,6 +8,16 @@
 #include "vdc_voronoi.h"
 #include "vdc_debug.h"
 
+//! @brief Tests whether two directions are approximately equal.
+/*!
+ * Compares normalized vectors and returns true if their squared distance is
+ * below `epsilon^2`. Treats parallel vectors with identical orientation as equal.
+ *
+ * @param d1 First direction vector
+ * @param d2 Second direction vector
+ * @param epsilon Tolerance on the Euclidean distance between normalized vectors
+ * @return true if directions are within tolerance; false otherwise
+ */
 bool directions_equal(const Vector3 &d1, const Vector3 &d2, double epsilon);
 
 //! @brief Computes the dual triangles for the final mesh in the single isovertex case.
@@ -21,7 +31,6 @@ bool directions_equal(const Vector3 &d1, const Vector3 &d2, double epsilon);
  * @param dt Delaunay triangulation structure.
  * @param grid Scalar grid containing scalar values.
  * @param isovalue The isovalue used for computing.
- * @param pointToIndexMap Map between points and their indices in Delaunay triangulation
  */
 void compute_dual_triangles(
     IsoSurface &iso_surface,
@@ -29,8 +38,7 @@ void compute_dual_triangles(
     CGAL::Epick::Iso_cuboid_3 &bbox,
     Delaunay &dt,
     UnifiedGrid &grid,
-    float isovalue,
-    std::map<Point, int> &pointToIndexMap);
+    float isovalue);
 
     
 //! @brief Computes the dual triangles for the final mesh in the multi-isovertex case.
@@ -70,7 +78,6 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
  * @param grid The scalar grid containing scalar values.
  * @param isovalue The isovalue to use for calculation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
- * @param data_grid The grid containing input data.
  * @param activeCubeCenters The list of center points of active cubes.
  */
 void compute_isosurface_vertices_single(UnifiedGrid &grid, float isovalue, IsoSurface &iso_surface, std::vector<Point> &activeCubeCenters);
@@ -198,7 +205,6 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
  * @param vdc_param Processing parameters and options
  * @param iso_surface Output isosurface to store vertices and triangles
  * @param grid Scalar grid for value interpolation
- * @param data_grid Input data grid for single-isovertex mode
  * @param activeCubeCenters Active cube centers for single-isovertex mode
  * @param bbox Bounding box for clipping infinite edges
  */
@@ -211,14 +217,14 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
  * Adds a triangle to the dualTriangles vector, adjusting vertex order based on
  * the orientation and whether the cell is infinite.
  *
- * @param p1 First vertex of the triangle.
- * @param p2 Second vertex of the triangle.
- * @param p3 Third vertex of the triangle.
+ * @param p1 Handle to first vertex of the triangle
+ * @param p2 Handle to second vertex of the triangle
+ * @param p3 Handle to third vertex of the triangle
  * @param iOrient Orientation value determining vertex order.
  * @param isInfinite Flag indicating if the cell is infinite.
  * @param dualTriangles Vector to store the generated triangles.
  */
-static void generate_triangle(const Point &p1, const Point &p2, const Point &p3, int iOrient, bool isInfinite, std::vector<DelaunayTriangle> &dualTriangles);
+static void generate_triangle(const Vertex_handle &p1, const Vertex_handle &p2, const Vertex_handle &p3, int iOrient, bool isInfinite, std::vector<DelaunayTriangle> &dualTriangles);
 
 //! @brief Processes a segment edge for dual triangle computation.
 /*!
@@ -334,6 +340,7 @@ static void process_segment_edge_multi(
  * Intersects the ray with the bounding box, checks bipolarity, and generates
  * triangles using the first isovertex from each cell.
  *
+ * @param globalEdgeIndex The global Voronoi edge index
  * @param source_pt The index of the source point of the ray edge in VoronoiDiagram
  * @param ray The ray edge to process
  * @param dualDelaunayFacets List of Delaunay facets dual to this edge
@@ -344,6 +351,7 @@ static void process_segment_edge_multi(
  * @param iso_surface The isosurface to store triangles
  */
 static void process_ray_edge_multi(
+    int globalEdgeIndex,
     int source_pt,
     const Ray3 &ray,
     std::vector<Facet> dualDelaunayFacets,
@@ -359,6 +367,7 @@ static void process_ray_edge_multi(
  * Intersects the line with the bounding box, checks bipolarity, and generates
  * triangles using the first isovertex from each cell.
  *
+ * @param globalEdgeIndex The global Voronoi edge index
  * @param line The line edge to process
  * @param dualDelaunayFacets List of Delaunay facets dual to this edge
  * @param voronoiDiagram The Voronoi diagram containing edge and cell data
@@ -368,6 +377,7 @@ static void process_ray_edge_multi(
  * @param iso_surface The isosurface to store triangles
  */
 static void process_line_edge_multi(
+    int globalEdgeIndex,
     const Line3 &line,
     std::vector<Facet> dualDelaunayFacets,
     VoronoiDiagram &voronoiDiagram,
@@ -378,20 +388,23 @@ static void process_line_edge_multi(
 
 //! @brief Collects midpoints for bipolar edges in a Voronoi cell's facets.
 /*!
- * Identifies bipolar edges, computes their midpoints, and stores them along with
- * facet associations.
+ * Identifies bipolar edges for each facet of a cell, computes midpoints at the
+ * isovalue crossing, and records indices per facet for later connectivity.
  *
- * @param vc The Voronoi cell to process.
- * @param voronoiDiagram The Voronoi diagram containing facet and vertex data.
- * @param isovalue The isovalue for bipolarity check.
- * @param midpoints Vector to store computed midpoints.
- * @param edge_to_midpoint_index Map linking edge keys to midpoint indices.
- * @param facet_midpoint_indices Vector storing midpoint indices for each facet.
+ * @param vc The Voronoi cell to process
+ * @param voronoiDiagram The Voronoi diagram providing vertex values
+ * @param isovalue Threshold used for bipolarity
+ * @param midpoints Output: accumulated midpoint nodes
+ * @param edge_to_midpoint_index Output: map from undirected edge key to midpoint index
+ * @param facet_midpoint_indices Output: per-facet list of midpoint indices
  */
-static std::vector<MidpointNode> collect_midpoints(
-    const std::vector<int>& vert_indices,
-    const VoronoiDiagram& vd,
-    float isovalue);
+static void collect_midpoints(
+    VoronoiCell &vc,
+    VoronoiDiagram &voronoiDiagram,
+    float isovalue,
+    std::vector<MidpointNode> &midpoints,
+    std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
+    std::vector<std::vector<int>> &facet_midpoint_indices);
 
 //! @brief Connects midpoints within each facet to form a graph.
 /*!
@@ -404,12 +417,13 @@ static void connect_midpoints(const std::vector<std::vector<int>> &facet_midpoin
 
 //! @brief Extracts cycles from the midpoint connectivity graph.
 /*!
- * Uses depth-first search to identify closed cycles in the midpoint graph.
+ * Uses graph traversal to identify closed midpoint loops and gather their node
+ * indices in order. The returned cycles are facet/cell local.
  *
- * @param midpoints Vector of midpoints with connectivity information.
- * @param cycles Vector to store the extracted cycles as lists of midpoint indices.
+ * @param midpoints Vector of midpoints with connectivity information
+ * @param cycles Output container receiving cycles (as ordered index lists)
  */
-static std::vector<std::vector<int>> extract_cycles(std::vector<MidpointNode> &midpoints, std::vector<Cycle> &cycles, int voronoi_cell_index);
+static void extract_cycles(const std::vector<MidpointNode> &midpoints, std::vector<std::vector<int>> &cycles);
 
 //! @brief Builds the midpoint graph for a facet using bipolar matches.
 /*!
@@ -424,24 +438,21 @@ static void build_midpoint_graph(std::vector<MidpointNode> &midpoints, VoronoiDi
 
 //! @brief Computes centroids for cycles and updates the isosurface.
 /*!
- * Calculates the centroid for each cycle, updates the Voronoi cell's cycles,
- * and adds the centroid to the isosurface vertices.
+ * Calculates the centroid for each cycle, appends it to `iso_surface`, updates
+ * cycle bookkeeping in the owning cell, and tags edge-cycle associations.
  *
- * @param vc The Voronoi cell to update.
- * @param voronoiDiagram The Voronoi diagram for edge lookup.
- * @param midpoints Vector of midpoints used for centroid computation.
- * @param cycles Vector of cycles as lists of midpoint indices.
- * @param iso_surface The isosurface to store vertices.
+ * @param vc The Voronoi cell being updated
+ * @param voronoiDiagram The Voronoi diagram for edge lookups
+ * @param midpoints The midpoint nodes forming cycles
+ * @param cycles The extracted cycles (lists of midpoint indices)
+ * @param iso_surface Output isosurface to receive centroids
  */
 static void compute_cycle_centroids(
-    const std::vector<std::vector<int>>& cycle_edges,
-    const std::vector<MidpointNode>& midpoints,
-    IsoSurface& iso_surface,
-    std::vector<Cycle>& cycles,
-    int cell_index,
-    int facet_index,
-    int& isoVertexIndex,
-    std::unordered_map<Point, int, PointHash> &vertexToIndex);
+    VoronoiCell &vc,
+    VoronoiDiagram &voronoiDiagram,
+    std::vector<MidpointNode> &midpoints,
+    const std::vector<std::vector<int>> &cycles,
+    IsoSurface &iso_surface);
 
 //! @brief Builds Voronoi cell edges for each edge in the diagram.
 /*!
@@ -503,7 +514,7 @@ static VoronoiCell create_voronoi_cell(Vertex_handle delaunay_vertex, int cellIn
  * @param voronoiDiagram The Voronoi diagram containing vertex mappings.
  * @param vertices_indices Vector to store the collected vertex indices.
  */
-static void collect_cell_vertices(Delaunay &dt, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &vertices_indices);
+static void collcet_cell_vertices(Delaunay &dt, Vertex_handle delaunay_vertex, VoronoiDiagram &voronoiDiagram, std::vector<int> &vertices_indices);
 
 //! @brief Builds a facet from an incident edge using cell circulators.
 /*!

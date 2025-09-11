@@ -18,9 +18,9 @@ struct DelaunayTriangle {
 
     //! @brief Constructor to initialize a DelaunayTriangle.
     /*!
-     * @param v1 Coordinates of the first vertex.
-     * @param v2 Coordinates of the second vertex.
-     * @param v3 Coordinates of the third vertex.
+     * @param v1 Handle to the first vertex.
+     * @param v2 Handle to the second vertex.
+     * @param v3 Handle to the third vertex.
      */
     DelaunayTriangle(Vertex_handle v1, Vertex_handle v2, Vertex_handle v3) 
         : vertex1(v1), vertex2(v2), vertex3(v3) {}
