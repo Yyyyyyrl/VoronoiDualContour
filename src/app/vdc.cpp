@@ -91,7 +91,17 @@ int main(int argc, char *argv[])
     construct_voronoi_diagram(vd, vdc_param, data_grid, bbox, dt);
 
     std::clock_t cons_vd_time = std::clock();
-    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.01, bbox, dt);
+    // Collapse threshold: use CLI value if provided; otherwise scale to grid spacing (1% of min spacing)
+    double collapse_eps = (vdc_param.collapse_eps > 0.0)
+                              ? vdc_param.collapse_eps
+                              : std::min({data_grid.dx, data_grid.dy, data_grid.dz}) * 0.01;
+    if (vdc_param.collapse_eps <= 0.0) {
+        // Persist the resolved default so downstream stages and logs can see it.
+        vdc_param.collapse_eps = collapse_eps;
+    }
+    VoronoiDiagram vd2 = collapseSmallEdges(vd, collapse_eps, bbox, dt);
+    // Re-validate and normalize facet orientations on the collapsed diagram
+    validate_facet_orientations_and_normals(vd2);
     std::clock_t collapse_time = std::clock();
     double duration_col = static_cast<double>(collapse_time - cons_vd_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Collapsing time: " << std::to_string(duration_col) << " seconds." << std::endl;
@@ -112,7 +122,7 @@ int main(int argc, char *argv[])
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Constructing Iso Surface time: " << std::to_string(duration_iso) << " seconds." << std::endl;
 
-    write_voronoiDiagram(vd2, vdc_param.output_filename);
+    //write_voronoiDiagram(vd2, vdc_param.output_filename);
 
     // Handle the output mesh generation and return the appropriate status.
     bool retFlag;

@@ -43,6 +43,218 @@ namespace
         return sqr(a.x() - b.x()) + sqr(a.y() - b.y()) + sqr(a.z() - b.z());
     }
 
+    // Helper: undirected edge key from two vertex indices
+    static inline std::pair<int, int> edge_key(int u, int v)
+    {
+        return {std::min(u, v), std::max(u, v)};
+    }
+
+    // Make per-cell facet orientations consistent:
+    //  1) Within each cell, ensure two facets sharing an edge traverse that edge in opposite directions.
+    //  2) Then, if the majority of non-degenerate facets point inward, flip all facets in that cell.
+    void fix_cell_facets_orientation_and_outwardness(VoronoiDiagram &vd)
+    {
+        for (auto &cell : vd.cells)
+        {
+            if (cell.facet_indices.empty())
+                continue;
+
+            // Build adjacency among facets that share exactly one edge
+            const size_t numF = cell.facet_indices.size();
+            std::vector<std::map<size_t, std::pair<int, int>>> adj(numF);
+
+            for (size_t i = 0; i < numF; ++i)
+            {
+                const int f1 = cell.facet_indices[i];
+                const auto &verts1 = vd.facets[f1].vertices_indices;
+                std::map<std::pair<int, int>, size_t> epos1;
+                for (size_t j = 0; j < verts1.size(); ++j)
+                {
+                    epos1[edge_key(verts1[j], verts1[(j + 1) % verts1.size()])] = j;
+                }
+                for (size_t k = i + 1; k < numF; ++k)
+                {
+                    const int f2 = cell.facet_indices[k];
+                    const auto &verts2 = vd.facets[f2].vertices_indices;
+                    std::pair<int, int> shared = {-1, -1};
+                    int cnt = 0;
+                    for (size_t j = 0; j < verts2.size(); ++j)
+                    {
+                        auto key = edge_key(verts2[j], verts2[(j + 1) % verts2.size()]);
+                        if (epos1.count(key))
+                        {
+                            shared = key;
+                            if (++cnt > 1)
+                                break; // not adjacent if >1 edge shared
+                        }
+                    }
+                    if (cnt == 1)
+                    {
+                        adj[i][k] = shared;
+                        adj[k][i] = shared;
+                    }
+                }
+            }
+
+            // BFS across (possibly multiple) components to ensure opposite directions,
+            // and make each component outward by flipping that component if needed.
+            std::vector<bool> vis(numF, false);
+            const Point site = cell.delaunay_vertex->point();
+            for (size_t seed = 0; seed < numF; ++seed)
+            {
+                if (vis[seed])
+                    continue;
+                // gather component
+                std::queue<size_t> q;
+                std::vector<size_t> comp;
+                q.push(seed);
+                vis[seed] = true;
+                while (!q.empty())
+                {
+                    size_t cur = q.front();
+                    q.pop();
+                    comp.push_back(cur);
+                    const int fcur = cell.facet_indices[cur];
+                    auto &Vcur = vd.facets[fcur].vertices_indices;
+                    for (const auto &kv : adj[cur])
+                    {
+                        const size_t nb = kv.first;
+                        if (!vis[nb])
+                        {
+                            vis[nb] = true;
+                            q.push(nb);
+                        }
+
+                        const auto shared = kv.second; // undirected edge
+                        const int fnb = cell.facet_indices[nb];
+                        auto &Vnb = vd.facets[fnb].vertices_indices;
+
+                        // Determine traversal direction in current facet along shared edge
+                        bool cur_uv = false;
+                        for (size_t j = 0; j < Vcur.size(); ++j)
+                        {
+                            int a = Vcur[j];
+                            int b = Vcur[(j + 1) % Vcur.size()];
+                            if (edge_key(a, b) == shared)
+                            {
+                                cur_uv = (a == shared.first && b == shared.second);
+                                break;
+                            }
+                        }
+
+                        // Determine traversal in neighbor facet
+                        bool nb_uv = false;
+                        for (size_t j = 0; j < Vnb.size(); ++j)
+                        {
+                            int a = Vnb[j];
+                            int b = Vnb[(j + 1) % Vnb.size()];
+                            if (edge_key(a, b) == shared)
+                            {
+                                nb_uv = (a == shared.first && b == shared.second);
+                                break;
+                            }
+                        }
+
+                        // If the same direction, reverse neighbor to enforce opposite
+                        if (cur_uv == nb_uv)
+                        {
+                            std::reverse(Vnb.begin(), Vnb.end());
+                        }
+                    }
+                }
+
+                // Choose an anchor facet in this component and flip component if inward
+                bool flippedComp = false;
+                for (size_t idx : comp)
+                {
+                    const int fi = cell.facet_indices[idx];
+                    const auto &V = vd.facets[fi].vertices_indices;
+                    if (V.size() < 3)
+                        continue;
+                    // centroid
+                    Point centroid(0, 0, 0);
+                    for (int vid : V)
+                        centroid = centroid + (vd.vertices[vid].coord - CGAL::ORIGIN) / V.size();
+                    // normal
+                    Vector3 normal(0, 0, 0);
+                    const size_t n = V.size();
+                    for (size_t k = 0; k < n; ++k)
+                    {
+                        const Point &p1 = vd.vertices[V[k]].coord;
+                        const Point &p2 = vd.vertices[V[(k + 1) % n]].coord;
+                        normal = normal + Vector3(
+                                              (p1.y() - p2.y()) * (p1.z() + p2.z()),
+                                              (p1.z() - p2.z()) * (p1.x() + p2.x()),
+                                              (p1.x() - p2.x()) * (p1.y() + p2.y()));
+                    }
+                    normal = normal / 2.0;
+                    if (normal.squared_length() <= 1e-12)
+                        continue;
+                    if (CGAL::scalar_product(normal, site - centroid) > 0)
+                    {
+                        if (debug && cell.cellIndex == 199723)
+                        {
+                            std::cerr << "[COLLAPSE DBG] Flipping component in cell 199723 (anchor facet " << fi << ") with inward normal.\n";
+                        }
+                        // flip all facets in this component
+                        for (size_t id2 : comp)
+                        {
+                            const int fj = cell.facet_indices[id2];
+                            auto &W = vd.facets[fj].vertices_indices;
+                            std::reverse(W.begin(), W.end());
+                        }
+                    }
+                    flippedComp = true;
+                    break;
+                }
+                (void)flippedComp; // may remain false if all facets degenerate
+            }
+        }
+    }
+
+    // Final safety pass: flip any individual facet whose normal is inward
+    // relative to its cell. Adjacency consistency can be restored by a
+    // subsequent validation pass in the caller.
+    void force_outward_per_facet(VoronoiDiagram &vd)
+    {
+        for (auto &cell : vd.cells)
+        {
+            const Point site = cell.delaunay_vertex->point();
+            for (int fi : cell.facet_indices)
+            {
+                if (fi < 0 || fi >= static_cast<int>(vd.facets.size()))
+                    continue;
+                auto &V = vd.facets[fi].vertices_indices;
+                if (V.size() < 3)
+                    continue;
+
+                Point centroid(0, 0, 0);
+                for (int idx : V)
+                    centroid = centroid + (vd.vertices[idx].coord - CGAL::ORIGIN) / V.size();
+
+                Vector3 normal(0, 0, 0);
+                const size_t n = V.size();
+                for (size_t k = 0; k < n; ++k)
+                {
+                    const Point &p1 = vd.vertices[V[k]].coord;
+                    const Point &p2 = vd.vertices[V[(k + 1) % n]].coord;
+                    normal = normal + Vector3(
+                                          (p1.y() - p2.y()) * (p1.z() + p2.z()),
+                                          (p1.z() - p2.z()) * (p1.x() + p2.x()),
+                                          (p1.x() - p2.x()) * (p1.y() + p2.y()));
+                }
+                normal = normal / 2.0;
+                if (normal.squared_length() <= 0)
+                    continue;
+                const double dot = CGAL::scalar_product(normal, site - centroid);
+                if (dot > 0)
+                {
+                    std::reverse(V.begin(), V.end());
+                }
+            }
+        }
+    }
+
     // Keep representative vertex as the one with smallest original index.  This is
     // stable/deterministic and matches common collapse conventions.
     int chooseRepresentative(const std::vector<int> &group)
@@ -448,7 +660,11 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         }
     }
 
-    // 8) Rebuild/refresh global facets & other derived structures.
+    // 8) First ensure every facet is outward relative to its cell, then
+    //    enforce edge-consistent orientations within each cell. Finally,
+    //    rebuild/refresh global facets & other derived structures.
+    force_outward_per_facet(out);
+    fix_cell_facets_orientation_and_outwardness(out);
     out.create_global_facets();
 
     // 9) Sanity checks

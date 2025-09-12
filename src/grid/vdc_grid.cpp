@@ -501,24 +501,26 @@ std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube>& activeCubes,
     for (const Cube& c : activeCubes) {
         const int ci = c.i, cj = c.j, ck = c.k;
 
-        bool hasFaceNbrKept = false;
-        for (int dk = -1; dk <= 1 && !hasFaceNbrKept; ++dk) {
-            for (int dj = -1; dj <= 1 && !hasFaceNbrKept; ++dj) {
-                for (int di = -1; di <= 1 && !hasFaceNbrKept; ++di) {
-                    // only 6-neighbors: |di|+|dj|+|dk| == 1
-                    if (std::abs(di) + std::abs(dj) + std::abs(dk) != 1) continue;
+        // Reject cubes that share any vertex/edge/face with an already kept cube
+        // (i.e., any of the 26-neighbors in the (i,j,k) lattice).
+        bool hasAdjKept = false;
+        for (int dk = -1; dk <= 1 && !hasAdjKept; ++dk) {
+            for (int dj = -1; dj <= 1 && !hasAdjKept; ++dj) {
+                for (int di = -1; di <= 1 && !hasAdjKept; ++di) {
+                    // skip self
+                    if (di == 0 && dj == 0 && dk == 0) continue;
 
                     const int ni = ci + di, nj = cj + dj, nk = ck + dk;
                     if (ni < 0 || nj < 0 || nk < 0) continue;
                     if (ni >= grid.nx - 1 || nj >= grid.ny - 1 || nk >= grid.nz - 1) continue;
 
                     const int nIdx = linear_cell_index(ni, nj, nk, grid);
-                    if (kept.find(nIdx) != kept.end()) hasFaceNbrKept = true;
+                    if (kept.find(nIdx) != kept.end()) hasAdjKept = true;
                 }
             }
         }
 
-        if (!hasFaceNbrKept) {
+        if (!hasAdjKept) {
             const int myIdx = linear_cell_index(ci, cj, ck, grid);
             kept.emplace(myIdx, c);
             out.push_back(c);

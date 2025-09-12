@@ -12,6 +12,7 @@ void print_help()
     std::cout << "  -out_csv {output_csv_name}  : Write the Voronoi diagram to a CSV file.\n";
     std::cout << "  -sep_isov                   : Pick a subset of non-adjacent active cubes of the input data before constructing triangulation.\n";
     std::cout << "  -supersample {factor}       : Supersample the input data by the given factor.\n";
+    std::cout << "  -collapse_eps {eps}         : Set absolute collapse threshold in world units (default: 1% of grid spacing).\n";
     std::cout << "  -multi_isov                 : Use multi iso-vertices mode.\n";
     std::cout << "  -single_isov                : Use single iso-vertices mode (default).\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
@@ -61,6 +62,10 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         {
             vp.supersample = true;                     // Enable supersampling.
             vp.supersample_r = std::atoi(argv[++i]);   // Set supersampling factor.
+        }
+        else if (arg == "-collapse_eps" && i + 1 < argc)
+        {
+            vp.collapse_eps = std::atof(argv[++i]);    // Absolute collapse threshold (world units).
         }
         else if (arg == "-multi_isov")
         {

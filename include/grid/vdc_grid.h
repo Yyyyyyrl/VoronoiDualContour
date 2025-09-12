@@ -292,14 +292,15 @@ std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid
  */
 std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes);
 
-//! @brief Filters active cubes to a set without face adjacency (greedy).
+//! @brief Filters active cubes to a set without vertex adjacency (greedy).
 /*!
- * Iterates active cubes and keeps a cube only if none of its six neighbors was
- * kept before. Useful for quickly de‑clumping active regions.
+ * Iterates active cubes and keeps a cube only if none of its 26 neighbors
+ * (sharing a face, edge, or vertex) was kept before. Useful for producing a
+ * well‑separated subset of active regions.
  *
  * @param activeCubes Active cubes to filter
  * @param grid Grid for bounds/neighbor checks
- * @return A subset of input cubes with no face adjacency among them
+ * @return A subset of input cubes with no vertex/edge/face adjacency among them
  */
 std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes, const UnifiedGrid &grid);
 

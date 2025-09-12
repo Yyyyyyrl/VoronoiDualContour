@@ -29,6 +29,7 @@ struct VDC_PARAM {
     bool mod_cyc = false;          //!< Guard: run modify-cycles pass (facet rematching + cycle recompute)
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
+    double collapse_eps;           //!< Absolute collapse threshold in world units (optional).
 
     //! @brief Constructor to initialize default parameter values.
     VDC_PARAM()
@@ -44,6 +45,7 @@ struct VDC_PARAM {
           add_bounding_cells(false),
           convex_hull(false),
           supersample_r(1),
+          collapse_eps(-1.0),
           mod_cyc(false)
     {}
 };
