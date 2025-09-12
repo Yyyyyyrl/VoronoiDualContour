@@ -40,6 +40,7 @@ make -j
 - -out_csv <file>: dump Voronoi diagram to CSV
 - -sep_isov: pick a subset of non-adjacent active cubes before triangulation
 - -supersample <factor>: supersample the input grid by factor
+- -collapse_eps <eps>: absolute collapse threshold (world units). Default is 1% of min grid spacing.
 - -multi_isov: enable multi iso-vertices mode
 - -single_isov: use single iso-vertex mode (default)
 - -conv_H: use CGAL convex hull for Voronoi cell construction
