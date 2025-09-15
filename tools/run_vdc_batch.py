@@ -26,6 +26,7 @@ import shlex
 import subprocess
 import sys
 from typing import List
+import re
 
 
 def _iso_tag(val: float) -> str:
@@ -106,6 +107,91 @@ def run_once(
     return proc.returncode
 
 
+def _mesh_report_filename(mesh_path: str) -> str:
+    """Return the report filename next to the mesh, replacing extension with .txt."""
+    base, _ = os.path.splitext(mesh_path)
+    return base + ".txt"
+
+
+def run_ijkmeshinfo_reports(ijk_bin: str, mesh_path: str) -> dict:
+    """Run ijkmeshinfo reports on a mesh and return parsed summary.
+
+    - Runs: ijkmeshinfo -report_deep <mesh>, ijkmeshinfo -manifold <mesh>
+    - Writes combined outputs to a .txt file with same base name as the mesh.
+    - Returns a dict with booleans like has_non_manifold, has_degenerate and raw snippets.
+    """
+    report_file = _mesh_report_filename(mesh_path)
+
+    cmds = [
+        [ijk_bin, "-report_deep", mesh_path],
+        [ijk_bin, "-manifold", mesh_path],
+    ]
+
+    outputs = []
+    for cmd in cmds:
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True)
+        except FileNotFoundError:
+            return {
+                "report_file": report_file,
+                "error": f"ijkmeshinfo not found at {ijk_bin}",
+                "has_non_manifold": None,
+                "has_degenerate": None,
+                "notes": ["Missing ijkmeshinfo binary"],
+            }
+        out = (res.stdout or "") + ("\n[stderr]\n" + res.stderr if res.stderr else "")
+        header = "# $ " + " ".join(shlex.quote(c) for c in cmd) + "\n\n"
+        outputs.append(header + out.strip() + "\n")
+
+    # Write combined report
+    with open(report_file, "w", encoding="utf-8") as rf:
+        rf.write("\n\n".join(outputs))
+
+    combined_raw = "\n\n".join(outputs)
+    combined = combined_raw.lower()
+
+    # Parse non-manifold counts if present
+    nm_edges = None
+    nm_verts = None
+    m = re.search(r"num\s+non[-\s]?manifold\s+edges\s*:\s*(\d+)", combined, re.IGNORECASE)
+    if m:
+        nm_edges = int(m.group(1))
+    m = re.search(r"num\s+non[-\s]?manifold\s+vertices\s*:\s*(\d+)", combined, re.IGNORECASE)
+    if m:
+        nm_verts = int(m.group(1))
+
+    has_non_manifold = False
+    if nm_edges is not None:
+        has_non_manifold = has_non_manifold or (nm_edges > 0)
+    if nm_verts is not None:
+        has_non_manifold = has_non_manifold or (nm_verts > 0)
+    if nm_edges is None and nm_verts is None:
+        # Fallback heuristic
+        has_non_manifold = ("non-manifold edges:" in combined) or ("non-manifold vertices:" in combined)
+
+    # Degenerate detection: avoid false positive on "No degenerate polygons."
+    no_deg = ("no degenerate" in combined)
+    has_degenerate = False
+    if not no_deg:
+        has_degenerate = ("degenerate" in combined) or ("zero area" in combined) or ("zero-area" in combined)
+
+    notes = []
+    if "self-intersect" in combined:
+        notes.append("self-intersections detected")
+    # Duplicate polygons detection; avoid false positive on "No duplicate polygons."
+    if ("duplicate polygon" in combined) and ("no duplicate" not in combined):
+        notes.append("duplicates detected")
+
+    return {
+        "report_file": report_file,
+        "has_non_manifold": has_non_manifold,
+        "has_degenerate": has_degenerate,
+        "num_non_manifold_edges": nm_edges,
+        "num_non_manifold_vertices": nm_verts,
+        "notes": notes,
+    }
+
+
 def main(argv: List[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description=(
@@ -150,6 +236,11 @@ def main(argv: List[str] | None = None) -> int:
         action="store_true",
         help="Print planned commands without executing",
     )
+    p.add_argument(
+        "-report",
+        action="store_true",
+        help="After generating OFF meshes, run ijkmeshinfo reports and summarize",
+    )
 
     # Accept and forward any additional flags to vdc without validation.
     args, vdc_args = p.parse_known_args(argv)
@@ -193,6 +284,10 @@ def main(argv: List[str] | None = None) -> int:
     # Execute per isovalue
     failures = []
     planned_cmds = []
+    report_results = []
+    # ijkmeshinfo expected to be next to this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    ijkmeshinfo_bin = os.path.join(script_dir, "ijkmeshinfo")
     for iso in args.isovalues:
         tag = _iso_tag(iso)
         input_base = os.path.splitext(os.path.basename(input_file))[0]
@@ -221,6 +316,19 @@ def main(argv: List[str] | None = None) -> int:
         rc = run_once(vdc_bin, input_file, iso, out_dir, args.format, vdc_args)
         if rc != 0:
             failures.append((iso, rc))
+            continue
+
+        # If requested and format is OFF, run mesh reports per output
+        if args.report and args.format.lower() == "off":
+            tag = _iso_tag(iso)
+            input_base = os.path.splitext(os.path.basename(input_file))[0]
+            mesh_file = os.path.join(out_dir, f"{input_base}_iso_{tag}.off")
+            r = run_ijkmeshinfo_reports(ijkmeshinfo_bin, mesh_file)
+            r.update({
+                "iso": iso,
+                "mesh_file": mesh_file,
+            })
+            report_results.append(r)
 
     # Write a brief summary
     summary_path = os.path.join(out_dir, "run_summary.txt")
@@ -235,6 +343,35 @@ def main(argv: List[str] | None = None) -> int:
             sf.write("\nFailures:\n")
             for iso, rc in failures:
                 sf.write(f"  iso={iso:g} -> rc={rc}\n")
+
+        # Append meshinfo summary if any
+        if args.report and report_results:
+            sf.write("\nMesh quality summary (ijkmeshinfo):\n")
+            for r in report_results:
+                base = os.path.basename(r.get("mesh_file", ""))
+                nm = r.get("has_non_manifold")
+                dg = r.get("has_degenerate")
+                nm_edges = r.get("num_non_manifold_edges")
+                nm_verts = r.get("num_non_manifold_vertices")
+                notes = ", ".join(r.get("notes", [])) if r.get("notes") else ""
+                sf.write(
+                    f"  {base}: non-manifold={'yes' if nm else 'no' if nm is not None else 'n/a'}"
+                )
+                if nm_edges is not None:
+                    sf.write(f" (edges={nm_edges}")
+                    sf.write(")" if nm_verts is None else ", ")
+                if nm_verts is not None:
+                    if nm_edges is None:
+                        sf.write(" (")
+                    sf.write(f"verts={nm_verts})")
+                sf.write(", ")
+                sf.write(f"degenerate={'yes' if dg else 'no' if dg is not None else 'n/a'}")
+                if notes:
+                    sf.write(f", notes={notes}")
+                rf = r.get("report_file")
+                if rf:
+                    sf.write(f" (report: {os.path.basename(rf)})")
+                sf.write("\n")
 
     if failures:
         print(
