@@ -110,6 +110,7 @@ Advanced/debug options (subject to change):
 │       └── test_modcyc.cpp
 ├── tools/
 │   ├── plot_modcyc.py        # Visualize modify-cycles test case
+│   ├── run_vdc_batch.py      # Generate output for different isovalues of a same input
 │   └── compExec.py           # Compare execution output of different configurations
 ```
 
