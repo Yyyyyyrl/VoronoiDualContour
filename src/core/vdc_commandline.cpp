@@ -17,7 +17,7 @@ void print_help()
     std::cout << "  -single_isov                : Use single iso-vertices mode (default).\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  -mod_cyc                    : After initial cycles, try facet rematching and recompute cycles.\n";
-    std::cout << "  --debug                     : Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]).\n";
+    std::cout << "  --debug                     : Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD]).\n";
     std::cout << "  --help                      : Print this help message.\n";
 }
 

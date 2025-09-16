@@ -201,8 +201,8 @@ def main(argv: List[str] | None = None) -> int:
     )
     p.add_argument(
         "--vdc-bin",
-        default="buildLocal/vdc",
-        help="Path to vdc executable (default: buildLocal/vdc)",
+        default="vdc",
+        help="Path to vdc executable (default: vdc)",
     )
     p.add_argument(
         "--input",

@@ -641,7 +641,9 @@ static void process_ray_edge_multi(
     {
         Point v1 = ray.source();
         Point v2 = iseg.target();
-        float val1 = voronoiDiagram.vertices[source_pt].value;
+        // Rays may not carry a valid Voronoi vertex index (source_pt can be -1).
+        // Always sample scalar values from the grid at the clipped endpoints.
+        float val1 = trilinear_interpolate(adjust_outside_bound_points(v1, grid, v1, v2), grid);
         float val2 = trilinear_interpolate(adjust_outside_bound_points(v2, grid, v1, v2), grid);
 
         if (!is_bipolar(val1, val2, isovalue))
