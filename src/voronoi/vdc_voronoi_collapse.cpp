@@ -49,6 +49,48 @@ namespace
         return {std::min(u, v), std::max(u, v)};
     }
 
+        // After edge collapse we rebuild cell facets, but the mapping from each
+    // facet boundary slot back to its VoronoiCellEdge is lost. The modify-cycles
+    // module relies on this lookup to recover per-cell cycle ids when building
+    // iso-segments. Restore the association using the fresh cellEdgeLookup map.
+    void rebuild_cell_facet_edge_indices(VoronoiDiagram &vd)
+    {
+        for (auto &cell : vd.cells)
+        {
+            const int cellIdx = cell.cellIndex;
+            for (int cfIdx : cell.facet_indices)
+            {
+                if (cfIdx < 0 || cfIdx >= static_cast<int>(vd.facets.size()))
+                    continue;
+                auto &cf = vd.facets[cfIdx];
+                const int n = static_cast<int>(cf.vertices_indices.size());
+                cf.cell_edge_indices.clear();
+                cf.cell_edge_indices.reserve(n);
+                for (int i = 0; i < n; ++i)
+                {
+                    const int a = cf.vertices_indices[i];
+                    const int b = cf.vertices_indices[(i + 1) % n];
+                    int mapped = -1;
+                    if (a >= 0 && b >= 0)
+                    {
+                        const int vmin = std::min(a, b);
+                        const int vmax = std::max(a, b);
+                        auto eIt = vd.segmentVertexPairToEdgeIndex.find({vmin, vmax});
+                        if (eIt != vd.segmentVertexPairToEdgeIndex.end())
+                        {
+                            const int globalEdge = eIt->second;
+                            auto ceIt = vd.cellEdgeLookup.find({cellIdx, globalEdge});
+                            if (ceIt != vd.cellEdgeLookup.end())
+                                mapped = ceIt->second;
+                        }
+                    }
+                    cf.cell_edge_indices.push_back(mapped);
+                }
+            }
+        }
+    }
+
+
     // Make per-cell facet orientations consistent:
     //  1) Within each cell, ensure two facets sharing an edge traverse that edge in opposite directions.
     //  2) Then, if the majority of non-degenerate facets point inward, flip all facets in that cell.
@@ -665,6 +707,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     //    rebuild/refresh global facets & other derived structures.
     force_outward_per_facet(out);
     fix_cell_facets_orientation_and_outwardness(out);
+    rebuild_cell_facet_edge_indices(out);
     out.create_global_facets();
 
     // 9) Sanity checks
