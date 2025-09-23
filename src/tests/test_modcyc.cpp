@@ -535,7 +535,8 @@ int main()
     }
 
     // Run the modify-cycles pass (flips method if problematic, recomputes cycles where needed)
-    modify_cycles_pass(vd, iso);
+    int flips = modify_cycles_pass(vd, iso);
+    std::cout << "modify_cycles_pass flips: " << flips << "\n";
 
     // Rebuild iso-segments after the pass and print
     for (int id : {vfi, vfi_hex})
