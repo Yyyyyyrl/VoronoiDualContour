@@ -1,6 +1,8 @@
 #include "algo/vdc_func.h"
 #include <unordered_set>
 #include <unordered_map>
+#include <ctime>
+#include <iostream>
 
 // Return undirected edge key for a global facet boundary slot.
 static inline std::pair<int, int> facet_slot_edge_key(const VoronoiFacet &gf, int slot)
@@ -393,6 +395,8 @@ void populate_incident_cells_for_global_facets(VoronoiDiagram &vd)
 // Full “modify cycles” pass over all global facets at this isovalue.
 void modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 {
+    std::clock_t start_time = std::clock();
+
     // Ensure global facets know their incident cells
     populate_incident_cells_for_global_facets(vd);
 
@@ -429,4 +433,8 @@ void modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
     {
         recompute_cell_cycles_for_matches_single_cell(vd, cidx, isovalue);
     }
+
+    std::clock_t end_time = std::clock();
+    double elapsed = static_cast<double>(end_time - start_time) / CLOCKS_PER_SEC;
+    std::cout << "[INFO] Modify cycles time: " << elapsed << " seconds." << std::endl;
 }
