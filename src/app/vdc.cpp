@@ -37,13 +37,19 @@ struct SummaryStats
     std::size_t iso_vertices = 0;
     std::size_t iso_triangles = 0;
     bool multi_isov = false;
+    std::size_t collapsed_vertices_removed = 0;
+    std::size_t collapsed_edges_removed = 0;
+    std::size_t mod_cyc_flips = 0;
 };
 
 SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
                                    const Delaunay &dt,
                                    const VoronoiDiagram &vd,
                                    const IsoSurface &iso_surface,
-                                   bool multi_isov)
+                                   bool multi_isov,
+                                   std::size_t collapsed_vertices_removed,
+                                   std::size_t collapsed_edges_removed,
+                                   std::size_t mod_cyc_flips)
 {
     SummaryStats stats;
     stats.multi_isov = multi_isov;
@@ -54,6 +60,9 @@ SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
     stats.voronoi_edges = vd.edges.size();
     stats.voronoi_facets = vd.global_facets.size();
     stats.voronoi_cells = vd.cells.size();
+    stats.collapsed_vertices_removed = collapsed_vertices_removed;
+    stats.collapsed_edges_removed = collapsed_edges_removed;
+    stats.mod_cyc_flips = mod_cyc_flips;
 
     std::size_t total_cell_vertices = 0;
     std::size_t total_cell_facets = 0;
@@ -157,6 +166,16 @@ void print_summary_report(const SummaryStats &stats)
               << ", edges: " << stats.voronoi_edges
               << ", facets: " << stats.voronoi_facets
               << ", cells: " << stats.voronoi_cells << "\n";
+    if (stats.collapsed_vertices_removed > 0 || stats.collapsed_edges_removed > 0)
+    {
+        std::cout << "    (collapseSmallEdges removed vertices=" << stats.collapsed_vertices_removed
+                  << ", edges=" << stats.collapsed_edges_removed << ")\n";
+    }
+    if (stats.collapsed_vertices_removed > 0 || stats.collapsed_edges_removed > 0)
+    {
+        std::cout << "    (collapseSmallEdges removed vertices=" << stats.collapsed_vertices_removed
+                  << ", edges=" << stats.collapsed_edges_removed << ")\n";
+    }
 
     if (stats.max_cell_index != -1)
     {
@@ -202,6 +221,12 @@ void print_summary_report(const SummaryStats &stats)
     std::cout << "  Iso-surface vertices: " << stats.iso_vertices
               << ", triangles: " << stats.iso_triangles
               << (stats.multi_isov ? " (multi-isov)" : " (single-isov)") << "\n";
+    if (stats.multi_isov)
+    {
+        std::cout << "  Modify-cycles flips: " << stats.mod_cyc_flips << "\n";
+    }
+
+    std::cout << std::defaultfloat;
 }
 
 } // namespace
@@ -322,7 +347,15 @@ int main(int argc, char *argv[])
     {
         std::cout << "[INFO] Constructing Iso Surface..." << std::endl;
     }
-    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox);
+
+    const std::size_t collapsed_vertices_removed = (vd.vertices.size() > vd2.vertices.size())
+                                                       ? (vd.vertices.size() - vd2.vertices.size())
+                                                       : 0;
+    const std::size_t collapsed_edges_removed = (vd.edges.size() > vd2.edges.size())
+                                                    ? (vd.edges.size() - vd2.edges.size())
+                                                    : 0;
+
+    int mod_cyc_flips = construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox);
 
     std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
@@ -338,7 +371,8 @@ int main(int argc, char *argv[])
 
     if (vdc_param.summary_stats)
     {
-        SummaryStats summary = collect_summary_stats(activeCubes, dt, vd2, iso_surface, vdc_param.multi_isov);
+        SummaryStats summary = collect_summary_stats(activeCubes, dt, vd2, iso_surface, vdc_param.multi_isov,
+                                                    collapsed_vertices_removed, collapsed_edges_removed, mod_cyc_flips);
         print_summary_report(summary);
     }
 
