@@ -56,6 +56,7 @@ add_executable(vdc src/app/vdc.cpp ${COMMON_SOURCES})
 # ─── Test executable ─────────────────────────────────────────────────────────
 add_executable(test_vor src/tests/test_vor.cpp ${COMMON_SOURCES})
 add_executable(test_modcyc src/tests/test_modcyc.cpp ${COMMON_SOURCES})
+add_executable(test_cellheur src/tests/test_cellheur.cpp ${COMMON_SOURCES})
 
 # ─── Link libraries ──────────────────────────────────────────────────────────
 target_link_libraries(vdc
@@ -79,11 +80,20 @@ target_link_libraries(test_modcyc
       ${TEEM_LIBRARY}
 )
 
+target_link_libraries(test_cellheur
+    PRIVATE
+      CGAL::CGAL
+      ZLIB::ZLIB
+      ${TEEM_LIBRARY}
+)
+
 # ─── Installation (optional) ─────────────────────────────────────────────────
 install(TARGETS vdc test_vor
         RUNTIME DESTINATION bin
 )
 install(TARGETS test_modcyc
+        RUNTIME DESTINATION bin)
+install(TARGETS test_cellheur
         RUNTIME DESTINATION bin)
 
 # ─── Usage info ──────────────────────────────────────────────────────────────
