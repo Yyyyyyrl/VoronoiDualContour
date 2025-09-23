@@ -393,7 +393,7 @@ void populate_incident_cells_for_global_facets(VoronoiDiagram &vd)
 }
 
 // Full “modify cycles” pass over all global facets at this isovalue.
-void modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
+int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 {
     std::clock_t start_time = std::clock();
 
@@ -404,6 +404,7 @@ void modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 
     // First pass: detect problematic facets and flip locally, collecting affected cells
     std::unordered_set<int> dirty_cells;
+    int flipped_facets = 0;
     const int nGF = (int)vd.global_facets.size();
     for (int vfi = 0; vfi < nGF; ++vfi)
     {
@@ -413,6 +414,7 @@ void modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 
         if (facet_has_problematic_iso_segments(vd, vfi, nullptr))
         {
+            ++flipped_facets;
             // Flip method for this facet and recompute ONLY this facet’s matches
             flip_bipolar_match_method(vd.global_facets[vfi]);
             recompute_bipolar_matches_for_facet(vd, vfi, isovalue);
@@ -436,5 +438,7 @@ void modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 
     std::clock_t end_time = std::clock();
     double elapsed = static_cast<double>(end_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Modify cycles time: " << elapsed << " seconds." << std::endl;
+    std::cout << "[INFO] Modify cycles time: " << elapsed << " seconds. Flips: " << flipped_facets << std::endl;
+
+    return flipped_facets;
 }

@@ -1210,7 +1210,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
 }
 
 // ！@brief Wrap up function for constructing iso surface
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox)
+int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox)
 {
     ISO_DBG_LOAD_ENV();
     if (ISO_DBG_ENABLED)
@@ -1218,6 +1218,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
     }
     std::clock_t start_time = std::clock();
+    int mod_cyc_flips = 0;
     if (vdc_param.multi_isov)
     {
         // First pass: compute cycles and iso-vertices with current matches
@@ -1227,7 +1228,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
         if (vdc_param.mod_cyc)
         {
             // Attempt to fix facet matches and update per-cell cycles
-            modify_cycles_pass(vd, vdc_param.isovalue);
+            mod_cyc_flips = modify_cycles_pass(vd, vdc_param.isovalue);
 
             // Reset iso-surface and per-cell cycle bookkeeping to rebuild coherently
             iso_surface.isosurfaceVertices.clear();
@@ -1265,4 +1266,6 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     std::clock_t check2_time = std::clock();
     double duration2 = static_cast<double>(check2_time - check_time) / CLOCKS_PER_SEC;
     std::cout << "Compute isosurface facets Execution time: " << duration2 << " seconds" << std::endl;
+
+    return mod_cyc_flips;
 }
