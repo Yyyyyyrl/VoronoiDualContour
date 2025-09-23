@@ -4,6 +4,8 @@
 namespace
 {
 
+    constexpr double NORMAL_SQ_EPS = 1e-6; // treat facets with smaller squared normal as degenerate
+
     // --------- Small utilities -------------------------------------------------
 
     struct DSU
@@ -230,7 +232,7 @@ namespace
                                               (p1.x() - p2.x()) * (p1.y() + p2.y()));
                     }
                     normal = normal / 2.0;
-                    if (normal.squared_length() <= 1e-12)
+                    if (normal.squared_length() <= NORMAL_SQ_EPS)
                         continue;
                     if (CGAL::scalar_product(normal, site - centroid) > 0)
                     {
@@ -286,7 +288,7 @@ namespace
                                           (p1.x() - p2.x()) * (p1.y() + p2.y()));
                 }
                 normal = normal / 2.0;
-                if (normal.squared_length() <= 0)
+                if (normal.squared_length() <= NORMAL_SQ_EPS)
                     continue;
                 const double dot = CGAL::scalar_product(normal, site - centroid);
                 if (dot > 0)

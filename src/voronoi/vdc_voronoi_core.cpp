@@ -1,6 +1,11 @@
 #include "voronoi/vdc_voronoi.h"
 #include "core/vdc_debug.h"
 
+namespace
+{
+    constexpr double NORMAL_SQ_EPS = 1e-6;
+}
+
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
 /*!
  * Creates a new Voronoi vertex and updates both the vertex list and spatial hash map.
@@ -769,11 +774,14 @@ void VoronoiDiagram::checkFacetNormals() const
                                       (p1.x() - p2.x()) * (p1.y() + p2.y()));
             }
             normal = normal / 2.0;
+            const double normalSq = normal.squared_length();
+            if (normalSq <= NORMAL_SQ_EPS)
+                continue; // Treat tiny-area facets as degenerate
 
             Vector3 v = site - centroid;
             double dot = CGAL::scalar_product(normal, v);
-            if (dot > 0 || (dot > -1e-10 && normal.squared_length() < 1e-20))
-            { // Allow small negative or zero for degenerates
+            if (dot > 0)
+            {
                 if (debug)
                 {
                     std::cerr << "[DEBUG] Facet " << fi << " in cell " << cell.cellIndex << " has dot " << dot << " (should <0), sq_normal " << normal.squared_length() << "\n";
@@ -788,12 +796,9 @@ void VoronoiDiagram::checkFacetNormals() const
                     }
                     std::cerr << "[DEBUG] Centroid: " << centroid << ", site: " << site << "\n";
                 }
-                if (dot > 0)
-                {
-                    throw std::runtime_error("Facet " + std::to_string(fi) +
-                                             " in cell " + std::to_string(cell.cellIndex) +
-                                             " has inward‐pointing normal.");
-                }
+                throw std::runtime_error("Facet " + std::to_string(fi) +
+                                         " in cell " + std::to_string(cell.cellIndex) +
+                                         " has inward‐pointing normal.");
             }
         }
     }
