@@ -27,6 +27,7 @@ struct VDC_PARAM {
     bool convex_hull;              //!< Flag to enable convex hull computation in building voronoi cells
     bool test_vor = false;         //!< Flag for testing the Voronoi diagram construction
     bool mod_cyc = false;          //!< Guard: run modify-cycles pass (facet rematching + cycle recompute)
+    bool summary_stats = false;    //!< Guard: print summary statistics at the end of the run
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
     double collapse_eps;           //!< Absolute collapse threshold in world units (optional).
@@ -46,7 +47,8 @@ struct VDC_PARAM {
           convex_hull(false),
           supersample_r(1),
           collapse_eps(-1.0),
-          mod_cyc(false)
+          mod_cyc(false),
+          summary_stats(false)
     {}
 };
 
