@@ -378,6 +378,7 @@ struct IsoSurface
     std::vector<Point> isosurfaceVertices;                           //!< Vertices of the isosurface.
     std::vector<std::tuple<int, int, int>> isosurfaceTrianglesMulti; //!< Triangles forming the isosurface.
     std::vector<DelaunayTriangle> isosurfaceTrianglesSingle;
+    std::vector<int> triangleSourceEdges;                            //!< Source Voronoi edge index for each multi-isov triangle (debug/fixup).
 };
 
 //! @brief Represents a midpoint on an edge, along with its facet information.
