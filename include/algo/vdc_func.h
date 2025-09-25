@@ -52,7 +52,7 @@ void compute_dual_triangles(
  * @param isovalue The isovalue for mesh computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  */
-void compute_dual_triangles_multi(
+bool compute_dual_triangles_multi(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     UnifiedGrid &grid,
