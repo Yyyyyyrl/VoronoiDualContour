@@ -25,6 +25,14 @@ struct PairHash
     }
 };
 
+struct LongPairHash
+{
+    size_t operator()(const std::pair<long long, long long> &p) const noexcept
+    {
+        return std::hash<long long>{}(p.first) ^ (std::hash<long long>{}(p.second) << 1);
+    }
+};
+
 static void collect_midpoints_for_cell(
     const VoronoiDiagram &vd,
     int cellIndex,
@@ -225,31 +233,36 @@ void build_iso_segments_for_facet(VoronoiDiagram &vd,
     if (vf.bipolar_matches.empty())
         return;
 
-    for (const auto &pr : vf.bipolar_matches)
-    {
-        IsoSegment seg;
-        seg.global_facet_index = vfi;
-        seg.slotA = pr.first;
-        seg.slotB = pr.second;
-        seg.edgeA = (seg.slotA >= 0 && seg.slotA < (int)vf.voronoi_edge_indices.size()) ? vf.voronoi_edge_indices[seg.slotA] : -1;
-        seg.edgeB = (seg.slotB >= 0 && seg.slotB < (int)vf.voronoi_edge_indices.size()) ? vf.voronoi_edge_indices[seg.slotB] : -1;
-
-        for (int side = 0; side < 2; ++side)
+        for (const auto &pr : vf.bipolar_matches)
         {
-            const int cellIdx = vf.incident_cell_indices[side];
-            const int cfIdx = vf.incident_cell_facet_indices[side];
-            if (cellIdx < 0 || cfIdx < 0)
-            {
-                seg.comp[side] = -1;
-                continue;
-            }
-            // Per requirement: use slotA only for component lookup
-            seg.comp[side] = find_cycle_for_bipolar_edge(vd, cellIdx, cfIdx, seg.slotA);
-        }
+            IsoSegment seg;
+            seg.global_facet_index = vfi;
+            seg.slotA = pr.first;
+            seg.slotB = pr.second;
+            seg.edgeA = (seg.slotA >= 0 && seg.slotA < (int)vf.voronoi_edge_indices.size()) ? vf.voronoi_edge_indices[seg.slotA] : -1;
+            seg.edgeB = (seg.slotB >= 0 && seg.slotB < (int)vf.voronoi_edge_indices.size()) ? vf.voronoi_edge_indices[seg.slotB] : -1;
 
-        vf.iso_segments.push_back(seg);
+            for (int side = 0; side < 2; ++side)
+            {
+                const int cellIdx = vf.incident_cell_indices[side];
+                const int cfIdx = vf.incident_cell_facet_indices[side];
+                if (cellIdx < 0 || cfIdx < 0)
+                {
+                    seg.comp[side] = -1;
+                    continue;
+                }
+                int slot = (side == 0) ? seg.slotA : seg.slotB;
+                int comp = find_cycle_for_bipolar_edge(vd, cellIdx, cfIdx, slot);
+                if (comp < 0 && slot != seg.slotA)
+                {
+                    comp = find_cycle_for_bipolar_edge(vd, cellIdx, cfIdx, seg.slotA);
+                }
+                seg.comp[side] = comp;
+            }
+
+            vf.iso_segments.push_back(seg);
+        }
     }
-}
 
 // Detect whether a facet has duplicate (comp0, comp1) among its iso-segments.
 bool facet_has_problematic_iso_segments(const VoronoiDiagram &vd,
@@ -404,7 +417,12 @@ int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 
     // First pass: detect problematic facets and flip locally, collecting affected cells
     std::unordered_set<int> dirty_cells;
-    int flipped_facets = 0;
+    std::unordered_set<int> flippedFacets;
+    const auto make_component_key = [](int cellIdx, int compId) -> long long
+    {
+        return (static_cast<long long>(cellIdx) << 32) ^ static_cast<unsigned int>(compId);
+    };
+
     const int nGF = (int)vd.global_facets.size();
     for (int vfi = 0; vfi < nGF; ++vfi)
     {
@@ -414,10 +432,11 @@ int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 
         if (facet_has_problematic_iso_segments(vd, vfi, nullptr))
         {
-            ++flipped_facets;
             // Flip method for this facet and recompute ONLY this facet’s matches
             flip_bipolar_match_method(vd.global_facets[vfi]);
             recompute_bipolar_matches_for_facet(vd, vfi, isovalue);
+            build_iso_segments_for_facet(vd, vfi, isovalue);
+            flippedFacets.insert(vfi);
 
             // Mark both incident cells for cycle recomputation
             const auto &gf = vd.global_facets[vfi];
@@ -430,6 +449,111 @@ int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
         }
     }
 
+    // Resolve duplicated component pairs across different facets
+    while (true)
+    {
+        bool resolvedConflict = false;
+        std::unordered_map<std::pair<long long, long long>, int, LongPairHash> compPairToFacet;
+
+        for (int vfi = 0; vfi < nGF && !resolvedConflict; ++vfi)
+        {
+            auto &vf = vd.global_facets[vfi];
+            if (vf.iso_segments.empty())
+                continue;
+
+            for (const auto &seg : vf.iso_segments)
+            {
+                const int cellA = vf.incident_cell_indices[0];
+                const int cellB = vf.incident_cell_indices[1];
+                const int compA = seg.comp[0];
+                const int compB = seg.comp[1];
+                if (cellA < 0 || cellB < 0 || compA < 0 || compB < 0)
+                    continue;
+
+                long long keyA = make_component_key(cellA, compA);
+                long long keyB = make_component_key(cellB, compB);
+                if (keyA > keyB)
+                    std::swap(keyA, keyB);
+                auto key = std::make_pair(keyA, keyB);
+
+                auto it = compPairToFacet.find(key);
+                if (it == compPairToFacet.end())
+                {
+                    compPairToFacet.emplace(key, vfi);
+                    continue;
+                }
+
+                int otherFacet = it->second;
+                if (otherFacet == vfi)
+                    continue;
+
+                auto attempt_adjust = [&](int facetIdx) -> bool
+                {
+                    if (facetIdx < 0)
+                        return false;
+                    auto &facet = vd.global_facets[facetIdx];
+                    flip_bipolar_match_method(facet);
+                    recompute_bipolar_matches_for_facet(vd, facetIdx, isovalue);
+                    build_iso_segments_for_facet(vd, facetIdx, isovalue);
+                    flippedFacets.insert(facetIdx);
+                    const auto &gfTarget = vd.global_facets[facetIdx];
+                    for (int side = 0; side < 2; ++side)
+                    {
+                        const int cidx = gfTarget.incident_cell_indices[side];
+                        if (cidx >= 0)
+                            dirty_cells.insert(cidx);
+                    }
+                    return true;
+                };
+
+                int target = -1;
+                if (!flippedFacets.count(vfi))
+                    target = vfi;
+                else if (!flippedFacets.count(otherFacet))
+                    target = otherFacet;
+
+                if (target >= 0)
+                {
+                    attempt_adjust(target);
+                    resolvedConflict = true;
+                    break;
+                }
+                else
+                {
+                    bool adjusted = false;
+                    for (int facetIdx : {vfi, otherFacet})
+                    {
+                        auto &facet = vd.global_facets[facetIdx];
+                        if (facet.bipolar_match_method != BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
+                        {
+                            facet.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
+                            recompute_bipolar_matches_for_facet(vd, facetIdx, isovalue);
+                            build_iso_segments_for_facet(vd, facetIdx, isovalue);
+                            flippedFacets.insert(facetIdx);
+                            const auto &gfTarget = vd.global_facets[facetIdx];
+                            for (int side = 0; side < 2; ++side)
+                            {
+                                const int cidx = gfTarget.incident_cell_indices[side];
+                                if (cidx >= 0)
+                                    dirty_cells.insert(cidx);
+                            }
+                            adjusted = true;
+                            break;
+                        }
+                    }
+                    if (adjusted)
+                    {
+                        resolvedConflict = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!resolvedConflict)
+            break;
+    }
+
     // Second pass: recompute cycles once per affected cell
     for (int cidx : dirty_cells)
     {
@@ -438,7 +562,7 @@ int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 
     std::clock_t end_time = std::clock();
     double elapsed = static_cast<double>(end_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Modify cycles time: " << elapsed << " seconds. Flips: " << flipped_facets << std::endl;
+    std::cout << "[INFO] Modify cycles time: " << elapsed << " seconds. Flips: " << flippedFacets.size() << std::endl;
 
-    return flipped_facets;
+    return static_cast<int>(flippedFacets.size());
 }
