@@ -5,7 +5,11 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <fstream>
+#include <algorithm>
+#include <limits>
 #include <unordered_set>
+#include <unordered_map>
 #include "core/vdc_debug.h"
 
 static int ISO_DBG_FOCUS_CELL = -1;
@@ -62,7 +66,7 @@ struct IsoStats
     size_t cells_seen = 0, cells_with_midpts = 0, cells_with_zero_connect = 0, cycles_total = 0;
     size_t edges_seg = 0, edges_ray = 0, edges_line = 0;
     size_t seg_bip = 0, seg_skip = 0, ray_bip = 0, ray_skip = 0, line_bip = 0, line_skip = 0;
-    size_t tri_ok = 0, tri_bad = 0, tri_dupverts = 0, sel_fail = 0, sel_fallback = 0;
+    size_t tri_ok = 0, tri_bad = 0, tri_dupverts = 0, sel_fail = 0;
     void dump_summary() const
     {
         if (!ISO_DBG_ENABLED)
@@ -79,8 +83,7 @@ struct IsoStats
                   << "[ISO] Triangles: ok=" << tri_ok
                   << " bad=" << tri_bad
                   << " dupVerts=" << tri_dupverts
-                  << " isoSelectFail=" << sel_fail
-                  << " isoSelectFallback=" << sel_fallback << "\n"
+                  << " isoSelectFail=" << sel_fail << "\n"
                   << "[ISO] Filters: CELL=" << ISO_DBG_FOCUS_CELL
                   << " GFACET=" << ISO_DBG_FOCUS_GFACET
                   << " EDGE=" << ISO_DBG_FOCUS_EDGE
@@ -89,6 +92,399 @@ struct IsoStats
     }
 };
 static IsoStats ISO_STATS;
+using CycleKey = long long;
+using CyclePair = std::pair<CycleKey, CycleKey>;
+struct CyclePairHash
+{
+    size_t operator()(const CyclePair &p) const noexcept
+    {
+        return std::hash<CycleKey>{}(p.first) ^ (std::hash<CycleKey>{}(p.second) << 1);
+    }
+};
+struct PairBindingInfo
+{
+    int edgeIndex;
+    int count;
+    bool foreignConflict;
+};
+using CyclePairBindingMap = std::unordered_map<CyclePair, PairBindingInfo, CyclePairHash>;
+
+static inline CycleKey make_cycle_key(int cellIndex, int cycleLocal)
+{
+    if (cellIndex < 0 || cycleLocal < 0)
+        return -1;
+    return (static_cast<long long>(cellIndex) << 32) ^ static_cast<unsigned int>(cycleLocal);
+}
+
+struct EdgeKeyHash
+{
+    size_t operator()(const std::pair<int, int> &p) const noexcept
+    {
+        return std::hash<int>{}(p.first) ^ (std::hash<int>{}(p.second) << 1);
+    }
+};
+
+static void prune_duplicate_edge_triangles(IsoSurface &iso_surface, const VoronoiDiagram &vd)
+{
+    static const bool modcycDebug = (std::getenv("MODCYC_DEBUG") != nullptr);
+    const size_t triCount = iso_surface.isosurfaceTrianglesMulti.size();
+    if (triCount == 0)
+        return;
+
+    std::vector<char> remove(triCount, 0);
+    std::unordered_map<std::pair<int, int>, std::vector<int>, EdgeKeyHash> edgeToTriangles;
+    edgeToTriangles.reserve(triCount * 3);
+
+    std::unordered_map<std::pair<int, int>, int, EdgeKeyHash> edgeMultiplicity;
+    edgeMultiplicity.reserve(triCount * 3);
+
+    auto normalize_edge = [](int u, int v) -> std::pair<int, int>
+    {
+        return (u < v) ? std::make_pair(u, v) : std::make_pair(v, u);
+    };
+
+    for (size_t idx = 0; idx < triCount; ++idx)
+    {
+        const auto &tri = iso_surface.isosurfaceTrianglesMulti[idx];
+        int a = std::get<0>(tri);
+        int b = std::get<1>(tri);
+        int c = std::get<2>(tri);
+
+        std::pair<int, int> e1 = normalize_edge(a, b);
+        std::pair<int, int> e2 = normalize_edge(b, c);
+        std::pair<int, int> e3 = normalize_edge(c, a);
+
+        edgeToTriangles[e1].push_back(static_cast<int>(idx));
+        edgeToTriangles[e2].push_back(static_cast<int>(idx));
+        edgeToTriangles[e3].push_back(static_cast<int>(idx));
+
+        edgeMultiplicity[e1]++;
+        edgeMultiplicity[e2]++;
+        edgeMultiplicity[e3]++;
+    }
+
+    auto edge_priority = [&](int triIdx) -> std::tuple<int, int, int>
+    {
+        int edgeId = (triIdx < static_cast<int>(iso_surface.triangleSourceEdges.size())) ? iso_surface.triangleSourceEdges[triIdx] : std::numeric_limits<int>::max();
+        int edgeType = 1;
+        if (edgeId >= 0 && edgeId < static_cast<int>(vd.edges.size()))
+            edgeType = vd.edges[edgeId].type;
+        return std::make_tuple(edgeType, edgeId, triIdx);
+    };
+
+    for (auto &kv : edgeToTriangles)
+    {
+        auto &list = kv.second;
+        if (list.size() <= 2)
+            continue;
+
+        std::vector<int> candidates = list;
+        std::sort(candidates.begin(), candidates.end(), [&](int lhs, int rhs)
+                  {
+                      return edge_priority(lhs) < edge_priority(rhs);
+                  });
+
+        // Protect the two best triangles for this edge
+        std::unordered_set<int> protectedSet;
+        for (size_t i = 0; i < candidates.size() && i < 2; ++i)
+            protectedSet.insert(candidates[i]);
+
+        // Attempt to remove remaining triangles starting from worst priority
+        for (auto it = candidates.rbegin(); it != candidates.rend(); ++it)
+        {
+            int triIdx = *it;
+            if (protectedSet.count(triIdx) || remove[triIdx])
+                continue;
+
+            const auto &tri = iso_surface.isosurfaceTrianglesMulti[triIdx];
+            std::pair<int, int> e1 = normalize_edge(std::get<0>(tri), std::get<1>(tri));
+            std::pair<int, int> e2 = normalize_edge(std::get<1>(tri), std::get<2>(tri));
+            std::pair<int, int> e3 = normalize_edge(std::get<2>(tri), std::get<0>(tri));
+
+            if (edgeMultiplicity[e1] <= 2 || edgeMultiplicity[e2] <= 2 || edgeMultiplicity[e3] <= 2)
+                continue;
+
+            remove[triIdx] = 1;
+            edgeMultiplicity[e1]--;
+            edgeMultiplicity[e2]--;
+            edgeMultiplicity[e3]--;
+        }
+    }
+
+    // Verify no edge dropped below 2; if it did, abort pruning
+    for (const auto &kv : edgeMultiplicity)
+    {
+        if (kv.second < 2)
+        {
+            std::fill(remove.begin(), remove.end(), 0);
+            break;
+        }
+    }
+
+    size_t removed = 0;
+    std::vector<std::tuple<int, int, int>> newTriangles;
+    newTriangles.reserve(triCount);
+    std::vector<int> newSources;
+    newSources.reserve(triCount);
+
+    for (size_t idx = 0; idx < triCount; ++idx)
+    {
+        if (!remove[idx])
+        {
+            newTriangles.push_back(iso_surface.isosurfaceTrianglesMulti[idx]);
+            if (idx < iso_surface.triangleSourceEdges.size())
+                newSources.push_back(iso_surface.triangleSourceEdges[idx]);
+        }
+        else
+        {
+            ++removed;
+        }
+    }
+
+    if (removed == 0)
+        return;
+
+    newTriangles.shrink_to_fit();
+    newSources.shrink_to_fit();
+    iso_surface.isosurfaceTrianglesMulti.swap(newTriangles);
+    iso_surface.triangleSourceEdges.swap(newSources);
+
+    if (ISO_DBG_ENABLED)
+    {
+        std::cerr << "[ISO] post-process removed " << removed << " duplicate triangles\n";
+    }
+
+    if (modcycDebug)
+    {
+        std::unordered_map<std::pair<int, int>, int, EdgeKeyHash> finalCounts;
+        for (const auto &tri : iso_surface.isosurfaceTrianglesMulti)
+        {
+            int a = std::get<0>(tri);
+            int b = std::get<1>(tri);
+            int c = std::get<2>(tri);
+            auto addEdge = [&](int u, int v)
+            {
+                if (u > v)
+                    std::swap(u, v);
+                finalCounts[{u, v}]++;
+            };
+            addEdge(a, b);
+            addEdge(b, c);
+            addEdge(c, a);
+        }
+        for (const auto &kvFinal : finalCounts)
+        {
+            if (kvFinal.second > 2)
+            {
+                std::cerr << "[MODCYC] remaining overfull edge {" << kvFinal.first.first << "," << kvFinal.first.second
+                          << "} count=" << kvFinal.second << "\n";
+            }
+        }
+    }
+}
+
+static bool adjust_conflicting_facets(VoronoiDiagram &vd, const IsoSurface &iso_surface)
+{
+    static const bool modcycDebug = (std::getenv("MODCYC_DEBUG") != nullptr);
+    if (iso_surface.isosurfaceTrianglesMulti.empty())
+        return false;
+
+    std::vector<std::pair<int, int>> vertexToCellCycle(iso_surface.isosurfaceVertices.size(), {-1, -1});
+    for (const auto &cell : vd.cells)
+    {
+        if (cell.isoVertexStartIndex < 0 || cell.numIsoVertices <= 0)
+            continue;
+        for (int i = 0; i < cell.numIsoVertices; ++i)
+        {
+            const int idx = cell.isoVertexStartIndex + i;
+            if (idx >= 0 && idx < static_cast<int>(vertexToCellCycle.size()))
+                vertexToCellCycle[idx] = {cell.cellIndex, i};
+        }
+    }
+
+    std::unordered_map<std::pair<int, int>, std::vector<int>, EdgeKeyHash> edgeToTriangles;
+    edgeToTriangles.reserve(iso_surface.isosurfaceTrianglesMulti.size() * 3);
+
+    for (size_t triIdx = 0; triIdx < iso_surface.isosurfaceTrianglesMulti.size(); ++triIdx)
+    {
+        const auto &tri = iso_surface.isosurfaceTrianglesMulti[triIdx];
+        int a = std::get<0>(tri);
+        int b = std::get<1>(tri);
+        int c = std::get<2>(tri);
+
+        auto addEdge = [&](int u, int v)
+        {
+            if (u > v)
+                std::swap(u, v);
+            edgeToTriangles[{u, v}].push_back(static_cast<int>(triIdx));
+        };
+
+        addEdge(a, b);
+        addEdge(b, c);
+        addEdge(c, a);
+    }
+
+    bool adjusted = false;
+    std::unordered_set<int> tweakedFacets;
+
+    for (const auto &kv : edgeToTriangles)
+    {
+        if (kv.second.size() <= 2)
+            continue;
+
+        int vA = kv.first.first;
+        int vB = kv.first.second;
+        if (vA < 0 || vB < 0 || vA >= static_cast<int>(vertexToCellCycle.size()) || vB >= static_cast<int>(vertexToCellCycle.size()))
+            continue;
+
+        const auto &ccA = vertexToCellCycle[vA];
+        const auto &ccB = vertexToCellCycle[vB];
+        if (ccA.first < 0 || ccB.first < 0)
+            continue;
+
+        if (modcycDebug)
+        {
+            std::cerr << "[MODCYC] conflict edge {" << vA << "," << vB << "} tris=" << kv.second.size()
+                      << " cellA=" << ccA.first << ":" << ccA.second
+                      << " cellB=" << ccB.first << ":" << ccB.second << "\n";
+            for (int triIdx : kv.second)
+            {
+                const auto &tri = iso_surface.isosurfaceTrianglesMulti[triIdx];
+                int edgeId = (triIdx < static_cast<int>(iso_surface.triangleSourceEdges.size())) ? iso_surface.triangleSourceEdges[triIdx] : -1;
+                int a = std::get<0>(tri);
+                int b = std::get<1>(tri);
+                int c = std::get<2>(tri);
+                int third = (a != vA && a != vB) ? a : (b != vA && b != vB) ? b : c;
+                auto ccThird = (third >= 0 && third < static_cast<int>(vertexToCellCycle.size())) ? vertexToCellCycle[third] : std::pair<int,int>{-1,-1};
+                std::cerr << "  tri=" << triIdx << " edgeId=" << edgeId
+                          << " third=" << third << " cell=" << ccThird.first << ":" << ccThird.second << "\n";
+            }
+        }
+
+        for (size_t triIdxPos = 0; triIdxPos < kv.second.size(); ++triIdxPos)
+        {
+            int triIdx = kv.second[triIdxPos];
+            (void)triIdx;
+        }
+
+        for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+        {
+            auto &vf = vd.global_facets[vfi];
+            if (vf.iso_segments.empty())
+                continue;
+
+            for (const auto &seg : vf.iso_segments)
+            {
+                const int cell0 = vf.incident_cell_indices[0];
+                const int cell1 = vf.incident_cell_indices[1];
+                const int comp0 = seg.comp[0];
+                const int comp1 = seg.comp[1];
+
+                bool match = false;
+                if (cell0 == ccA.first && comp0 == ccA.second && cell1 == ccB.first && comp1 == ccB.second)
+                    match = true;
+                else if (cell0 == ccB.first && comp0 == ccB.second && cell1 == ccA.first && comp1 == ccA.second)
+                    match = true;
+
+                if (!match)
+                    continue;
+
+                if (!tweakedFacets.insert(static_cast<int>(vfi)).second)
+                    continue;
+
+                auto &facet = vd.global_facets[vfi];
+                if (modcycDebug)
+                {
+                    std::cerr << "  [MODCYC] facet " << vfi << " method=" << matchMethodToString(facet.bipolar_match_method)
+                              << " slots(" << seg.slotA << ',' << seg.slotB << ")"
+                              << " edges(" << seg.edgeA << ',' << seg.edgeB << ")\n";
+                }
+                BIPOLAR_MATCH_METHOD nextMethod;
+                switch (facet.bipolar_match_method)
+                {
+                case BIPOLAR_MATCH_METHOD::SEP_POS:
+                    nextMethod = BIPOLAR_MATCH_METHOD::SEP_NEG;
+                    break;
+                case BIPOLAR_MATCH_METHOD::SEP_NEG:
+                    nextMethod = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
+                    break;
+                default:
+                    nextMethod = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
+                    break;
+                }
+
+                if (facet.bipolar_match_method != nextMethod)
+                {
+                    facet.bipolar_match_method = nextMethod;
+                    adjusted = true;
+                    if (modcycDebug)
+                    {
+                        std::cerr << "    [MODCYC] facet " << vfi << " switched to " << matchMethodToString(nextMethod) << "\n";
+                    }
+                }
+
+                break;
+            }
+        }
+    }
+
+    return adjusted;
+}
+
+static inline bool bind_cycle_pair_to_edge(CyclePairBindingMap &binding,
+                                           CycleKey a,
+                                           CycleKey b,
+                                           int edgeIndex,
+                                           bool debugLog,
+                                           bool &conflictFlag)
+{
+    if (a < 0 || b < 0)
+        return false;
+    if (a == b)
+        return true;
+    CyclePair key = (a < b) ? CyclePair{a, b} : CyclePair{b, a};
+    auto it = binding.find(key);
+    if (it == binding.end())
+    {
+        binding.emplace(key, PairBindingInfo{edgeIndex, 1, false});
+        return true;
+    }
+    if (it->second.edgeIndex != edgeIndex)
+    {
+        it->second.foreignConflict = true;
+        conflictFlag = true;
+        if (debugLog)
+        {
+            std::cerr << "[MODCYC] pair conflict: edge " << edgeIndex
+                      << " wants component pair already owned by edge " << it->second.edgeIndex << "\n";
+        }
+        return true;
+    }
+    ++it->second.count;
+    return true;
+}
+
+static void dump_iso_vertex_cycles(const VoronoiDiagram &vd,
+                                   const IsoSurface &iso_surface,
+                                   const std::string &path)
+{
+    std::ofstream out(path);
+    if (!out)
+        return;
+    out << "iso_index,cell_index,cycle_local\n";
+    for (const auto &cell : vd.cells)
+    {
+        if (cell.isoVertexStartIndex < 0 || cell.numIsoVertices <= 0)
+            continue;
+        for (int local = 0; local < cell.numIsoVertices; ++local)
+        {
+            int idx = cell.isoVertexStartIndex + local;
+            if (idx < 0 || idx >= static_cast<int>(iso_surface.isosurfaceVertices.size()))
+                continue;
+            out << idx << ',' << cell.cellIndex << ',' << local << '\n';
+        }
+    }
+}
 // ===== End debug instrumentation header =====
 
 //! @brief Generates a Delaunay triangle based on orientation and cell finiteness.
@@ -338,15 +734,21 @@ void compute_dual_triangles(
 // Pick an isovertex index for a given (cell, globalEdge).
 // Strategy: try exact (cell,edge)→cellEdge→cycle mapping; if none,
 // fall back to the first iso-vertex in that cell; else fail (-1).
-static inline int select_isovertex_from_cell_edge(
+static inline bool select_isovertex_from_cell_edge(
     const VoronoiDiagram &vd,
-    int cellIndex, int globalEdgeIndex)
+    int cellIndex,
+    int globalEdgeIndex,
+    int &isoIndexOut,
+    int &cycleLocalOut)
 {
+    isoIndexOut = -1;
+    cycleLocalOut = -1;
+
     // Guard: valid cell index
     if (cellIndex < 0 || cellIndex >= static_cast<int>(vd.cells.size()))
     {
         ISO_STATS.sel_fail++;
-        return -1;
+        return false;
     }
 
     // 1) Exact (cell,edge) lookup → walk ring to a cellEdge carrying cycles
@@ -356,7 +758,6 @@ static inline int select_isovertex_from_cell_edge(
         int ceIdx = it->second;
         const int start = ceIdx;
 
-        // Walk nextCellEdge ring until a non-empty cycleIndices is found
         while (ceIdx >= 0 &&
                ceIdx < static_cast<int>(vd.cellEdges.size()) &&
                vd.cellEdges[ceIdx].cycleIndices.empty())
@@ -383,34 +784,21 @@ static inline int select_isovertex_from_cell_edge(
                               << " via cellEdge#" << ceIdx
                               << " cycleLocal=" << cycLocal << "\n";
                 }
-                return vc.isoVertexStartIndex + cycLocal;
+                isoIndexOut = vc.isoVertexStartIndex + cycLocal;
+                cycleLocalOut = cycLocal;
+                return true;
             }
         }
     }
 
-    // 2) Fallback: use the first iso-vertex in this cell if any exist
-    const VoronoiCell &vc = vd.cells[cellIndex];
-    if (vc.numIsoVertices > 0)
-    {
-        if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex))
-        {
-            std::cerr << "[ISO] pick cell " << cellIndex
-                      << " edge " << globalEdgeIndex
-                      << " FALLBACK first isoVert\n";
-        }
-        ISO_STATS.sel_fallback++;
-        return vc.isoVertexStartIndex; // first cycle’s isovertex in this cell
-    }
-
-    // 3) No iso-vertices in this cell at all
     if (ISO_DBG_ENABLED && iso_dbg_cell_ok(cellIndex) && iso_dbg_edge_ok(globalEdgeIndex))
     {
         std::cerr << "[ISO] pick cell " << cellIndex
                   << " edge " << globalEdgeIndex
-                  << " FAIL (no iso-verts)\n";
+                  << " FAIL (no cycle mapped to edge)\n";
     }
     ISO_STATS.sel_fail++;
-    return -1;
+    return false;
 }
 
 //! @brief Generates a triangle for the multi-isovertex case.
@@ -431,7 +819,8 @@ static void generate_triangle_multi(
     IsoSurface &iso_surface,
     int idx1, int idx2, int idx3,
     int iOrient,
-    bool isValid)
+    bool isValid,
+    int sourceEdge)
 {
     if (!isValid)
     {
@@ -466,6 +855,7 @@ static void generate_triangle_multi(
     {
         iso_surface.isosurfaceTrianglesMulti.emplace_back(idx1, idx3, idx2);
     }
+    iso_surface.triangleSourceEdges.push_back(sourceEdge);
 }
 
 //! @brief Selects isovertices for a Delaunay facet.
@@ -489,10 +879,12 @@ static inline bool select_isovertices(
     const Facet &facet,
     int globalEdgeIndex,
     int &idx1, int &idx2, int &idx3,
-    int &cellIndex1, int &cellIndex2, int &cellIndex3)
+    int &cellIndex1, int &cellIndex2, int &cellIndex3,
+    int &cycleLocal1, int &cycleLocal2, int &cycleLocal3)
 {
     idx1 = idx2 = idx3 = -1;
     cellIndex1 = cellIndex2 = cellIndex3 = -1;
+    cycleLocal1 = cycleLocal2 = cycleLocal3 = -1;
 
     const int iFacet = facet.second;
     Cell_handle c = facet.first;
@@ -526,9 +918,9 @@ static inline bool select_isovertices(
     cellIndex2 = v2->info().voronoiCellIndex;
     cellIndex3 = v3->info().voronoiCellIndex;
 
-    idx1 = select_isovertex_from_cell_edge(voronoiDiagram, cellIndex1, globalEdgeIndex);
-    idx2 = select_isovertex_from_cell_edge(voronoiDiagram, cellIndex2, globalEdgeIndex);
-    idx3 = select_isovertex_from_cell_edge(voronoiDiagram, cellIndex3, globalEdgeIndex);
+    select_isovertex_from_cell_edge(voronoiDiagram, cellIndex1, globalEdgeIndex, idx1, cycleLocal1);
+    select_isovertex_from_cell_edge(voronoiDiagram, cellIndex2, globalEdgeIndex, idx2, cycleLocal2);
+    select_isovertex_from_cell_edge(voronoiDiagram, cellIndex3, globalEdgeIndex, idx3, cycleLocal3);
 
     if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
     {
@@ -563,7 +955,9 @@ static void process_segment_edge_multi(
     VoronoiEdge edge,
     VoronoiDiagram &voronoiDiagram,
     float isovalue,
-    IsoSurface &iso_surface)
+    IsoSurface &iso_surface,
+    CyclePairBindingMap &pairBinding,
+    bool &bindingConflict)
 {
     ISO_STATS.edges_seg++;
 
@@ -600,10 +994,24 @@ static void process_segment_edge_multi(
 
         for (const auto &facet : edge.delaunayFacets)
         {
-            int idx1, idx2, idx3, cellIndex1, cellIndex2, cellIndex3;
-            bool isValid = select_isovertices(voronoiDiagram, facet, globalEdgeIndex, idx1, idx2, idx3, cellIndex1, cellIndex2, cellIndex3);
+            int idx1, idx2, idx3;
+            int cellIndex1, cellIndex2, cellIndex3;
+            int cycleLocal1, cycleLocal2, cycleLocal3;
+            bool isValid = select_isovertices(voronoiDiagram, facet, globalEdgeIndex,
+                                             idx1, idx2, idx3,
+                                             cellIndex1, cellIndex2, cellIndex3,
+                                             cycleLocal1, cycleLocal2, cycleLocal3);
             int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
-            generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid);
+            if (isValid)
+            {
+                CycleKey key1 = make_cycle_key(cellIndex1, cycleLocal1);
+                CycleKey key2 = make_cycle_key(cellIndex2, cycleLocal2);
+                CycleKey key3 = make_cycle_key(cellIndex3, cycleLocal3);
+                bind_cycle_pair_to_edge(pairBinding, key1, key2, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+                bind_cycle_pair_to_edge(pairBinding, key2, key3, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+                bind_cycle_pair_to_edge(pairBinding, key3, key1, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+            }
+            generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid, globalEdgeIndex);
         }
     }
 }
@@ -632,7 +1040,9 @@ static void process_ray_edge_multi(
     UnifiedGrid &grid,
     float isovalue,
     CGAL::Epick::Iso_cuboid_3 &bbox,
-    IsoSurface &iso_surface)
+    IsoSurface &iso_surface,
+    CyclePairBindingMap &pairBinding,
+    bool &bindingConflict)
 {
     ISO_STATS.edges_ray++;
     CGAL::Object intersectObj = CGAL::intersection(bbox, ray);
@@ -662,14 +1072,25 @@ static void process_ray_edge_multi(
 
         for (const auto &facet : dualDelaunayFacets)
         {
-            int idx1, idx2, idx3, cellIndex1, cellIndex2, cellIndex3;
-            // Use the same facet/edge-aware vertex selection used for finite segments.
+            int idx1, idx2, idx3;
+            int cellIndex1, cellIndex2, cellIndex3;
+            int cycleLocal1, cycleLocal2, cycleLocal3;
             bool ok = select_isovertices(voronoiDiagram, facet, globalEdgeIndex,
                                          idx1, idx2, idx3,
-                                         cellIndex1, cellIndex2, cellIndex3);
+                                         cellIndex1, cellIndex2, cellIndex3,
+                                         cycleLocal1, cycleLocal2, cycleLocal3);
             int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
             bool isValid = ok && (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
-            generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid);
+            if (isValid)
+            {
+                CycleKey key1 = make_cycle_key(cellIndex1, cycleLocal1);
+                CycleKey key2 = make_cycle_key(cellIndex2, cycleLocal2);
+                CycleKey key3 = make_cycle_key(cellIndex3, cycleLocal3);
+                bind_cycle_pair_to_edge(pairBinding, key1, key2, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+                bind_cycle_pair_to_edge(pairBinding, key2, key3, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+                bind_cycle_pair_to_edge(pairBinding, key3, key1, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+            }
+            generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid, globalEdgeIndex);
         }
     }
 }
@@ -696,7 +1117,9 @@ static void process_line_edge_multi(
     UnifiedGrid &grid,
     float isovalue,
     CGAL::Epick::Iso_cuboid_3 &bbox,
-    IsoSurface &iso_surface)
+    IsoSurface &iso_surface,
+    CyclePairBindingMap &pairBinding,
+    bool &bindingConflict)
 {
     ISO_STATS.edges_line++;
     CGAL::Object intersectObj = CGAL::intersection(bbox, line);
@@ -724,13 +1147,25 @@ static void process_line_edge_multi(
 
         for (const auto &facet : dualDelaunayFacets)
         {
-            int idx1, idx2, idx3, cellIndex1, cellIndex2, cellIndex3;
+            int idx1, idx2, idx3;
+            int cellIndex1, cellIndex2, cellIndex3;
+            int cycleLocal1, cycleLocal2, cycleLocal3;
             bool ok = select_isovertices(voronoiDiagram, facet, globalEdgeIndex,
                                          idx1, idx2, idx3,
-                                         cellIndex1, cellIndex2, cellIndex3);
+                                         cellIndex1, cellIndex2, cellIndex3,
+                                         cycleLocal1, cycleLocal2, cycleLocal3);
             int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
             bool isValid = ok && (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
-            generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid);
+            if (isValid)
+            {
+                CycleKey key1 = make_cycle_key(cellIndex1, cycleLocal1);
+                CycleKey key2 = make_cycle_key(cellIndex2, cycleLocal2);
+                CycleKey key3 = make_cycle_key(cellIndex3, cycleLocal3);
+                bind_cycle_pair_to_edge(pairBinding, key1, key2, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+                bind_cycle_pair_to_edge(pairBinding, key2, key3, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+                bind_cycle_pair_to_edge(pairBinding, key3, key1, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
+            }
+            generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid, globalEdgeIndex);
         }
     }
 }
@@ -746,13 +1181,18 @@ static void process_line_edge_multi(
  * @param isovalue The isovalue for mesh computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  */
-void compute_dual_triangles_multi(
+bool compute_dual_triangles_multi(
     VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     UnifiedGrid &grid,
     float isovalue,
     IsoSurface &iso_surface)
 {
+    CyclePairBindingMap pairBinding;
+    iso_surface.isosurfaceTrianglesMulti.clear();
+    iso_surface.triangleSourceEdges.clear();
+    bool bindingConflict = false;
+
     // Iterate with a stable edge index so we can pass the edge id to downstream selectors.
     for (int edgeIdx = 0; edgeIdx < static_cast<int>(voronoiDiagram.edges.size()); ++edgeIdx)
     {
@@ -765,7 +1205,7 @@ void compute_dual_triangles_multi(
         if (edge.type == 0)
         {
             // Finite segment: existing path already uses select_isovertices via the segment map.
-            process_segment_edge_multi(edge, voronoiDiagram, isovalue, iso_surface);
+            process_segment_edge_multi(edge, voronoiDiagram, isovalue, iso_surface, pairBinding, bindingConflict);
         }
         else if (edge.type == 1)
         {
@@ -773,20 +1213,23 @@ void compute_dual_triangles_multi(
             CGAL::assign(ray, edge.edgeObject);
             const int source = edge.vertex1; // Voronoi vertex index of the ray source
             process_ray_edge_multi(edgeIdx, source, ray, dualDelaunayFacets,
-                                   voronoiDiagram, grid, isovalue, bbox, iso_surface);
+                                   voronoiDiagram, grid, isovalue, bbox, iso_surface, pairBinding, bindingConflict);
         }
         else if (edge.type == 2)
         {
             // Line: same unification as ray
             CGAL::assign(line, edge.edgeObject);
             process_line_edge_multi(edgeIdx, line, dualDelaunayFacets,
-                                    voronoiDiagram, grid, isovalue, bbox, iso_surface);
+                                    voronoiDiagram, grid, isovalue, bbox, iso_surface, pairBinding, bindingConflict);
         }
     }
     if (ISO_DBG_ENABLED)
     {
         ISO_STATS.dump_summary();
     }
+
+    prune_duplicate_edge_triangles(iso_surface, voronoiDiagram);
+    return bindingConflict;
 }
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
@@ -1218,47 +1661,95 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
     }
     std::clock_t start_time = std::clock();
+    auto reset_iso_accumulators = [&]() {
+        iso_surface.isosurfaceVertices.clear();
+        iso_surface.isosurfaceTrianglesMulti.clear();
+        iso_surface.triangleSourceEdges.clear();
+        for (auto &ce : vd.cellEdges)
+            ce.cycleIndices.clear();
+        for (auto &cell : vd.cells)
+        {
+            cell.cycles.clear();
+            cell.isoVertexStartIndex = -1;
+            cell.numIsoVertices = 0;
+        }
+    };
+
     int mod_cyc_flips = 0;
+    bool dualBuilt = false;
+    bool bindingConflict = false;
+
     if (vdc_param.multi_isov)
     {
-        // First pass: compute cycles and iso-vertices with current matches
-        compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
-
-        // Guarded modify-cycles: rematch problematic facets and recompute cycles once
-        if (vdc_param.mod_cyc)
+        const int maxResolve = 8;
+        for (int attempt = 0; attempt < maxResolve && !dualBuilt; ++attempt)
         {
-            // Attempt to fix facet matches and update per-cell cycles
-            mod_cyc_flips = modify_cycles_pass(vd, vdc_param.isovalue);
+            if (attempt > 0)
+                reset_iso_accumulators();
 
-            // Reset iso-surface and per-cell cycle bookkeeping to rebuild coherently
-            iso_surface.isosurfaceVertices.clear();
-            for (auto &ce : vd.cellEdges)
-                ce.cycleIndices.clear();
-            for (auto &cell : vd.cells)
+            compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
+
+            if (vdc_param.mod_cyc)
             {
-                cell.cycles.clear();
-                cell.isoVertexStartIndex = -1;
-                cell.numIsoVertices = 0;
+                if (adjust_conflicting_facets(vd, iso_surface))
+                {
+                    vd.compute_bipolar_matches(vdc_param.isovalue);
+                    for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+                        build_iso_segments_for_facet(vd, static_cast<int>(vfi), vdc_param.isovalue);
+                    continue; // re-evaluate with new facet matches before modify-cycles
+                }
+
+                mod_cyc_flips = modify_cycles_pass(vd, vdc_param.isovalue);
+
+                reset_iso_accumulators();
+                compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
+
+                if (adjust_conflicting_facets(vd, iso_surface))
+                {
+                    // Matches changed; loop to recompute cycles and rerun modify-cycles
+                    continue;
+                }
             }
 
-            // Recompute with updated matches/cycles
-            compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
+            bindingConflict = compute_dual_triangles_multi(vd, bbox, grid, vdc_param.isovalue, iso_surface);
+            dualBuilt = true;
+
+            if (bindingConflict && vdc_param.mod_cyc)
+            {
+                if (adjust_conflicting_facets(vd, iso_surface))
+                {
+                    dualBuilt = false;
+                    continue;
+                }
+            }
+        }
+
+        if (!dualBuilt && ISO_DBG_ENABLED)
+        {
+            std::cerr << "[MODCYC] warning: exceeded conflict resolution iterations; output may still contain duplicates.\n";
         }
     }
     else
     {
         compute_isosurface_vertices_single(grid, vdc_param.isovalue, iso_surface, activeCubeCenters);
+        compute_dual_triangles(iso_surface, vd, bbox, dt, grid, vdc_param.isovalue);
+        dualBuilt = true;
+    }
+
+    if (vdc_param.multi_isov && std::getenv("MODCYC_DEBUG"))
+    {
+        dump_iso_vertex_cycles(vd, iso_surface, "modcyc_cycles.csv");
     }
 
     std::clock_t check_time = std::clock();
     double duration = static_cast<double>(check_time - start_time) / CLOCKS_PER_SEC;
     std::cout << "Compute isosurface vertices Execution time: " << duration << " seconds" << std::endl;
 
-    if (vdc_param.multi_isov)
+    if (vdc_param.multi_isov && !dualBuilt)
     {
-        compute_dual_triangles_multi(vd, bbox, grid, vdc_param.isovalue, iso_surface);
+        bindingConflict = compute_dual_triangles_multi(vd, bbox, grid, vdc_param.isovalue, iso_surface);
     }
-    else
+    else if (!vdc_param.multi_isov && !dualBuilt)
     {
         compute_dual_triangles(iso_surface, vd, bbox, dt, grid, vdc_param.isovalue);
     }

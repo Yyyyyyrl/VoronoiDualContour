@@ -59,6 +59,18 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
     }
 
     out.close();
+
+    if (iso_surface.triangleSourceEdges.size() == iso_surface.isosurfaceTrianglesMulti.size())
+    {
+        std::ofstream meta(filename + ".edgeids");
+        if (meta)
+        {
+            for (int edgeId : iso_surface.triangleSourceEdges)
+            {
+                meta << edgeId << "\n";
+            }
+        }
+    }
 }
 
 //! Writes a single-isovalue isosurface mesh in PLY format.

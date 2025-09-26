@@ -9,6 +9,7 @@ void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
     voronoiDiagram.vertices.reserve(dt.number_of_finite_cells());
     for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
     {
+        cit->info().dualVoronoiVertexIndex = -1; // Default to invalid until a vertex is recorded
         // Skip degenerate cells to avoid invalid circumcenters (e.g., NaN coordinates)
         if (is_degenerate(cit))
         {
@@ -194,7 +195,10 @@ static void collcet_cell_vertices(
     for (Cell_handle c : incidentCells)
     {
         int vertex_index = c->info().dualVoronoiVertexIndex;
-        uniqueVertexIndices.insert(vertex_index);
+        if (vertex_index >= 0)
+        {
+            uniqueVertexIndices.insert(vertex_index);
+        }
     }
     vertices_indices.assign(uniqueVertexIndices.begin(), uniqueVertexIndices.end());
 }
@@ -240,8 +244,15 @@ static VoronoiCellFacet build_facet_from_edge(
         else
         {
             int vertex_index = cc->info().dualVoronoiVertexIndex;
-            facetVertexIndices.push_back(vertex_index);
-            finite_cell_count++;
+            if (vertex_index < 0)
+            {
+                involves_infinite = true;
+            }
+            else
+            {
+                facetVertexIndices.push_back(vertex_index);
+                finite_cell_count++;
+            }
         }
         ++cc;
     } while (cc != start);
