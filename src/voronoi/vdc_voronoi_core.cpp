@@ -3,7 +3,7 @@
 
 namespace
 {
-    constexpr double NORMAL_SQ_EPS = 1e-6;
+    constexpr double NORMAL_SQ_EPS = 1e-4;
 }
 
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
