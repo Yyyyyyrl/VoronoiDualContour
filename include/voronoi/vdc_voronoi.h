@@ -28,7 +28,6 @@ struct VoronoiVertex
     VoronoiVertex(Point p) : coord(p) {}
 };
 
-//TODO: Write a routine that does: Given a VoronoiEdge instance, retrieve the incident Voronoi Cells around that edge
 struct VoronoiEdge
 {
     CGAL::Object edgeObject;
@@ -122,7 +121,7 @@ struct VoronoiFacet
     std::vector<int> voronoi_edge_indices; //!< ordered edges along boundary; k -> edge(v[k], v[k+1])
     int index = -1;                        //!< Index of the facet in voronoi_facets.
     int primary_cell_facet_index = -1;     //!< Index in facets of the primary cell-facet.
-    // TODO: make a tuple cell_facets[2] and int num_incident_cells for tracking and getting back to the cells from the global facet
+
     BIPOLAR_MATCH_METHOD bipolar_match_method = BIPOLAR_MATCH_METHOD::UNDEFINED_MATCH_TYPE; //!< Matching method for bipolar edges.
 
     std::vector<std::pair<int, int>> bipolar_matches; //!< Pairs of edge indices for matched bipolar edges.

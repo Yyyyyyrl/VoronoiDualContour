@@ -101,9 +101,10 @@ void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std
  *
  * @param facet The grid facet to extract dummy points from.
  * @param grid The grid containing data for point computation.
+ * @param supersample_multiplier Scaling applied when supersampling is enabled.
  * @return A vector of points added from the facet.
  */
-std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedGrid &grid);
+std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedGrid &grid, double supersample_multiplier);
 
 //! @brief Constructs Voronoi vertices for the given diagram.
 /*!
