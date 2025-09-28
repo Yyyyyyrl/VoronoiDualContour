@@ -1,7 +1,9 @@
 #include "algo/vdc_func.h"
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
-std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedGrid &data_grid)
+std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet,
+                                        const UnifiedGrid &data_grid,
+                                        double supersample_multiplier)
 {
     std::vector<Point> points;
 
@@ -48,7 +50,8 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedG
 
             // Offset by +/- dx[d]
             // The offset multiplier is for avoid bipolar edges touching dummy voronoi cells
-            double offset = (facet.side == 0) ? -4*dx[d] : 4*dx[d];
+            const double offsetMultiplier = supersample_multiplier > 0.0 ? supersample_multiplier : 1.0;
+            double offset = ((facet.side == 0) ? -4 * dx[d] : 4 * dx[d]) * offsetMultiplier;
             if (d == 0)
                 cx += offset;
             else if (d == 1)
@@ -83,13 +86,17 @@ static int collect_delaunay_points(UnifiedGrid &grid,
     delaunay_points = activeCubeCenters;
     int first_dummy_index = delaunay_points.size(); // Dummies start here
 
+    const double supersampleMultiplier = vdc_param.supersample
+                                             ? static_cast<double>(vdc_param.supersample_r)
+                                             : 1.0;
+
     if (vdc_param.multi_isov)
     {
         for (int d = 0; d < 3; ++d)
         { // Assuming 3 dimensions
             for (const auto &f : grid_facets[d])
             {
-                auto pointsf = add_dummy_from_facet(f, grid);
+                auto pointsf = add_dummy_from_facet(f, grid, supersampleMultiplier);
                 delaunay_points.insert(delaunay_points.end(), pointsf.begin(), pointsf.end());
             }
         }
