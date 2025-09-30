@@ -1027,7 +1027,35 @@ static void process_segment_edge_multi(
                                              idx1, idx2, idx3,
                                              cellIndex1, cellIndex2, cellIndex3,
                                              cycleLocal1, cycleLocal2, cycleLocal3);
-            int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
+
+            // Compute orientation geometrically using cell centers and Voronoi edge direction
+            int iOrient = 1;  // default
+            if (isValid && cellIndex1 >= 0 && cellIndex2 >= 0 && cellIndex3 >= 0)
+            {
+                // Get the three Delaunay vertex positions (which are Voronoi cell centers)
+                Point c1 = voronoiDiagram.cells[cellIndex1].delaunay_vertex->point();
+                Point c2 = voronoiDiagram.cells[cellIndex2].delaunay_vertex->point();
+                Point c3 = voronoiDiagram.cells[cellIndex3].delaunay_vertex->point();
+
+                // Compute triangle normal using cross product
+                auto e1 = c2 - c1;
+                auto e2 = c3 - c1;
+                auto normal = CGAL::cross_product(e1, e2);
+
+                // Compute Voronoi edge direction
+                auto voronoi_dir = v2 - v1;
+
+                // Orientation: check if normal and Voronoi direction are aligned
+                // Combined with scalar gradient to determine which side is "out"
+                auto dot = normal * voronoi_dir;
+                bool normal_aligned = (dot > 0);
+                bool val1_higher = (val1 >= val2);
+
+                // If v1 has higher value, isosurface normal points from v2 toward v1
+                // Triangle should be oriented so its normal points outward
+                iOrient = (normal_aligned == val1_higher) ? 1 : -1;
+            }
+
             if (isValid)
             {
                 CycleKey key1 = make_cycle_key(cellIndex1, cycleLocal1);
@@ -1105,8 +1133,24 @@ static void process_ray_edge_multi(
                                          idx1, idx2, idx3,
                                          cellIndex1, cellIndex2, cellIndex3,
                                          cycleLocal1, cycleLocal2, cycleLocal3);
-            int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
+
+            // Compute orientation geometrically for rays
+            int iOrient = 1;
             bool isValid = ok && (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
+            if (isValid && cellIndex1 >= 0 && cellIndex2 >= 0 && cellIndex3 >= 0)
+            {
+                Point c1 = voronoiDiagram.cells[cellIndex1].delaunay_vertex->point();
+                Point c2 = voronoiDiagram.cells[cellIndex2].delaunay_vertex->point();
+                Point c3 = voronoiDiagram.cells[cellIndex3].delaunay_vertex->point();
+                auto e1 = c2 - c1;
+                auto e2 = c3 - c1;
+                auto normal = CGAL::cross_product(e1, e2);
+                auto voronoi_dir = v2 - v1;
+                auto dot = normal * voronoi_dir;
+                bool normal_aligned = (dot > 0);
+                bool val1_higher = (val1 >= val2);
+                iOrient = (normal_aligned == val1_higher) ? 1 : -1;
+            }
             if (isValid)
             {
                 CycleKey key1 = make_cycle_key(cellIndex1, cycleLocal1);
@@ -1180,8 +1224,24 @@ static void process_line_edge_multi(
                                          idx1, idx2, idx3,
                                          cellIndex1, cellIndex2, cellIndex3,
                                          cycleLocal1, cycleLocal2, cycleLocal3);
-            int iOrient = get_orientation(facet.second, v1, v2, val1, val2);
+
+            // Compute orientation geometrically for lines
+            int iOrient = 1;
             bool isValid = ok && (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
+            if (isValid && cellIndex1 >= 0 && cellIndex2 >= 0 && cellIndex3 >= 0)
+            {
+                Point c1 = voronoiDiagram.cells[cellIndex1].delaunay_vertex->point();
+                Point c2 = voronoiDiagram.cells[cellIndex2].delaunay_vertex->point();
+                Point c3 = voronoiDiagram.cells[cellIndex3].delaunay_vertex->point();
+                auto e1 = c2 - c1;
+                auto e2 = c3 - c1;
+                auto normal = CGAL::cross_product(e1, e2);
+                auto voronoi_dir = v2 - v1;
+                auto dot = normal * voronoi_dir;
+                bool normal_aligned = (dot > 0);
+                bool val1_higher = (val1 >= val2);
+                iOrient = (normal_aligned == val1_higher) ? 1 : -1;
+            }
             if (isValid)
             {
                 CycleKey key1 = make_cycle_key(cellIndex1, cycleLocal1);
