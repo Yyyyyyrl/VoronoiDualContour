@@ -161,7 +161,13 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
         std::cerr << " voronoi edges in facet: \n";
         for (int ei : vf.voronoi_edge_indices)
         {
-            VoronoiEdge edge = vd.edges[ei];
+            if (ei < 0 || ei >= static_cast<int>(vd.edges.size()))
+            {
+                std::cerr << "Invalid edge index: " << ei << "\n";
+                continue;
+            }
+
+            const VoronoiEdge &edge = vd.edges[ei];
             Segment3 segment;
             Line3 line;
             Ray3 ray;
@@ -207,17 +213,27 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
 
     // Ensure even number by dropping one if odd (log it)
     int usable = (nB & 1) ? (nB - 1) : nB;
-    if (usable < nB && debug)
+    if (usable < nB)
     {
-        std::cerr << "[ISO-MATCH] gf=" << vf.index << " odd bipolar slots=" << nB << " → dropping last\n";
+        if (debug)
+        {
+            std::cerr << "[ISO-MATCH] gf=" << vf.index << " odd bipolar slots=" << nB << " → dropping last\n";
+        }
+        if (usable <= 0)
+            return; // nothing to pair
     }
 
-    // Disjoint, circular pairing: (s, s+1), (s+2, s+3), ...
-    for (int t = 0; t + 1 < nB; t += 2)
+    std::vector<int> orderedSlots;
+    orderedSlots.reserve(usable);
+    for (int t = 0; t < usable; ++t)
     {
-        int a = vf.bipolar_edge_indices[(startPos + t) % nB];
-        int b = vf.bipolar_edge_indices[(startPos + t + 1) % nB];
-        vf.bipolar_matches.emplace_back(a, b);
+        orderedSlots.push_back(vf.bipolar_edge_indices[(startPos + t) % nB]);
+    }
+
+    // Disjoint pairing: (s0, s1), (s2, s3), ...
+    for (size_t idx = 0; idx + 1 < orderedSlots.size(); idx += 2)
+    {
+        vf.bipolar_matches.emplace_back(orderedSlots[idx], orderedSlots[idx + 1]);
     }
 
     if (debug)

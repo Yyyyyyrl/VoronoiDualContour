@@ -387,7 +387,7 @@ static void process_incident_edges(
 
         // Build facet only if edge has 3+ finite cells
         VoronoiCellFacet facet = build_facet_from_edge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facet_indices, edge_to_facets, vc.cellIndex);
-        if (facet.vertices_indices.empty())
+        if (facet.vertices_indices.empty() && debug)
         {
             std::cout << "[WARNING] Facet construction failed for edge with " << finite_cell_count << " finite cells\n";
             continue;
@@ -414,62 +414,73 @@ static std::pair<int, int> get_edge_key(int u, int v)
     return {std::min(u, v), std::max(u, v)};
 }
 
-//! @brief Validates that each Facet in the Voronoi Diagram has the correct
-/// orientation and normal vector.
-/*!
- *
- */
-void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
+namespace
 {
-    // propagation per cell
-    for (auto &cell : voronoiDiagram.cells)
+    //! @brief Maps each cell facet to its owning cell index (or -1).
+    std::vector<int> build_facet_to_cell_map(const VoronoiDiagram &vd)
     {
-        if (cell.facet_indices.empty())
-            continue;
+        std::vector<int> facetToCell(vd.facets.size(), -1);
+        for (size_t cellIdx = 0; cellIdx < vd.cells.size(); ++cellIdx)
+        {
+            for (int fi : vd.cells[cellIdx].facet_indices)
+            {
+                if (fi >= 0 && fi < static_cast<int>(facetToCell.size()))
+                    facetToCell[fi] = static_cast<int>(cellIdx);
+            }
+        }
+        return facetToCell;
+    }
 
-        // Build facet adjacency: vector of maps: index in facet_indices -> {adj_index in facet_indices: shared_edge_key}
-        size_t num_facets = cell.facet_indices.size();
-        std::vector<std::map<size_t, std::pair<int, int>>> facet_adj(num_facets);
+    //! @brief Within a single cell, ensure neighboring facets disagree on the shared edge orientation.
+    void propagate_facets_within_cell(size_t cellIdx, VoronoiDiagram &vd)
+    {
+        auto &cell = vd.cells[cellIdx];
+        if (cell.facet_indices.empty())
+            return;
+
+        const size_t num_facets = cell.facet_indices.size();
+        std::vector<std::map<size_t, std::pair<int, int>>> adjacency(num_facets);
+
         for (size_t i = 0; i < num_facets; ++i)
         {
-            int f1 = cell.facet_indices[i];
-            const auto &verts1 = voronoiDiagram.facets[f1].vertices_indices;
-            std::map<std::pair<int, int>, size_t> edge_to_pos1;
+            const int f1 = cell.facet_indices[i];
+            const auto &verts1 = vd.facets[f1].vertices_indices;
+            std::map<std::pair<int, int>, size_t> edges1;
             for (size_t j = 0; j < verts1.size(); ++j)
             {
-                int u = verts1[j];
-                int v = verts1[(j + 1) % verts1.size()];
-                edge_to_pos1[get_edge_key(u, v)] = j;
+                const int u = verts1[j];
+                const int v = verts1[(j + 1) % verts1.size()];
+                edges1[get_edge_key(u, v)] = j;
             }
 
             for (size_t k = i + 1; k < num_facets; ++k)
             {
-                int f2 = cell.facet_indices[k];
-                const auto &verts2 = voronoiDiagram.facets[f2].vertices_indices;
-                std::pair<int, int> shared_edge = {-1, -1};
+                const int f2 = cell.facet_indices[k];
+                const auto &verts2 = vd.facets[f2].vertices_indices;
+                std::pair<int, int> shared = {-1, -1};
                 int shared_count = 0;
+
                 for (size_t j = 0; j < verts2.size(); ++j)
                 {
-                    int u = verts2[j];
-                    int v = verts2[(j + 1) % verts2.size()];
+                    const int u = verts2[j];
+                    const int v = verts2[(j + 1) % verts2.size()];
                     auto key = get_edge_key(u, v);
-                    if (edge_to_pos1.count(key))
+                    if (edges1.count(key))
                     {
-                        shared_edge = key;
-                        shared_count++;
-                        if (shared_count > 1)
-                            break; // Not adjacent if >1 edge shared
+                        shared = key;
+                        if (++shared_count > 1)
+                            break; // only consider true neighbors sharing a single edge
                     }
                 }
+
                 if (shared_count == 1)
                 {
-                    facet_adj[i][k] = shared_edge;
-                    facet_adj[k][i] = shared_edge;
+                    adjacency[i][k] = shared;
+                    adjacency[k][i] = shared;
                 }
             }
         }
 
-        // BFS to propagate
         std::vector<bool> visited(num_facets, false);
         std::queue<size_t> q;
         q.push(0);
@@ -477,79 +488,131 @@ void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
 
         while (!q.empty())
         {
-            size_t curr = q.front();
+            const size_t curr = q.front();
             q.pop();
-            int curr_f = cell.facet_indices[curr];
-            auto &curr_verts = voronoiDiagram.facets[curr_f].vertices_indices;
 
-            for (const auto &kv : facet_adj[curr])
+            const int currFacetIdx = cell.facet_indices[curr];
+            auto &currVerts = vd.facets[currFacetIdx].vertices_indices;
+
+            for (const auto &entry : adjacency[curr])
             {
-                size_t adj = kv.first;
-                if (visited[adj])
+                const size_t next = entry.first;
+                if (visited[next])
                     continue;
-                visited[adj] = true;
-                q.push(adj);
 
-                auto shared_edge = kv.second;
-                int adj_f = cell.facet_indices[adj];
-                auto &adj_verts = voronoiDiagram.facets[adj_f].vertices_indices;
+                visited[next] = true;
+                q.push(next);
 
-                // Find direction in curr: true if u to v (min to max)
-                bool curr_dir_uv = false;
-                for (size_t j = 0; j < curr_verts.size(); ++j)
-                {
-                    int a = curr_verts[j];
-                    int b = curr_verts[(j + 1) % curr_verts.size()];
-                    if (get_edge_key(a, b) == shared_edge)
+                const std::pair<int, int> shared = entry.second;
+                const int nextFacetIdx = cell.facet_indices[next];
+                auto &nextVerts = vd.facets[nextFacetIdx].vertices_indices;
+
+                auto has_direction = [&](const std::vector<int> &verts) {
+                    for (size_t j = 0; j < verts.size(); ++j)
                     {
-                        curr_dir_uv = (a == shared_edge.first && b == shared_edge.second);
-                        break;
+                        const int a = verts[j];
+                        const int b = verts[(j + 1) % verts.size()];
+                        if (get_edge_key(a, b) == shared)
+                            return (a == shared.first && b == shared.second);
                     }
-                }
+                    return false;
+                };
 
-                // In adj
-                bool adj_dir_uv = false;
-                for (size_t j = 0; j < adj_verts.size(); ++j)
-                {
-                    int a = adj_verts[j];
-                    int b = adj_verts[(j + 1) % adj_verts.size()];
-                    if (get_edge_key(a, b) == shared_edge)
-                    {
-                        adj_dir_uv = (a == shared_edge.first && b == shared_edge.second);
-                        break;
-                    }
-                }
+                const bool curr_dir = has_direction(currVerts);
+                const bool next_dir = has_direction(nextVerts);
 
-                // If same direction, reverse adj
-                if (curr_dir_uv == adj_dir_uv)
-                {
-                    std::reverse(adj_verts.begin(), adj_verts.end());
-                    // std::cout << "[INFO] Reversed intra-cell facet " << adj_f << " in cell " << cell.cellIndex << " to match opposite edge {" << shared_edge.first << "," << shared_edge.second << "} with facet " << curr_f << "\n";
-                }
+                if (curr_dir == next_dir)
+                    std::reverse(nextVerts.begin(), nextVerts.end());
+            }
+        }
+    }
+
+    //! @brief Ensure each undirected edge in the cell appears twice with opposite direction.
+    bool audit_cell_edge_orientation(size_t cellIdx, const VoronoiDiagram &vd)
+    {
+        const auto &cell = vd.cells[cellIdx];
+        if (cell.facet_indices.empty())
+            return true;
+
+        struct EdgeInfo
+        {
+            int count = 0;
+            int orientationSum = 0;
+        };
+
+        std::map<std::pair<int, int>, EdgeInfo> usage;
+
+        for (int fi : cell.facet_indices)
+        {
+            const auto &verts = vd.facets[fi].vertices_indices;
+            const size_t n = verts.size();
+            if (n < 2)
+                continue;
+
+            for (size_t k = 0; k < n; ++k)
+            {
+                const int u = verts[k];
+                const int v = verts[(k + 1) % n];
+                if (u == v)
+                    continue;
+
+                const std::pair<int, int> key{std::min(u, v), std::max(u, v)};
+                const int step = (key.first == u && key.second == v) ? +1 : -1;
+                EdgeInfo &info = usage[key];
+                info.count += 1;
+                info.orientationSum += step;
             }
         }
 
-        int outward_count = 0;
-        int total_non_deg = 0;
-        for (size_t f = 0; f < num_facets; ++f)
+        for (const auto &kv : usage)
         {
-            int fi = cell.facet_indices[f];
-            auto &V = voronoiDiagram.facets[fi].vertices_indices;
-            if (V.size() < 3)
+            const EdgeInfo &info = kv.second;
+            if (info.count != 2 || info.orientationSum != 0)
+            {
+                if (debug)
+                {
+                    std::cerr << "[DEBUG] Cell " << cell.cellIndex
+                              << " has inconsistent facet orientation along edge {"
+                              << kv.first.first << "," << kv.first.second << "}: count="
+                              << info.count << " orientSum=" << info.orientationSum << "\n";
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void flip_cell(VoronoiDiagram &vd, int cellIdx)
+    {
+        auto &cell = vd.cells[cellIdx];
+        for (int fi : cell.facet_indices)
+        {
+            auto &verts = vd.facets[fi].vertices_indices;
+            std::reverse(verts.begin(), verts.end());
+        }
+    }
+
+    //! @brief Orient the cell so its facets face away from the Delaunay site.
+    void orient_cell_outward(VoronoiDiagram &vd, int cellIdx)
+    {
+        auto &cell = vd.cells[cellIdx];
+        for (int fi : cell.facet_indices)
+        {
+            const auto &verts = vd.facets[fi].vertices_indices;
+            const size_t n = verts.size();
+            if (n < 3)
                 continue;
 
             Point centroid(0, 0, 0);
-            for (int idx : V)
-            {
-                centroid = centroid + (voronoiDiagram.vertices[idx].coord - CGAL::ORIGIN) / V.size();
-            }
+            const double invN = 1.0 / static_cast<double>(n);
+            for (int idx : verts)
+                centroid = centroid + (vd.vertices[idx].coord - CGAL::ORIGIN) * invN;
 
             Vector3 normal(0, 0, 0);
-            size_t n = V.size();
             for (size_t k = 0; k < n; ++k)
             {
-                const Point &p1 = voronoiDiagram.vertices[V[k]].coord;
-                const Point &p2 = voronoiDiagram.vertices[V[(k + 1) % n]].coord;
+                const Point &p1 = vd.vertices[verts[k]].coord;
+                const Point &p2 = vd.vertices[verts[(k + 1) % n]].coord;
                 normal = normal + Vector3(
                                       (p1.y() - p2.y()) * (p1.z() + p2.z()),
                                       (p1.z() - p2.z()) * (p1.x() + p2.x()),
@@ -557,29 +620,94 @@ void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
             }
             normal = normal / 2.0;
 
-            double sq_norm = normal.squared_length();
-            if (sq_norm > 1e-10)
-            { // Non-degenerate
-                Vector3 v = cell.delaunay_vertex->point() - centroid;
-                double dot = CGAL::scalar_product(normal, v);
-                if (dot <= 0)
-                    outward_count++;
-                total_non_deg++;
-            }
-        }
+            if (normal.squared_length() <= 1e-12)
+                continue;
 
-        if (total_non_deg > 0 && outward_count < total_non_deg / 2)
+            const Vector3 v = cell.delaunay_vertex->point() - centroid;
+            if (CGAL::scalar_product(normal, v) > 0)
+                flip_cell(vd, cellIdx);
+            return;
+        }
+    }
+
+    //! @brief Spread orientations across neighboring cells via mirror facets.
+    void propagate_orientation_between_cells(VoronoiDiagram &vd, const std::vector<int> &facetToCell)
+    {
+        std::vector<int> cellMark(vd.cells.size(), 0);
+        std::queue<int> pending;
+
+        for (size_t root = 0; root < vd.cells.size(); ++root)
         {
-            // Majority inward, reverse all facets in the cell
-            // std::cout << "[INFO] Reversing all facets in cell " << cell.cellIndex << " to make majority outward (outward_count: " << outward_count << " / " << total_non_deg << ")\n";
-            for (size_t f = 0; f < num_facets; ++f)
+            if (vd.cells[root].facet_indices.empty())
+                continue;
+            if (cellMark[root] != 0)
+                continue;
+
+            orient_cell_outward(vd, static_cast<int>(root));
+            cellMark[root] = 1;
+            pending.push(static_cast<int>(root));
+
+            while (!pending.empty())
             {
-                int fi = cell.facet_indices[f];
-                auto &V = voronoiDiagram.facets[fi].vertices_indices;
-                std::reverse(V.begin(), V.end());
+                const int curr = pending.front();
+                pending.pop();
+
+                for (int fi : vd.cells[curr].facet_indices)
+                {
+                    const int mirror = vd.facets[fi].mirror_facet_index;
+                    if (mirror < 0 || mirror >= static_cast<int>(vd.facets.size()))
+                        continue;
+
+                    const int neighbor = facetToCell[mirror];
+                    if (neighbor < 0 || neighbor == curr)
+                        continue;
+
+                    bool opposite = vd.haveOppositeOrientation(
+                        vd.facets[fi].vertices_indices,
+                        vd.facets[mirror].vertices_indices);
+
+                    if (cellMark[neighbor] == 0)
+                    {
+                        if (!opposite)
+                        {
+                            flip_cell(vd, neighbor);
+                            opposite = vd.haveOppositeOrientation(
+                                vd.facets[fi].vertices_indices,
+                                vd.facets[mirror].vertices_indices);
+                            if (!opposite)
+                            {
+                                throw std::runtime_error(
+                                    "Unable to orient cell " + std::to_string(neighbor) +
+                                    " opposite to cell " + std::to_string(curr) + ".");
+                            }
+                        }
+                        cellMark[neighbor] = -cellMark[curr];
+                        pending.push(neighbor);
+                    }
+                    else if (!opposite)
+                    {
+                        throw std::runtime_error(
+                            "Cells " + std::to_string(curr) + " and " + std::to_string(neighbor) +
+                            " disagree on shared facet orientation.");
+                    }
+                }
             }
         }
     }
+} // namespace
+
+//! @brief Validates facet orientation using only combinatorial information with a single geometric anchor per component.
+void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
+{
+    const auto facetToCell = build_facet_to_cell_map(voronoiDiagram);
+
+    for (size_t cellIdx = 0; cellIdx < voronoiDiagram.cells.size(); ++cellIdx)
+    {
+        propagate_facets_within_cell(cellIdx, voronoiDiagram);
+        audit_cell_edge_orientation(cellIdx, voronoiDiagram);
+    }
+
+    propagate_orientation_between_cells(voronoiDiagram, facetToCell);
 }
 
 //! @brief Constructs Voronoi cells without using Convex_Hull_3 (in development).
