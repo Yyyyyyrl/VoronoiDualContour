@@ -798,15 +798,38 @@ void construct_voronoi_edges(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
                 int v2 = std::max(idx1, idx2);
                 auto it = segmentMap.find({v1, v2});
 
-                VoronoiEdge vEdge(edgeobj);
-                vEdge.type = 0;
-                vEdge.vertex1 = v1;
-                vEdge.vertex2 = v2;
-                int edgeIdx = voronoiDiagram.edges.size();
-                vEdge.delaunayFacets.push_back(facet);
-                voronoiDiagram.edges.push_back(vEdge);
-                segmentMap[{v1, v2}] = edgeIdx;
-                voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
+                if (it == segmentMap.end())
+                {
+                    // New segment: create and store with first facet
+                    VoronoiEdge vEdge(edgeobj);
+                    vEdge.type = 0;
+                    vEdge.vertex1 = v1;
+                    vEdge.vertex2 = v2;
+                    int edgeIdx = voronoiDiagram.edges.size();
+                    vEdge.delaunayFacets.push_back(facet);
+                    voronoiDiagram.edges.push_back(vEdge);
+                    segmentMap[{v1, v2}] = edgeIdx;
+                    voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
+                }
+                else
+                {
+                    // Segment exists: replace facet if this one has better canonical properties
+                    // Use the facet with smallest iFacet value for consistency
+                    int edgeIdx = it->second;
+                    VoronoiEdge &vEdge = voronoiDiagram.edges[edgeIdx];
+
+                    if (!vEdge.delaunayFacets.empty())
+                    {
+                        int existingFacetIdx = vEdge.delaunayFacets[0].second;
+                        int newFacetIdx = facet.second;
+
+                        // Choose the facet with smallest index for canonical orientation
+                        if (newFacetIdx < existingFacetIdx)
+                        {
+                            vEdge.delaunayFacets[0] = facet;
+                        }
+                    }
+                }
             }
         }
         else if (CGAL::assign(ray, edgeobj))
