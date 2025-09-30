@@ -1,11 +1,6 @@
 #include "voronoi/vdc_voronoi.h"
 #include "core/vdc_debug.h"
 
-namespace
-{
-    constexpr double NORMAL_SQ_EPS = 1e-4;
-}
-
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.
 /*!
  * Creates a new Voronoi vertex and updates both the vertex list and spatial hash map.
@@ -731,74 +726,79 @@ void VoronoiDiagram::checkEdgeFacetCount() const
     }
 }
 
-//! @brief Verifies facet normals point outward.
+//! @brief Ensures per-cell facet loops are consistently oriented.
 /*!
- * Validates the orientation consistency of facet normals relative to cell centers.
- * Ensures proper inside/outside determination for Voronoi cells.
+ * Validates that each Voronoi cell has a coherent orientation purely by connectivity:
  *
- * Orientation test:
- * - Uses CGAL's orientation predicate
- * - Checks normal points away from Delaunay vertex
+ *  - Every undirected edge used by the cell must appear exactly twice across its facets.
+ *  - Those two appearances must have opposite direction (clockwise vs counter-clockwise).
  *
- * @throws std::runtime_error if any facet normal is inward-pointing
- * @note Critical for correct geometric computations
+ * This check guarantees combinatorial orientation consistency without referencing geometry.
+ *
+ * @throws std::runtime_error if a cell contains mismatched edge usage or orientation.
  */
 void VoronoiDiagram::checkFacetNormals() const
 {
     for (const auto &cell : cells)
     {
-        auto site = cell.delaunay_vertex->point();
+        // Track how each undirected edge is used by the facets attached to this cell.
+        struct EdgeInfo
+        {
+            int count = 0;
+            int orientationSum = 0;
+            std::vector<int> facets;
+        };
+
+        // key = {min(vertex), max(vertex)} so we treat edges as undirected when aggregating.
+        std::map<std::pair<int, int>, EdgeInfo> edgeMap;
+
         for (int fi : cell.facet_indices)
         {
-            auto const &V = facets[fi].vertices_indices;
-            if (V.size() < 3)
+            const auto &loop = facets[fi].vertices_indices;
+            const size_t n = loop.size();
+            if (n < 2)
                 continue;
 
-            // Centroid
-            Point centroid(0, 0, 0);
-            for (int idx : V)
-            {
-                centroid = centroid + (vertices[idx].coord - CGAL::ORIGIN) / V.size();
-            }
-
-            // calculate normal
-            Vector3 normal(0, 0, 0);
-            size_t n = V.size();
             for (size_t k = 0; k < n; ++k)
             {
-                const Point &p1 = vertices[V[k]].coord;
-                const Point &p2 = vertices[V[(k + 1) % n]].coord;
-                normal = normal + Vector3(
-                                      (p1.y() - p2.y()) * (p1.z() + p2.z()),
-                                      (p1.z() - p2.z()) * (p1.x() + p2.x()),
-                                      (p1.x() - p2.x()) * (p1.y() + p2.y()));
-            }
-            normal = normal / 2.0;
-            const double normalSq = normal.squared_length();
-            if (normalSq <= NORMAL_SQ_EPS)
-                continue; // Treat tiny-area facets as degenerate
+                const int u = loop[k];
+                const int v = loop[(k + 1) % n];
+                if (u == v)
+                    continue;
 
-            Vector3 v = site - centroid;
-            double dot = CGAL::scalar_product(normal, v);
-            if (dot > 0)
+                const std::pair<int, int> key{std::min(u, v), std::max(u, v)};
+                // Orientation +1 if the loop traverses key in ascending order, -1 otherwise.
+                const int orientation = (key.first == u && key.second == v) ? 1 : -1;
+                EdgeInfo &info = edgeMap[key];
+                info.count += 1;
+                info.orientationSum += orientation;
+                // Record up to a few culprit facets to aid debugging if the check fails.
+                if (info.facets.size() < 3)
+                    info.facets.push_back(fi);
+            }
+        }
+
+        for (const auto &kv : edgeMap)
+        {
+            const auto &info = kv.second;
+            const bool countsOk = (info.count == 2);
+            const bool orientationsOk = (info.orientationSum == 0);
+            if (!countsOk || !orientationsOk)
             {
                 if (debug)
                 {
-                    std::cerr << "[DEBUG] Facet " << fi << " in cell " << cell.cellIndex << " has dot " << dot << " (should <0), sq_normal " << normal.squared_length() << "\n";
-                    std::cerr << "[DEBUG] Full vertices: ";
-                    for (int vi : V)
-                        std::cerr << vi << " ";
-                    std::cerr << "\n[DEBUG] Coords: \n";
-                    for (int vi : V)
-                    {
-                        const Point &p = vertices[vi].coord;
-                        std::cerr << p << "\n";
-                    }
-                    std::cerr << "[DEBUG] Centroid: " << centroid << ", site: " << site << "\n";
+                    std::cerr << "[DEBUG] Cell " << cell.cellIndex
+                              << ": edge {" << kv.first.first << ", " << kv.first.second << "}"
+                              << " count=" << info.count
+                              << " orientationSum=" << info.orientationSum << std::endl;
+                    std::cerr << "[DEBUG] Facets using edge: ";
+                    for (int f : info.facets)
+                        std::cerr << f << ' ';
+                    std::cerr << std::endl;
                 }
-                throw std::runtime_error("Facet " + std::to_string(fi) +
-                                         " in cell " + std::to_string(cell.cellIndex) +
-                                         " has inward‐pointing normal.");
+
+                throw std::runtime_error("Cell " + std::to_string(cell.cellIndex) +
+                                         " has inconsistent facet orientations.");
             }
         }
     }

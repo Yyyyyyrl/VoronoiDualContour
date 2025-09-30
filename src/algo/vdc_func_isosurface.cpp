@@ -1481,7 +1481,7 @@ static void extract_cycles(
     // alert if degree != 2
     for (int i = 0; i < n; ++i)
     {
-        if (!adj[i].empty() && adj[i].size() != 2)
+        if (!adj[i].empty() && adj[i].size() != 2 && debug)
         {
             std::cerr << "[warn] midpoint " << i << " has degree " << adj[i].size() << " (expected 2)\n";
         }
