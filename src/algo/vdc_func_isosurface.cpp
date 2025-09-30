@@ -283,7 +283,9 @@ static void prune_duplicate_edge_triangles(IsoSurface &iso_surface, const Vorono
     }
 }
 
-static bool adjust_conflicting_facets(VoronoiDiagram &vd, const IsoSurface &iso_surface)
+static bool adjust_conflicting_facets(VoronoiDiagram &vd,
+                                      const IsoSurface &iso_surface,
+                                      std::vector<int> *outTweakedFacets = nullptr)
 {
     static const bool modcycDebug = (std::getenv("MODCYC_DEBUG") != nullptr);
     if (iso_surface.isosurfaceTrianglesMulti.empty())
@@ -420,6 +422,10 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd, const IsoSurface &iso_
                     if (modcycDebug)
                     {
                         std::cerr << "    [MODCYC] facet " << vfi << " switched to " << matchMethodToString(nextMethod) << "\n";
+                    }
+                    if (outTweakedFacets)
+                    {
+                        outTweakedFacets->push_back(static_cast<int>(vfi));
                     }
                 }
 
@@ -1704,7 +1710,7 @@ static void compute_cycle_centroids(
 void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface)
 {
     ISO_DBG_LOAD_ENV();
-    voronoiDiagram.compute_bipolar_matches(isovalue);
+    // Expect callers to keep voronoiDiagram.global_facets[vfi].bipolar_matches in sync.
     for (auto &vc : voronoiDiagram.cells)
     {
         std::vector<MidpointNode> midpoints;
@@ -1747,6 +1753,9 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
     }
     std::clock_t start_time = std::clock();
+    // Helper used before every new attempt of the multi-isov pipeline. Any facet flip
+    // or cycle modification invalidates previously built iso vertices and triangle
+    // bookkeeping, so we clear the shared buffers here to guarantee clean state.
     auto reset_iso_accumulators = [&]() {
         iso_surface.isosurfaceVertices.clear();
         iso_surface.isosurfaceTrianglesMulti.clear();
@@ -1768,31 +1777,98 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
     if (vdc_param.multi_isov)
     {
         const int maxResolve = 8;
+        // Track whether facet bipolar matches / iso segments are stale. The very first
+        // attempt recomputes everything. Subsequent attempts only touch facets whose
+        // match method changed, which keeps the retry cost bounded.
+        bool matchesDirty = true;
+        bool recomputeAllMatches = true;
+        std::vector<int> facetWorklist;
+        std::unordered_set<int> facetWorkset;
+
+        // Mark a set of global facets as dirty so we can refresh their matches before
+        // the next attempt. We preserve insertion order in facetWorklist to keep the
+        // recomputation deterministic while avoiding duplicates with facetWorkset.
+        auto mark_facets_dirty = [&](const std::vector<int> &facets) {
+            if (facets.empty())
+                return;
+            matchesDirty = true;
+            if (recomputeAllMatches)
+                return;
+            for (int vfi : facets)
+            {
+                if (vfi < 0 || vfi >= static_cast<int>(vd.global_facets.size()))
+                    continue;
+                if (facetWorkset.insert(vfi).second)
+                    facetWorklist.push_back(vfi);
+            }
+        };
+
         for (int attempt = 0; attempt < maxResolve && !dualBuilt; ++attempt)
         {
+            // Refresh bipolar matches and iso segments as required. Either we rebuild
+            // the entire structure (first attempt) or only the facets that were flipped
+            // during the previous iteration's conflict resolution.
+            if (matchesDirty)
+            {
+                if (recomputeAllMatches)
+                {
+                    vd.compute_bipolar_matches(vdc_param.isovalue);
+                    for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+                    {
+                        build_iso_segments_for_facet(vd, static_cast<int>(vfi), vdc_param.isovalue);
+                    }
+                }
+                else
+                {
+                    for (int vfi : facetWorklist)
+                    {
+                        if (vfi < 0 || vfi >= static_cast<int>(vd.global_facets.size()))
+                            continue;
+                        recompute_bipolar_matches_for_facet(vd, vfi, vdc_param.isovalue);
+                        build_iso_segments_for_facet(vd, vfi, vdc_param.isovalue);
+                    }
+                }
+                matchesDirty = false;
+                recomputeAllMatches = false;
+                facetWorklist.clear();
+                facetWorkset.clear();
+            }
+
             if (attempt > 0)
                 reset_iso_accumulators();
 
+            // Build cycles and isovertex centroids using the current set of facet matches.
             compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
 
             if (vdc_param.mod_cyc)
             {
-                if (adjust_conflicting_facets(vd, iso_surface))
+                std::vector<int> tweakedFacets;
+                // Some facets may still disagree after the fresh vertex build. When they
+                // do we flip their match policy and loop to rebuild with the updated data.
+                if (adjust_conflicting_facets(vd, iso_surface, &tweakedFacets))
                 {
-                    vd.compute_bipolar_matches(vdc_param.isovalue);
-                    for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
-                        build_iso_segments_for_facet(vd, static_cast<int>(vfi), vdc_param.isovalue);
-                    continue; // re-evaluate with new facet matches before modify-cycles
+                    mark_facets_dirty(tweakedFacets);
+                    continue;
                 }
 
+                // modify_cycles_pass already recomputes matches for the facets it flips,
+                // so we can treat the facet cache as up to date once this returns.
                 mod_cyc_flips = modify_cycles_pass(vd, vdc_param.isovalue);
 
+                matchesDirty = false; // modify_cycles_pass already recalculates matches locally.
+                recomputeAllMatches = false;
+                facetWorklist.clear();
+                facetWorkset.clear();
+
                 reset_iso_accumulators();
+                // Rebuild iso vertices to capture any new cycle assignments produced by
+                // modify_cycles_pass before we run the downstream conflict checks.
                 compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
 
-                if (adjust_conflicting_facets(vd, iso_surface))
+                tweakedFacets.clear();
+                if (adjust_conflicting_facets(vd, iso_surface, &tweakedFacets))
                 {
-                    // Matches changed; loop to recompute cycles and rerun modify-cycles
+                    mark_facets_dirty(tweakedFacets);
                     continue;
                 }
             }
@@ -1802,8 +1878,12 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
 
             if (bindingConflict && vdc_param.mod_cyc)
             {
-                if (adjust_conflicting_facets(vd, iso_surface))
+                std::vector<int> tweakedFacets;
+                // Triangle binding conflicts expose another set of facets whose method
+                // must be flipped. We feed them back into the dirty queue and retry.
+                if (adjust_conflicting_facets(vd, iso_surface, &tweakedFacets))
                 {
+                    mark_facets_dirty(tweakedFacets);
                     dualBuilt = false;
                     continue;
                 }
