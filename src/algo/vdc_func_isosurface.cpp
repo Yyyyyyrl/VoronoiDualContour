@@ -708,18 +708,44 @@ void compute_dual_triangles(
 {
     std::vector<DelaunayTriangle> dualTriangles;
 
-    for (auto &edge : vd.edges)
+    auto vertex_is_valid = [&](int idx) -> bool {
+        return idx >= 0 && idx < static_cast<int>(vd.vertices.size());
+    };
+
+    for (size_t edgeIdx = 0; edgeIdx < vd.edges.size(); ++edgeIdx)
     {
+        auto &edge = vd.edges[edgeIdx];
         Segment3 seg;
         Ray3 ray;
         Line3 line;
 
         if (edge.type == 0)
         {
+            if (!vertex_is_valid(edge.vertex1) ||
+                !vertex_is_valid(edge.vertex2) ||
+                edge.vertex1 == edge.vertex2)
+            {
+                if (debug)
+                {
+                    std::cerr << "[ISO] Skipping segment edge " << edgeIdx
+                              << " with invalid vertices (" << edge.vertex1
+                              << ", " << edge.vertex2 << ")\n";
+                }
+                continue;
+            }
             process_segment_edge(edge, vd, isovalue, dt, dualTriangles);
         }
         else if (edge.type == 1)
         {
+            if (!vertex_is_valid(edge.vertex1))
+            {
+                if (debug)
+                {
+                    std::cerr << "[ISO] Skipping ray edge " << edgeIdx
+                              << " with invalid vertex " << edge.vertex1 << "\n";
+                }
+                continue;
+            }
             process_ray_edge(edge, vd, bbox, grid, isovalue, dt, dualTriangles);
         }
         else if (edge.type == 2)
