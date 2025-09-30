@@ -490,9 +490,25 @@ static inline int linear_cell_index(int i, int j, int k, const UnifiedGrid& g) {
     return k * (g.nx - 1) * (g.ny - 1) + j * (g.nx - 1) + i;
 }
 
+// Helper: compute minimum distance to bounding box boundary in grid space
+static inline int min_distance_to_boundary(int i, int j, int k, const UnifiedGrid& grid) {
+    int dist_i = std::min(i, (grid.nx - 2) - i);  // nx-2 is the max valid cube index in i
+    int dist_j = std::min(j, (grid.ny - 2) - j);
+    int dist_k = std::min(k, (grid.nz - 2) - k);
+    return std::min({dist_i, dist_j, dist_k});
+}
+
 std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube>& activeCubes,
                                                const UnifiedGrid& grid)
 {
+    // Sort cubes by distance to boundary (ascending), prioritizing boundary cubes
+    std::sort(activeCubes.begin(), activeCubes.end(),
+              [&grid](const Cube& a, const Cube& b) {
+                  int dist_a = min_distance_to_boundary(a.i, a.j, a.k, grid);
+                  int dist_b = min_distance_to_boundary(b.i, b.j, b.k, grid);
+                  return dist_a < dist_b;
+              });
+
     std::unordered_map<int, Cube> kept;   // key: linear cell index
     std::vector<Cube> out;
     out.reserve(activeCubes.size());
@@ -527,49 +543,4 @@ std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube>& activeCubes,
         }
     }
     return out;
-}
-
-// Graph-based cube separation
-std::vector<Cube> separate_active_cubes_graph(std::vector<Cube> &activeCubes, const UnifiedGrid &grid)
-{
-    std::vector<Cube> separatedCubes;
-    int n = activeCubes.size();
-    std::vector<std::vector<int>> adjList(n);
-
-    for (int i = 0; i < n; ++i)
-        for (int j = 0; j < n; ++j)
-            if (i != j && is_adjacent(activeCubes[i], activeCubes[j], grid))
-            {
-                adjList[i].push_back(j);
-                adjList[j].push_back(i);
-            }
-
-    std::vector<int> color(n, -1);
-    std::vector<bool> available(n, true);
-    color[0] = 0;
-
-    for (int k = 1; k < n; ++k)
-    {
-        for (int item : adjList[k])
-            if (color[item] != -1)
-                available[color[item]] = false;
-        int cr;
-        for (cr = 0; cr < n; ++cr)
-            if (available[cr])
-                break;
-        color[k] = cr;
-        for (int adj : adjList[k])
-            if (color[adj] != -1)
-                available[color[adj]] = true;
-    }
-
-    std::unordered_map<int, std::vector<Cube>> colorClasses;
-    for (int i = 0; i < n; ++i)
-        colorClasses[color[i]].push_back(activeCubes[i]);
-
-    for (const auto &entry : colorClasses)
-        if (entry.second.size() > separatedCubes.size())
-            separatedCubes = entry.second;
-
-    return separatedCubes;
 }

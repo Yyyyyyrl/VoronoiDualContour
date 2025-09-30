@@ -304,15 +304,4 @@ std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes);
  */
 std::vector<Cube> separate_active_cubes_greedy(std::vector<Cube> &activeCubes, const UnifiedGrid &grid);
 
-//! @brief Selects a large independent set of active cubes (graph‑based).
-/*!
- * Builds an adjacency graph among active cubes and applies greedy coloring to
- * choose the largest color class as an approximate maximum independent set.
- *
- * @param activeCubes Active cubes to split
- * @param grid Grid for adjacency checks
- * @return A separated subset of cubes with reduced adjacency
- */
-std::vector<Cube> separate_active_cubes_graph(std::vector<Cube> &activeCubes, const UnifiedGrid &grid);
-
 #endif
