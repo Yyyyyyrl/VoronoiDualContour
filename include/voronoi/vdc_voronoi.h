@@ -37,7 +37,7 @@ struct VoronoiEdge
     int index = -1;
     Point source;                      //!< Source point for rays and lines; empty for segments
     Vector3 direction;                 //!< Direction vector for rays and lines; empty for segments
-    std::vector<Facet> delaunayFacets; //!< Facet indices in the Delaunay triangulation that correspond to this edge
+    std::vector<Facet> delaunayFacets; //!< Facet in the Delaunay triangulation that correspond to this edge
 
     //! @brief constructor
     /*!
