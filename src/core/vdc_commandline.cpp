@@ -1,6 +1,8 @@
 #include "core/vdc_commandline.h"
 #include "core/vdc_debug.h"
 
+#include <filesystem>
+
 //! Prints the help message for the program.
 void print_help()
 {
@@ -129,8 +131,17 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
     // Generate default output filename if not specified.
     if (vp.output_filename.empty())
     {
-        // Extract base name from the file path (without extension).
-        std::string base_name = vp.file_path.substr(0, vp.file_path.find_last_of('.'));
+        // Extract base name from the file path (strip directory and extension).
+        const std::filesystem::path input_path(vp.file_path);
+        std::string base_name = input_path.stem().string();
+        if (base_name.empty())
+        {
+            base_name = input_path.filename().string();
+        }
+        if (base_name.empty())
+        {
+            base_name = "vdc_output";
+        }
         vp.output_filename = base_name;
 
         // Append processing details to the filename.
