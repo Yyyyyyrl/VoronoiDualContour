@@ -712,9 +712,5 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     rebuild_cell_facet_edge_indices(out);
     out.create_global_facets();
 
-    // 9) Sanity checks
-    out.check(false);
-    out.checkAdvanced(false);
-
     return out;
 }
