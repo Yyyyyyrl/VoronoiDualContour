@@ -232,110 +232,23 @@ static VoronoiCellFacet build_facet_from_edge(
 
     Delaunay::Cell_circulator cc = dt.incident_cells(ed);
     Delaunay::Cell_circulator start = cc;
-    std::vector<int> facetVertexIndices;
+    std::vector<int> facetVertices;
     int finite_cell_count = 0;
-    bool involves_infinite = false;
     do
     {
-        if (dt.is_infinite(cc))
-        {
-            involves_infinite = true;
-        }
-        else
+        if (!dt.is_infinite(cc))
         {
             int vertex_index = cc->info().dualVoronoiVertexIndex;
-            if (vertex_index < 0)
+            if (vertex_index >= 0)
             {
-                involves_infinite = true;
-            }
-            else
-            {
-                facetVertexIndices.push_back(vertex_index);
-                finite_cell_count++;
+                facetVertices.push_back(vertex_index);
+                ++finite_cell_count;
             }
         }
         ++cc;
     } while (cc != start);
 
-    std::set<int> unique_vertices(facetVertexIndices.begin(), facetVertexIndices.end());
-
-    if (unique_vertices.size() >= 3)
-    {
-        // Clean duplicates
-        std::vector<int> cleaned;
-        for (size_t k = 0; k < facetVertexIndices.size(); ++k)
-        {
-            if (k == 0 || facetVertexIndices[k] != facetVertexIndices[k - 1])
-            {
-                cleaned.push_back(facetVertexIndices[k]);
-            }
-        }
-        if (cleaned.size() > 1 && cleaned.front() == cleaned.back())
-        {
-            cleaned.pop_back();
-        }
-        if (cleaned.size() < 3)
-        {
-            if (debug)
-            {
-                std::cout << "[DEBUG] Degenerate after cleaning: " << cleaned.size() << " verts\n";
-            }
-            return VoronoiCellFacet();
-        }
-        std::vector<int> orderedFacetVertices = std::move(cleaned);
-
-        // Determine orientation of the facet using CGAL::orientation ( taking determinant )
-        Point P1 = voronoiDiagram.vertices[orderedFacetVertices[0]].coord;
-        Point P2 = voronoiDiagram.vertices[orderedFacetVertices[1]].coord;
-        Point P3 = voronoiDiagram.vertices[orderedFacetVertices[2]].coord;
-        Point site = delaunay_vertex->point();
-        CGAL::Orientation orient = CGAL::orientation(P1, P2, P3, site);
-        if (orient == CGAL::POSITIVE)
-        {
-            std::reverse(orderedFacetVertices.begin(), orderedFacetVertices.end());
-        }
-        else if (orient == CGAL::ZERO)
-        {
-        }
-
-        VoronoiCellFacet facet;
-        facet.vertices_indices = orderedFacetVertices;
-
-        int facetIndex = voronoiDiagram.facets.size();
-        voronoiDiagram.facets.push_back(facet);
-        facet_indices.push_back(facetIndex);
-        std::pair<int, int> edge_key = std::make_pair(
-            std::min(v1->info().index, v2->info().index),
-            std::max(v1->info().index, v2->info().index));
-        edge_to_facets[edge_key].push_back(facetIndex);
-
-        // Map vertex loop → cell-edge loop for this cell facet
-        facet.cell_edge_indices.clear();
-        const int n = (int)facet.vertices_indices.size();
-
-        for (int i = 0; i < n; ++i)
-        {
-            const int a = facet.vertices_indices[i];
-            const int b = facet.vertices_indices[(i + 1) % n];
-            const int vmin = std::min(a, b), vmax = std::max(a, b);
-
-            // 1) find global segment edge
-            const auto eit = voronoiDiagram.segmentVertexPairToEdgeIndex.find({vmin, vmax});
-            if (eit == voronoiDiagram.segmentVertexPairToEdgeIndex.end())
-            {
-                facet.cell_edge_indices.push_back(-1);
-                continue;
-            }
-            const int globalEdge = eit->second;
-
-            // 2) find the cell-edge for (this cell, globalEdge)
-            const int thisCellIndex = vcIdx;
-            const auto ceit = voronoiDiagram.cellEdgeLookup.find({thisCellIndex, globalEdge});
-            facet.cell_edge_indices.push_back(ceit == voronoiDiagram.cellEdgeLookup.end() ? -1 : ceit->second);
-        }
-        return facet;
-    }
-    else
+    if (facetVertices.size() < 3)
     {
         if (debug)
         {
@@ -343,6 +256,53 @@ static VoronoiCellFacet build_facet_from_edge(
         }
         return VoronoiCellFacet();
     }
+
+    std::set<int> unique_vertices(facetVertices.begin(), facetVertices.end());
+    if (unique_vertices.size() < 3)
+    {
+        if (debug)
+        {
+            std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells\n";
+        }
+        return VoronoiCellFacet();
+    }
+
+    VoronoiCellFacet facet;
+    facet.vertices_indices = std::move(facetVertices);
+
+    int facetIndex = voronoiDiagram.facets.size();
+    voronoiDiagram.facets.push_back(facet);
+    facet_indices.push_back(facetIndex);
+    std::pair<int, int> edge_key = std::make_pair(
+        std::min(v1->info().index, v2->info().index),
+        std::max(v1->info().index, v2->info().index));
+    edge_to_facets[edge_key].push_back(facetIndex);
+
+    // Map vertex loop → cell-edge loop for this cell facet
+    facet.cell_edge_indices.clear();
+    const int n = (int)facet.vertices_indices.size();
+
+    for (int i = 0; i < n; ++i)
+    {
+        const int a = facet.vertices_indices[i];
+        const int b = facet.vertices_indices[(i + 1) % n];
+        const int vmin = std::min(a, b), vmax = std::max(a, b);
+
+        // 1) find global segment edge
+        const auto eit = voronoiDiagram.segmentVertexPairToEdgeIndex.find({vmin, vmax});
+        if (eit == voronoiDiagram.segmentVertexPairToEdgeIndex.end())
+        {
+            facet.cell_edge_indices.push_back(-1);
+            continue;
+        }
+        const int globalEdge = eit->second;
+
+        // 2) find the cell-edge for (this cell, globalEdge)
+        const int thisCellIndex = vcIdx;
+        const auto ceit = voronoiDiagram.cellEdgeLookup.find({thisCellIndex, globalEdge});
+        facet.cell_edge_indices.push_back(ceit == voronoiDiagram.cellEdgeLookup.end() ? -1 : ceit->second);
+    }
+    return facet;
 }
 
 //! @brief Processes incident edges to build facets for a Voronoi cell.
