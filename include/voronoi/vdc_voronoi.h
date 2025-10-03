@@ -871,7 +871,13 @@ void recompute_cell_cycles_for_matches_single_cell(VoronoiDiagram &vd,
  * @param vd Voronoi diagram to modify
  * @param isovalue Isovalue used for bipolar classification
  */
-int modify_cycles_pass(VoronoiDiagram &vd, float isovalue);
+struct ModifyCyclesResult {
+    int interior_flips = 0;
+    int boundary_flips = 0;
+    int total_flips = 0;
+};
+
+ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue);
 
 //! @brief Writes a text dump of the Voronoi diagram next to the mesh output.
 /*!

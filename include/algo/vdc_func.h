@@ -68,7 +68,7 @@ bool compute_dual_triangles_multi(
  * @param isovalue The isovalue to use for vertex computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  */
-void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface);
+void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface, const UnifiedGrid *grid = nullptr);
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
 /*!
@@ -209,7 +209,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
  * @param activeCubeCenters Active cube centers for single-isovertex mode
  * @param bbox Bounding box for clipping infinite edges
  */
-int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox);
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox, int *out_interior_flips = nullptr, int *out_boundary_flips = nullptr, std::size_t *out_clipped_count = nullptr, double *out_max_clip_distance = nullptr);
 
 
 // Helper function declarations (internal linkage)
