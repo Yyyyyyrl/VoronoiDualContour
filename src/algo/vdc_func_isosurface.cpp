@@ -1042,30 +1042,9 @@ static void process_segment_edge_multi(
                                              cellIndex1, cellIndex2, cellIndex3,
                                              cycleLocal1, cycleLocal2, cycleLocal3);
 
-            int iOrient = 1;  // default
-            if (isValid && cellIndex1 >= 0 && cellIndex2 >= 0 && cellIndex3 >= 0)
-            {
-                // Get cell centers (Delaunay vertex positions)
-                Point c1 = voronoiDiagram.cells[cellIndex1].delaunay_vertex->point();
-                Point c2 = voronoiDiagram.cells[cellIndex2].delaunay_vertex->point();
-                Point c3 = voronoiDiagram.cells[cellIndex3].delaunay_vertex->point();
-
-                // Compute triangle normal via cross product
-                auto e1 = c2 - c1;
-                auto e2 = c3 - c1;
-                auto normal = CGAL::cross_product(e1, e2);
-
-                // Voronoi edge direction
-                auto voronoi_dir = v2 - v1;
-
-                // Test alignment: dot product determines orientation
-                auto dot = normal * voronoi_dir;
-                bool normal_aligned = (dot > 0);
-                bool val1_higher = (val1 >= val2);
-
-                // Triangle orientation based on normal alignment and scalar gradient
-                iOrient = (normal_aligned == val1_higher) ? 1 : -1;
-            }
+            // Combinatorial orientation using Delaunay facet index parity
+            int iFacet = facet.second;
+            int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
 
             if (isValid)
             {
@@ -1145,23 +1124,10 @@ static void process_ray_edge_multi(
                                          cellIndex1, cellIndex2, cellIndex3,
                                          cycleLocal1, cycleLocal2, cycleLocal3);
 
-            // Compute orientation geometrically for rays
-            int iOrient = 1;
+            // Combinatorial orientation using Delaunay facet index parity
+            int iFacet = facet.second;
+            int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
             bool isValid = ok && (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
-            if (isValid && cellIndex1 >= 0 && cellIndex2 >= 0 && cellIndex3 >= 0)
-            {
-                Point c1 = voronoiDiagram.cells[cellIndex1].delaunay_vertex->point();
-                Point c2 = voronoiDiagram.cells[cellIndex2].delaunay_vertex->point();
-                Point c3 = voronoiDiagram.cells[cellIndex3].delaunay_vertex->point();
-                auto e1 = c2 - c1;
-                auto e2 = c3 - c1;
-                auto normal = CGAL::cross_product(e1, e2);
-                auto voronoi_dir = v2 - v1;
-                auto dot = normal * voronoi_dir;
-                bool normal_aligned = (dot > 0);
-                bool val1_higher = (val1 >= val2);
-                iOrient = (normal_aligned == val1_higher) ? 1 : -1;
-            }
             if (isValid)
             {
                 CycleKey key1 = make_cycle_key(cellIndex1, cycleLocal1);
@@ -1236,23 +1202,10 @@ static void process_line_edge_multi(
                                          cellIndex1, cellIndex2, cellIndex3,
                                          cycleLocal1, cycleLocal2, cycleLocal3);
 
-            // Compute orientation geometrically for lines
-            int iOrient = 1;
+            // Combinatorial orientation using Delaunay facet index parity
+            int iFacet = facet.second;
+            int iOrient = get_orientation(iFacet, v1, v2, val1, val2);
             bool isValid = ok && (idx1 != idx2 && idx2 != idx3 && idx1 != idx3);
-            if (isValid && cellIndex1 >= 0 && cellIndex2 >= 0 && cellIndex3 >= 0)
-            {
-                Point c1 = voronoiDiagram.cells[cellIndex1].delaunay_vertex->point();
-                Point c2 = voronoiDiagram.cells[cellIndex2].delaunay_vertex->point();
-                Point c3 = voronoiDiagram.cells[cellIndex3].delaunay_vertex->point();
-                auto e1 = c2 - c1;
-                auto e2 = c3 - c1;
-                auto normal = CGAL::cross_product(e1, e2);
-                auto voronoi_dir = v2 - v1;
-                auto dot = normal * voronoi_dir;
-                bool normal_aligned = (dot > 0);
-                bool val1_higher = (val1 >= val2);
-                iOrient = (normal_aligned == val1_higher) ? 1 : -1;
-            }
             if (isValid)
             {
                 CycleKey key1 = make_cycle_key(cellIndex1, cycleLocal1);
