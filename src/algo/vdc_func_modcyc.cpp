@@ -291,6 +291,55 @@ bool facet_has_problematic_iso_segments(const VoronoiDiagram &vd,
     return false;
 }
 
+// Detect whether a boundary facet (only one valid cell) has multiple iso-segments
+// belonging to the same cycle in that cell.
+bool boundary_facet_has_problematic_iso_segments(const VoronoiDiagram &vd,
+                                                  int vfi,
+                                                  std::pair<int, int> *offending_pair)
+{
+    if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+        return false;
+    const auto &vf = vd.global_facets[vfi];
+
+    // Check if this is a boundary facet (exactly one valid incident cell)
+    int validSide = -1;
+    int validCellIdx = -1;
+    for (int side = 0; side < 2; ++side)
+    {
+        if (vf.incident_cell_indices[side] >= 0)
+        {
+            if (validSide >= 0)
+                return false; // both sides valid, not a boundary facet
+            validSide = side;
+            validCellIdx = vf.incident_cell_indices[side];
+        }
+    }
+
+    if (validSide < 0)
+        return false; // no valid cells
+
+    // Check if any two iso-segments share the same cycle component on the valid side
+    const int n = (int)vf.iso_segments.size();
+    for (int i = 0; i < n; ++i)
+    {
+        for (int j = i + 1; j < n; ++j)
+        {
+            const auto &a = vf.iso_segments[i];
+            const auto &b = vf.iso_segments[j];
+            const int compA = a.comp[validSide];
+            const int compB = b.comp[validSide];
+
+            if (compA >= 0 && compB >= 0 && compA == compB)
+            {
+                if (offending_pair)
+                    *offending_pair = {i, j};
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // Flip matching method for a facet (SEP_POS <-> SEP_NEG).
 void flip_bipolar_match_method(VoronoiFacet &vf)
 {
@@ -405,8 +454,8 @@ void populate_incident_cells_for_global_facets(VoronoiDiagram &vd)
     }
 }
 
-// Full “modify cycles” pass over all global facets at this isovalue.
-int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
+// Full "modify cycles" pass over all global facets at this isovalue.
+ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 {
     std::clock_t start_time = std::clock();
 
@@ -418,6 +467,8 @@ int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
     // First pass: detect problematic facets and flip locally, collecting affected cells
     std::unordered_set<int> dirty_cells;
     std::unordered_set<int> flippedFacets;
+    int interior_flips = 0;
+    int boundary_flips = 0;
     const auto make_component_key = [](int cellIdx, int compId) -> long long
     {
         return (static_cast<long long>(cellIdx) << 32) ^ static_cast<unsigned int>(compId);
@@ -430,15 +481,36 @@ int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
         if (vd.global_facets[vfi].iso_segments.empty())
             continue;
 
+        // Check for interior facet ambiguity (duplicate component pairs)
         if (facet_has_problematic_iso_segments(vd, vfi, nullptr))
         {
-            // Flip method for this facet and recompute ONLY this facet’s matches
+            // Flip method for this facet and recompute ONLY this facet's matches
             flip_bipolar_match_method(vd.global_facets[vfi]);
             recompute_bipolar_matches_for_facet(vd, vfi, isovalue);
             build_iso_segments_for_facet(vd, vfi, isovalue);
             flippedFacets.insert(vfi);
+            ++interior_flips;
 
             // Mark both incident cells for cycle recomputation
+            const auto &gf = vd.global_facets[vfi];
+            for (int side = 0; side < 2; ++side)
+            {
+                const int cidx = gf.incident_cell_indices[side];
+                if (cidx >= 0)
+                    dirty_cells.insert(cidx);
+            }
+        }
+        // Check for boundary facet ambiguity (multiple segments in same cycle)
+        else if (boundary_facet_has_problematic_iso_segments(vd, vfi, nullptr))
+        {
+            // Flip method for this facet and recompute ONLY this facet's matches
+            flip_bipolar_match_method(vd.global_facets[vfi]);
+            recompute_bipolar_matches_for_facet(vd, vfi, isovalue);
+            build_iso_segments_for_facet(vd, vfi, isovalue);
+            flippedFacets.insert(vfi);
+            ++boundary_flips;
+
+            // Mark the valid incident cell for cycle recomputation
             const auto &gf = vd.global_facets[vfi];
             for (int side = 0; side < 2; ++side)
             {
@@ -562,7 +634,14 @@ int modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 
     std::clock_t end_time = std::clock();
     double elapsed = static_cast<double>(end_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Modify cycles time: " << elapsed << " seconds. Flips: " << flippedFacets.size() << std::endl;
+    std::cout << "[INFO] Modify cycles time: " << elapsed << " seconds. "
+              << "Interior flips: " << interior_flips << ", "
+              << "Boundary flips: " << boundary_flips << ", "
+              << "Total flips: " << flippedFacets.size() << std::endl;
 
-    return static_cast<int>(flippedFacets.size());
+    ModifyCyclesResult result;
+    result.interior_flips = interior_flips;
+    result.boundary_flips = boundary_flips;
+    result.total_flips = static_cast<int>(flippedFacets.size());
+    return result;
 }
