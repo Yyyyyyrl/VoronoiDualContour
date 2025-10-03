@@ -67,6 +67,8 @@ struct IsoStats
     size_t edges_seg = 0, edges_ray = 0, edges_line = 0;
     size_t seg_bip = 0, seg_skip = 0, ray_bip = 0, ray_skip = 0, line_bip = 0, line_skip = 0;
     size_t tri_ok = 0, tri_bad = 0, tri_dupverts = 0, sel_fail = 0;
+    size_t isovertex_clipped = 0;
+    double max_clip_distance = 0.0;
     void dump_summary() const
     {
         if (!ISO_DBG_ENABLED)
@@ -84,6 +86,8 @@ struct IsoStats
                   << " bad=" << tri_bad
                   << " dupVerts=" << tri_dupverts
                   << " isoSelectFail=" << sel_fail << "\n"
+                  << "[ISO] Clipping: clipped=" << isovertex_clipped
+                  << " max_distance=" << std::fixed << std::setprecision(6) << max_clip_distance << std::defaultfloat << "\n"
                   << "[ISO] Filters: CELL=" << ISO_DBG_FOCUS_CELL
                   << " GFACET=" << ISO_DBG_FOCUS_GFACET
                   << " EDGE=" << ISO_DBG_FOCUS_EDGE
@@ -995,6 +999,11 @@ static void process_segment_edge_multi(
 
     int idx_v1 = edge.vertex1;
     int idx_v2 = edge.vertex2;
+    //TODO: Figure out why it's happening
+    if (idx_v1 > idx_v2){
+        std::swap(idx_v1, idx_v2);
+    }
+
     Point v1 = voronoiDiagram.vertices[idx_v1].coord;
     Point v2 = voronoiDiagram.vertices[idx_v2].coord;
     float val1 = voronoiDiagram.vertices[idx_v1].value;
@@ -1013,8 +1022,7 @@ static void process_segment_edge_multi(
     else
     {
         ISO_STATS.seg_bip++;
-        if (idx_v1 > idx_v2)
-            std::swap(idx_v1, idx_v2);
+
         auto itEdge = voronoiDiagram.segmentVertexPairToEdgeIndex.find(std::make_pair(idx_v1, idx_v2));
         if (itEdge == voronoiDiagram.segmentVertexPairToEdgeIndex.end())
             return;
@@ -1034,31 +1042,28 @@ static void process_segment_edge_multi(
                                              cellIndex1, cellIndex2, cellIndex3,
                                              cycleLocal1, cycleLocal2, cycleLocal3);
 
-            // Compute orientation geometrically using cell centers and Voronoi edge direction
             int iOrient = 1;  // default
             if (isValid && cellIndex1 >= 0 && cellIndex2 >= 0 && cellIndex3 >= 0)
             {
-                // Get the three Delaunay vertex positions (which are Voronoi cell centers)
+                // Get cell centers (Delaunay vertex positions)
                 Point c1 = voronoiDiagram.cells[cellIndex1].delaunay_vertex->point();
                 Point c2 = voronoiDiagram.cells[cellIndex2].delaunay_vertex->point();
                 Point c3 = voronoiDiagram.cells[cellIndex3].delaunay_vertex->point();
 
-                // Compute triangle normal using cross product
+                // Compute triangle normal via cross product
                 auto e1 = c2 - c1;
                 auto e2 = c3 - c1;
                 auto normal = CGAL::cross_product(e1, e2);
 
-                // Compute Voronoi edge direction
+                // Voronoi edge direction
                 auto voronoi_dir = v2 - v1;
 
-                // Orientation: check if normal and Voronoi direction are aligned
-                // Combined with scalar gradient to determine which side is "out"
+                // Test alignment: dot product determines orientation
                 auto dot = normal * voronoi_dir;
                 bool normal_aligned = (dot > 0);
                 bool val1_higher = (val1 >= val2);
 
-                // If v1 has higher value, isosurface normal points from v2 toward v1
-                // Triangle should be oriented so its normal points outward
+                // Triangle orientation based on normal alignment and scalar gradient
                 iOrient = (normal_aligned == val1_higher) ? 1 : -1;
             }
 
@@ -1620,24 +1625,77 @@ static void extract_cycles(
     }
 }
 
+//! @brief Clips an isovertex to the circumscribed sphere of a cube.
+/*!
+ * If the isovertex lies outside the circumscribed sphere centered at the cube center,
+ * it is projected onto the sphere surface along the direction from center to isovertex.
+ *
+ * @param isovertex The isosurface vertex (centroid) to potentially clip.
+ * @param cube_center The center of the active cube (Delaunay vertex).
+ * @param cube_side_length The side length of the active cube.
+ * @return The clipped isovertex (same as input if already inside sphere).
+ */
+static Point clip_isovertex_to_circumscribed_sphere(
+    const Point &isovertex,
+    const Point &cube_center,
+    float cube_side_length)
+{
+    // Circumscribed sphere radius = (sqrt(3) / 2) * side_length
+    const double circumscribed_radius = (std::sqrt(3.0) / 2.0) * cube_side_length;
+
+    // Vector from cube center to isovertex
+    Vector3 direction = isovertex - cube_center;
+    double distance = std::sqrt(CGAL::to_double(direction.squared_length()));
+
+    // If isovertex is outside the circumscribed sphere, project it onto the sphere
+    if (distance > circumscribed_radius)
+    {
+        // Track clipping statistics
+        ISO_STATS.isovertex_clipped++;
+        double clip_distance = distance - circumscribed_radius;
+        if (clip_distance > ISO_STATS.max_clip_distance)
+        {
+            ISO_STATS.max_clip_distance = clip_distance;
+        }
+
+        // Normalize direction and scale to sphere radius
+        Vector3 normalized = direction / distance;
+        Point clipped = cube_center + normalized * circumscribed_radius;
+
+        if (ISO_DBG_ENABLED && debug)
+        {
+            std::cerr << "[ISO] Clipped isovertex: distance=" << distance
+                      << " > radius=" << circumscribed_radius
+                      << " (clipped by " << clip_distance << ")\n";
+        }
+
+        return clipped;
+    }
+
+    return isovertex;
+}
+
 // TODO: Rename the routine to show its true functionality, as it computes the isovertices AND the cycle centroids.
 //! @brief Computes centroids for cycles and updates the isosurface.
 /*!
  * Calculates the centroid for each cycle, updates the Voronoi cell's cycles,
- * and adds the centroid to the isosurface vertices.
+ * and adds the centroid to the isosurface vertices. Optionally clips centroids
+ * to the circumscribed sphere of the active cube.
  *
  * @param vc The Voronoi cell to update.
  * @param voronoiDiagram The Voronoi diagram for edge lookup.
  * @param midpoints Vector of midpoints used for centroid computation.
  * @param cycles Vector of cycles as lists of midpoint indices.
  * @param iso_surface The isosurface to store vertices.
+ * @param cube_side_length The side length of the active cube (0 to disable clipping).
  */
 static void compute_cycle_centroids(
     VoronoiCell &vc,
     VoronoiDiagram &voronoiDiagram,
     std::vector<MidpointNode> &midpoints,
     const std::vector<std::vector<int>> &cycles,
-    IsoSurface &iso_surface)
+    IsoSurface &iso_surface,
+    float cube_side_length = 0.0f)
 {
     if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
     {
@@ -1662,6 +1720,14 @@ static void compute_cycle_centroids(
         }
 
         cycle.compute_centroid(midpoints);
+
+        // Clip the centroid to the circumscribed sphere if cube_side_length is specified
+        if (cube_side_length > 0.0f)
+        {
+            Point cube_center = vc.delaunay_vertex->point();
+            cycle.isovertex = clip_isovertex_to_circumscribed_sphere(
+                cycle.isovertex, cube_center, cube_side_length);
+        }
 
         for (int ptIdx : single_cycle)
         {
@@ -1701,15 +1767,19 @@ static void compute_cycle_centroids(
 //! @brief Computes isosurface vertices for the multi-isovertex case.
 /*!
  * Processes each Voronoi cell to identify bipolar edges, form cycles, and compute
- * centroids as isosurface vertices.
+ * centroids as isosurface vertices. Optionally clips centroids to circumscribed spheres.
  *
  * @param voronoiDiagram The Voronoi diagram to compute vertices for.
  * @param isovalue The isovalue to use for vertex computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
+ * @param grid The grid containing spacing information for clipping (optional).
  */
-void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface)
+void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface, const UnifiedGrid *grid)
 {
     ISO_DBG_LOAD_ENV();
+    // Extract cube side length from grid if provided (for clipping)
+    float cube_side_length = (grid != nullptr) ? grid->dx : 0.0f;
+
     // Expect callers to keep voronoiDiagram.global_facets[vfi].bipolar_matches in sync.
     for (auto &vc : voronoiDiagram.cells)
     {
@@ -1740,12 +1810,12 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         std::vector<std::vector<int>> cycles;
         extract_cycles(midpoints, cycles);
 
-        compute_cycle_centroids(vc, voronoiDiagram, midpoints, cycles, iso_surface);
+        compute_cycle_centroids(vc, voronoiDiagram, midpoints, cycles, iso_surface, cube_side_length);
     }
 }
 
 // ！@brief Wrap up function for constructing iso surface
-int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox)
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, CGAL::Epick::Iso_cuboid_3 &bbox, int *out_interior_flips, int *out_boundary_flips, std::size_t *out_clipped_count, double *out_max_clip_distance)
 {
     ISO_DBG_LOAD_ENV();
     if (ISO_DBG_ENABLED)
@@ -1770,7 +1840,7 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
         }
     };
 
-    int mod_cyc_flips = 0;
+    ModifyCyclesResult mod_cyc_result;
     bool dualBuilt = false;
     bool bindingConflict = false;
 
@@ -1838,7 +1908,7 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
                 reset_iso_accumulators();
 
             // Build cycles and isovertex centroids using the current set of facet matches.
-            compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
+            compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface, &grid);
 
             if (vdc_param.mod_cyc)
             {
@@ -1853,7 +1923,7 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
 
                 // modify_cycles_pass already recomputes matches for the facets it flips,
                 // so we can treat the facet cache as up to date once this returns.
-                mod_cyc_flips = modify_cycles_pass(vd, vdc_param.isovalue);
+                mod_cyc_result = modify_cycles_pass(vd, vdc_param.isovalue);
 
                 matchesDirty = false; // modify_cycles_pass already recalculates matches locally.
                 recomputeAllMatches = false;
@@ -1863,7 +1933,7 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
                 reset_iso_accumulators();
                 // Rebuild iso vertices to capture any new cycle assignments produced by
                 // modify_cycles_pass before we run the downstream conflict checks.
-                compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface);
+                compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface, &grid);
 
                 tweakedFacets.clear();
                 if (adjust_conflicting_facets(vd, iso_surface, &tweakedFacets))
@@ -1924,5 +1994,12 @@ int construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param
     double duration2 = static_cast<double>(check2_time - check_time) / CLOCKS_PER_SEC;
     std::cout << "Compute isosurface facets Execution time: " << duration2 << " seconds" << std::endl;
 
-    return mod_cyc_flips;
+    if (out_interior_flips)
+        *out_interior_flips = mod_cyc_result.interior_flips;
+    if (out_boundary_flips)
+        *out_boundary_flips = mod_cyc_result.boundary_flips;
+    if (out_clipped_count)
+        *out_clipped_count = ISO_STATS.isovertex_clipped;
+    if (out_max_clip_distance)
+        *out_max_clip_distance = ISO_STATS.max_clip_distance;
 }
