@@ -40,6 +40,10 @@ struct SummaryStats
     std::size_t collapsed_vertices_removed = 0;
     std::size_t collapsed_edges_removed = 0;
     std::size_t mod_cyc_flips = 0;
+    std::size_t mod_cyc_interior_flips = 0;
+    std::size_t mod_cyc_boundary_flips = 0;
+    std::size_t isovertex_clipped_count = 0;
+    double isovertex_max_clip_distance = 0.0;
 };
 
 SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
@@ -49,7 +53,11 @@ SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
                                    bool multi_isov,
                                    std::size_t collapsed_vertices_removed,
                                    std::size_t collapsed_edges_removed,
-                                   std::size_t mod_cyc_flips)
+                                   std::size_t mod_cyc_flips,
+                                   std::size_t mod_cyc_interior_flips,
+                                   std::size_t mod_cyc_boundary_flips,
+                                   std::size_t isovertex_clipped_count,
+                                   double isovertex_max_clip_distance)
 {
     SummaryStats stats;
     stats.multi_isov = multi_isov;
@@ -63,6 +71,10 @@ SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
     stats.collapsed_vertices_removed = collapsed_vertices_removed;
     stats.collapsed_edges_removed = collapsed_edges_removed;
     stats.mod_cyc_flips = mod_cyc_flips;
+    stats.mod_cyc_interior_flips = mod_cyc_interior_flips;
+    stats.mod_cyc_boundary_flips = mod_cyc_boundary_flips;
+    stats.isovertex_clipped_count = isovertex_clipped_count;
+    stats.isovertex_max_clip_distance = isovertex_max_clip_distance;
 
     std::size_t total_cell_vertices = 0;
     std::size_t total_cell_facets = 0;
@@ -223,7 +235,15 @@ void print_summary_report(const SummaryStats &stats)
               << (stats.multi_isov ? " (multi-isov)" : " (single-isov)") << "\n";
     if (stats.multi_isov)
     {
-        std::cout << "  Modify-cycles flips: " << stats.mod_cyc_flips << "\n";
+        std::cout << "  Modify-cycles flips: " << stats.mod_cyc_flips
+                  << " (interior: " << stats.mod_cyc_interior_flips
+                  << ", boundary: " << stats.mod_cyc_boundary_flips << ")\n";
+        if (stats.isovertex_clipped_count > 0)
+        {
+            std::cout << "  Iso-vertex clipping: " << stats.isovertex_clipped_count << " vertices clipped"
+                      << ", max distance: " << std::fixed << std::setprecision(6)
+                      << stats.isovertex_max_clip_distance << std::defaultfloat << "\n";
+        }
     }
 
     std::cout << std::defaultfloat;
@@ -355,7 +375,10 @@ int main(int argc, char *argv[])
                                                     ? (vd.edges.size() - vd2.edges.size())
                                                     : 0;
 
-    int mod_cyc_flips = construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox);
+    int interior_flips = 0, boundary_flips = 0;
+    std::size_t clipped_count = 0;
+    double max_clip_distance = 0.0;
+    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
 
     std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
@@ -371,8 +394,11 @@ int main(int argc, char *argv[])
 
     if (vdc_param.summary_stats)
     {
+        const int total_flips = interior_flips + boundary_flips;
         SummaryStats summary = collect_summary_stats(activeCubes, dt, vd2, iso_surface, vdc_param.multi_isov,
-                                                    collapsed_vertices_removed, collapsed_edges_removed, mod_cyc_flips);
+                                                    collapsed_vertices_removed, collapsed_edges_removed,
+                                                    total_flips, interior_flips, boundary_flips,
+                                                    clipped_count, max_clip_distance);
         print_summary_report(summary);
     }
 
