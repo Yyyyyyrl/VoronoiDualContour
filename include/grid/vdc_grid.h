@@ -10,13 +10,13 @@ static const int DIM3 = 3;
 
 //! @brief Represents a cube in 3D space.
 struct Cube {
-    Point repVertex; //!< Representative vertex (world coordinates).
-    Point center;    //!< Center of the cube (world coordinates).
-    int i, j, k;     //!< Grid indices of the cube.
+    Point repVertex;        //!< Representative vertex (world coordinates).
+    Point isoCrossingPoint; //!< Iso-crossing point within the cube (world coordinates).
+    int i, j, k;            //!< Grid indices of the cube.
 
-    Cube() : repVertex(0, 0, 0), center(0, 0, 0), i(0), j(0), k(0) {}
-    Cube(Point v, Point c, int ix, int iy, int iz)
-        : repVertex(v), center(c), i(ix), j(iy), k(iz) {}
+    Cube() : repVertex(0, 0, 0), isoCrossingPoint(0, 0, 0), i(0), j(0), k(0) {}
+    Cube(Point v, Point icp, int ix, int iy, int iz)
+        : repVertex(v), isoCrossingPoint(icp), i(ix), j(iy), k(iz) {}
 };
 
 //! @brief A structure representing a 3D grid for storing scalar data.
@@ -285,12 +285,12 @@ int get_cube_index(const Point &repVertex, const UnifiedGrid &grid);
  */
 std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid &grid);
 
-//! @brief Extracts world‑space centers for a list of cubes.
+//! @brief Extracts iso-crossing points for a list of cubes.
 /*!
- * @param cubes Input cubes with precomputed centers
- * @return Points at the center of each cube
+ * @param cubes Input cubes with precomputed iso-crossing points
+ * @return Points where the isovalue is crossed within each cube
  */
-std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes);
+std::vector<Point> get_cube_iso_crossing_points(const std::vector<Cube> &cubes);
 
 //! @brief Filters active cubes to a set without vertex adjacency (greedy).
 /*!

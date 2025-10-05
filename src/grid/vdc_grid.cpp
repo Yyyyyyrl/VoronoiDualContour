@@ -274,6 +274,82 @@ Point adjust_outside_bound_points(const Point &p, const UnifiedGrid &grid, const
 }
 
 
+// Helper function to compute iso-crossing point in an active cube using trilinear interpolation
+Point compute_iso_crossing_point(const UnifiedGrid &grid, int i, int j, int k, float isovalue)
+{
+    // Cube vertex offsets
+    static const int cubeVertices[8][3] = {
+        {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
+        {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}
+    };
+    static const int cubeEdges[12][2] = {
+        {0, 1}, {1, 2}, {2, 3}, {3, 0},
+        {4, 5}, {5, 6}, {6, 7}, {7, 4},
+        {0, 4}, {1, 5}, {2, 6}, {3, 7}
+    };
+
+    // Compute cube's base position
+    float base_x = i * grid.dx + grid.min_x;
+    float base_y = j * grid.dy + grid.min_y;
+    float base_z = k * grid.dz + grid.min_z;
+
+    // Get scalar values at all 8 cube vertices using trilinear interpolation
+    std::array<Point, 8> vertices;
+    std::array<float, 8> scalarValues;
+    for (int v = 0; v < 8; ++v)
+    {
+        vertices[v] = Point(
+            base_x + cubeVertices[v][0] * grid.dx,
+            base_y + cubeVertices[v][1] * grid.dy,
+            base_z + cubeVertices[v][2] * grid.dz
+        );
+        scalarValues[v] = trilinear_interpolate(vertices[v], grid);
+    }
+
+    // Find all edge-isovalue intersection points
+    std::vector<Point> intersectionPoints;
+    for (const auto &edge : cubeEdges)
+    {
+        int idx1 = edge[0];
+        int idx2 = edge[1];
+        float val1 = scalarValues[idx1];
+        float val2 = scalarValues[idx2];
+
+        // Check if edge crosses the isovalue
+        if ((val1 < isovalue && val2 >= isovalue) || (val1 >= isovalue && val2 < isovalue))
+        {
+            // Linear interpolation along edge
+            Point intersect = interpolate(vertices[idx1], vertices[idx2], val1, val2, isovalue, grid);
+            intersectionPoints.push_back(intersect);
+        }
+    }
+
+    // Return centroid of intersection points, or cube center as fallback
+    if (!intersectionPoints.empty())
+    {
+        Point centroid(0, 0, 0);
+        for (const auto &pt : intersectionPoints)
+        {
+            centroid = Point(
+                centroid.x() + pt.x(),
+                centroid.y() + pt.y(),
+                centroid.z() + pt.z()
+            );
+        }
+        float n = static_cast<float>(intersectionPoints.size());
+        return Point(centroid.x() / n, centroid.y() / n, centroid.z() / n);
+    }
+    else
+    {
+        // Fallback to cube center
+        return Point(
+            base_x + 0.5f * grid.dx,
+            base_y + 0.5f * grid.dy,
+            base_z + 0.5f * grid.dz
+        );
+    }
+}
+
 // Find active cubes
 void find_active_cubes(const UnifiedGrid &grid, float isovalue, std::vector<Cube> &cubes)
 {
@@ -287,8 +363,8 @@ void find_active_cubes(const UnifiedGrid &grid, float isovalue, std::vector<Cube
                 if (is_cube_active(grid, i, j, k, isovalue))
                 {
                     Point repVertex(i * grid.dx + grid.min_x, j * grid.dy + grid.min_y, k * grid.dz + grid.min_z);
-                    Point center((i + 0.5f) * grid.dx + grid.min_x, (j + 0.5f) * grid.dy + grid.min_y, (k + 0.5f) * grid.dz + grid.min_z);
-                    cubes.push_back(Cube(repVertex, center, i, j, k));
+                    Point isoCrossingPoint = compute_iso_crossing_point(grid, i, j, k, isovalue);
+                    cubes.push_back(Cube(repVertex, isoCrossingPoint, i, j, k));
                 }
             }
         }
@@ -473,15 +549,15 @@ std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid
     return neighbors;
 }
 
-//! @brief Retrieves the centers of a list of cubes.
-std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes)
+//! @brief Retrieves the iso-crossing points of a list of cubes.
+std::vector<Point> get_cube_iso_crossing_points(const std::vector<Cube> &cubes)
 {
-    std::vector<Point> centers;
+    std::vector<Point> isoCrossingPoints;
     for (auto &cube : cubes)
     {
-        centers.push_back(cube.center);
+        isoCrossingPoints.push_back(cube.isoCrossingPoint);
     }
-    return centers;
+    return isoCrossingPoints;
 }
 
 // Greedy cube separation
