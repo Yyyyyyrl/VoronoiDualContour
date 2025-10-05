@@ -119,7 +119,8 @@ int main(int argc, char *argv[])
             construct_voronoi_cells_from_delaunay_triangulation(vd, dt);
         }
     }
-    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox, dt);
+    std::vector<int> vertex_mapping;
+    VoronoiDiagram vd2 = collapseSmallEdges(vd, 0.001, bbox, dt, vertex_mapping);
     vd2.check(true);
     vd = std::move(vd2);
     if (vdc_param.multi_isov) {
