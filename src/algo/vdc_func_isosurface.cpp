@@ -898,6 +898,10 @@ static void generate_triangle_multi(
 /*!
  * Uses the Delaunay facet structure, Voronoi edge endpoints, and scalar values
  * to determine triangle orientation without geometric computation.
+ * FULLY COMBINATORIAL approach using only Delaunay structure and index matching
+ * The Delaunay cell c stores c->info().dualVoronoiVertexIndex which is the
+ * OLD (pre-collapse) index. The edge vertices (voronoi_v1_idx, voronoi_v2_idx) are
+ * NEW (post-collapse) indices. We use vertex_mapping to convert OLD -> NEW for comparison.
  *
  * @param facet The Delaunay facet (Cell_handle, facet_index)
  * @param voronoiDiagram The Voronoi diagram
@@ -927,13 +931,6 @@ static int get_orientation_combinatorial(
     if (cellIndex1 < 0 || cellIndex2 < 0 || cellIndex3 < 0)
         return 1; // default
 
-    // FULLY COMBINATORIAL approach using only Delaunay structure and index matching
-    //
-    // Strategy: The Delaunay cell c stores c->info().dualVoronoiVertexIndex which is the
-    // OLD (pre-collapse) index. The edge vertices (voronoi_v1_idx, voronoi_v2_idx) are
-    // NEW (post-collapse) indices. We use vertex_mapping to convert OLD -> NEW for comparison.
-    //
-    // If indices are not available or mapping fails, fall back to geometric predicate.
 
     if (vertex_mapping != nullptr && voronoi_v1_idx >= 0 && voronoi_v2_idx >= 0)
     {
@@ -986,9 +983,8 @@ static int get_orientation_combinatorial(
         return (orientation_flag == val1_higher) ? 1 : -1;
     }
 
-    // No valid indices or mapping - this should only happen for rays/lines or when mapping is unavailable
-    // For true combinatorial approach, we cannot determine orientation without indices
-    // Return default orientation (this may cause orientation errors for rays/lines)
+    // No valid indices or mapping - should only happen for rays/lines or when mapping is unavailable
+    // Return default orientation (may cause orientation errors for rays/lines)
     return 1;
 }
 
