@@ -390,7 +390,8 @@ bool lines_approx_equal(const Line3 &l1, const Line3 &l2, double eps_sq = 1e-20)
 VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
                                   double D,
                                   const CGAL::Epick::Iso_cuboid_3 & /*bbox*/,
-                                  Delaunay & /*dt*/)
+                                  Delaunay & /*dt*/,
+                                  std::vector<int> &out_vertex_mapping)
 {
     // 0) Set up
     VoronoiDiagram out;      // fresh diagram — don't mutate input_vd
@@ -711,6 +712,9 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     fix_cell_facets_orientation_and_outwardness(out);
     rebuild_cell_facet_edge_indices(out);
     out.create_global_facets();
+
+    // 9) Copy the vertex index mapping to output parameter
+    out_vertex_mapping = oldToNewV;
 
     return out;
 }
