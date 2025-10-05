@@ -350,7 +350,8 @@ int main(int argc, char *argv[])
         // Persist the resolved default so downstream stages and logs can see it.
         vdc_param.collapse_eps = collapse_eps;
     }
-    VoronoiDiagram vd2 = collapseSmallEdges(vd, collapse_eps, bbox, dt);
+    std::vector<int> vertex_mapping;  // Maps old vertex indices to new after collapse
+    VoronoiDiagram vd2 = collapseSmallEdges(vd, collapse_eps, bbox, dt, vertex_mapping);
     // Re-validate and normalize facet orientations on the collapsed diagram
     validate_facet_orientations_and_normals(vd2);
     std::clock_t collapse_time = std::clock();
@@ -378,7 +379,7 @@ int main(int argc, char *argv[])
     int interior_flips = 0, boundary_flips = 0;
     std::size_t clipped_count = 0;
     double max_clip_distance = 0.0;
-    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
+    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
 
     std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
