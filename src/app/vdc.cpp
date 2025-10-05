@@ -292,15 +292,15 @@ int main(int argc, char *argv[])
     // Create grid facets from the active cubes for further processing.
     std::vector<std::vector<GRID_FACETS>> grid_facets = create_grid_facets(activeCubes);
 
-    // Extract the centers of the active cubes.
-    std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
+    // Extract the iso-crossing points of the active cubes.
+    std::vector<Point> activeCubeIsoCrossingPoints = get_cube_iso_crossing_points(activeCubes);
     std::clock_t test1 = std::clock();
-    dt_test.insert(activeCubeCenters.begin(), activeCubeCenters.end());
+    dt_test.insert(activeCubeIsoCrossingPoints.begin(), activeCubeIsoCrossingPoints.end());
     std::clock_t test2 = std::clock();
     double d = static_cast<double>(test2 - test1) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Delaunay test time: " << d << " seconds." << std::endl;
 
-    std::cout << "[INFO] Number of active cube centers: " << activeCubeCenters.size() << std::endl;
+    std::cout << "[INFO] Number of active cube iso-crossing points: " << activeCubeIsoCrossingPoints.size() << std::endl;
 
     // Define the bounding box of the grid.
     Point p_min(0, 0, 0);
@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "[INFO] Constructing Delaunay triangulation..." << std::endl;
     }
-    construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
+    construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeIsoCrossingPoints);
 
     std::clock_t construct_dt_time = std::clock(); // Get ending clock ticks
     double duration_dt = static_cast<double>(construct_dt_time - load_data_time) / CLOCKS_PER_SEC;
@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
     int interior_flips = 0, boundary_flips = 0;
     std::size_t clipped_count = 0;
     double max_clip_distance = 0.0;
-    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
+    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
 
     std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
