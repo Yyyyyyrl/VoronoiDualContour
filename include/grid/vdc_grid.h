@@ -11,13 +11,14 @@ static const int DIM3 = 3;
 //! @brief Represents a cube in 3D space.
 struct Cube {
     Point repVertex;        //!< Representative vertex (world coordinates).
-    Point isoCrossingPoint; //!< Iso-crossing point within the cube (world coordinates).
+    Point isoCrossingPoint; //!< Iso-crossing point for Delaunay (cube center for robustness).
+    Point accurateIsoCrossing; //!< Accurate iso-crossing point (centroid of edge intersections).
     int i, j, k;            //!< Grid indices of the cube.
     unsigned char isov_subgrid_index; //!< Subgrid index [0-26] for sep_isov_3 (3×3×3 subdivision).
 
-    Cube() : repVertex(0, 0, 0), isoCrossingPoint(0, 0, 0), i(0), j(0), k(0), isov_subgrid_index(13) {}
+    Cube() : repVertex(0, 0, 0), isoCrossingPoint(0, 0, 0), accurateIsoCrossing(0, 0, 0), i(0), j(0), k(0), isov_subgrid_index(13) {}
     Cube(Point v, Point icp, int ix, int iy, int iz)
-        : repVertex(v), isoCrossingPoint(icp), i(ix), j(iy), k(iz), isov_subgrid_index(13) {}
+        : repVertex(v), isoCrossingPoint(icp), accurateIsoCrossing(icp), i(ix), j(iy), k(iz), isov_subgrid_index(13) {}
 
     //! @brief Compute 3× grid location for a given subgrid index
     void ComputeGrid3xLoc(int subgrid_index, int grid3x_loc[3]) const {
@@ -314,6 +315,13 @@ std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid
  * @return Points where the isovalue is crossed within each cube
  */
 std::vector<Point> get_cube_iso_crossing_points(const std::vector<Cube> &cubes);
+
+//! @brief Extracts accurate iso-crossing points for a list of cubes.
+/*!
+ * @param cubes Input cubes with precomputed accurate iso-crossing points
+ * @return Accurate iso-crossing points (centroid of edge intersections)
+ */
+std::vector<Point> get_cube_accurate_iso_crossing_points(const std::vector<Cube> &cubes);
 
 //! @brief Filters active cubes to a set without vertex adjacency (greedy).
 /*!

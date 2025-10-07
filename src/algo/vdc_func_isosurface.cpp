@@ -1746,6 +1746,7 @@ static Point clip_isovertex_to_circumscribed_sphere(
  * @param cycles Vector of cycles as lists of midpoint indices.
  * @param iso_surface The isosurface to store vertices.
  * @param cube_side_length The side length of the active cube (0 to disable clipping).
+ * @param accurate_crossing Accurate iso-crossing point for this cell (nullptr if not available).
  */
 static void compute_cycle_centroids(
     VoronoiCell &vc,
@@ -1753,7 +1754,8 @@ static void compute_cycle_centroids(
     std::vector<MidpointNode> &midpoints,
     const std::vector<std::vector<int>> &cycles,
     IsoSurface &iso_surface,
-    float cube_side_length = 0.0f)
+    float cube_side_length = 0.0f,
+    const Point *accurate_crossing = nullptr)
 {
     if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
     {
@@ -1779,9 +1781,24 @@ static void compute_cycle_centroids(
 
         cycle.compute_centroid(midpoints);
 
-        // Clip the centroid to the circumscribed sphere if cube_side_length is specified
-        if (cube_side_length > 0.0f)
+        // Hybrid iso-vertex computation:
+        // - If 1 cycle and accurate iso-crossing is available: use it directly
+        // - If multiple cycles and accurate iso-crossing is available: clip centroid to sphere around accurate crossing
+        // - Otherwise: optionally clip to sphere around cube center
+        if (accurate_crossing != nullptr && cycles.size() == 1)
         {
+            // Single cycle: use accurate iso-crossing directly
+            cycle.isovertex = *accurate_crossing;
+        }
+        else if (accurate_crossing != nullptr && cycles.size() > 1 && cube_side_length > 0.0f)
+        {
+            // Multiple cycles: clip centroid to sphere around accurate iso-crossing
+            cycle.isovertex = clip_isovertex_to_circumscribed_sphere(
+                cycle.isovertex, *accurate_crossing, cube_side_length);
+        }
+        else if (cube_side_length > 0.0f)
+        {
+            // Fallback: clip to sphere around cube center (original behavior)
             Point cube_center = vc.delaunay_vertex->point();
             cycle.isovertex = clip_isovertex_to_circumscribed_sphere(
                 cycle.isovertex, cube_center, cube_side_length);
@@ -1831,8 +1848,9 @@ static void compute_cycle_centroids(
  * @param isovalue The isovalue to use for vertex computation.
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  * @param grid The grid containing spacing information for clipping (optional).
+ * @param accurateIsoCrossings Accurate iso-crossing points for each Delaunay vertex (optional).
  */
-void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface, const UnifiedGrid *grid, const std::vector<int> *vertex_mapping)
+void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface, const UnifiedGrid *grid, const std::vector<int> *vertex_mapping, const std::vector<Point> *accurateIsoCrossings = nullptr)
 {
     ISO_DBG_LOAD_ENV();
     // Extract cube side length from grid if provided (for clipping)
@@ -1868,12 +1886,23 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         std::vector<std::vector<int>> cycles;
         extract_cycles(midpoints, cycles);
 
-        compute_cycle_centroids(vc, voronoiDiagram, midpoints, cycles, iso_surface, cube_side_length);
+        // Get accurate iso-crossing for this cell if available
+        const Point *accurate_crossing = nullptr;
+        if (accurateIsoCrossings != nullptr && vc.delaunay_vertex != nullptr && !vc.delaunay_vertex->info().is_dummy)
+        {
+            int vertex_index = vc.delaunay_vertex->info().index;
+            if (vertex_index >= 0 && static_cast<size_t>(vertex_index) < accurateIsoCrossings->size())
+            {
+                accurate_crossing = &(*accurateIsoCrossings)[vertex_index];
+            }
+        }
+
+        compute_cycle_centroids(vc, voronoiDiagram, midpoints, cycles, iso_surface, cube_side_length, accurate_crossing);
     }
 }
 
 // ！@brief Wrap up function for constructing iso surface
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping, int *out_interior_flips, int *out_boundary_flips, std::size_t *out_clipped_count, double *out_max_clip_distance)
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeIsoCrossingPoints, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping, int *out_interior_flips, int *out_boundary_flips, std::size_t *out_clipped_count, double *out_max_clip_distance)
 {
     ISO_DBG_LOAD_ENV();
     if (ISO_DBG_ENABLED)
@@ -1966,7 +1995,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
                 reset_iso_accumulators();
 
             // Build cycles and isovertex centroids using the current set of facet matches.
-            compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface, &grid, vertex_mapping);
+            compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface, &grid, vertex_mapping, &activeCubeAccurateIsoCrossingPoints);
 
             if (vdc_param.mod_cyc)
             {
@@ -1991,7 +2020,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
                 reset_iso_accumulators();
                 // Rebuild iso vertices to capture any new cycle assignments produced by
                 // modify_cycles_pass before we run the downstream conflict checks.
-                compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface, &grid, vertex_mapping);
+                compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface, &grid, vertex_mapping, &activeCubeAccurateIsoCrossingPoints);
 
                 tweakedFacets.clear();
                 if (adjust_conflicting_facets(vd, iso_surface, &tweakedFacets))

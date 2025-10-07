@@ -209,10 +209,11 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
  * @param iso_surface Output isosurface to store vertices and triangles
  * @param grid Scalar grid for value interpolation
  * @param activeCubeIsoCrossingPoints Active cube iso-crossing points for single-isovertex mode
+ * @param activeCubeAccurateIsoCrossingPoints Accurate iso-crossing points for hybrid multi-isovertex mode
  * @param bbox Bounding box for clipping infinite edges
  * @param vertex_mapping Optional mapping from old to new vertex indices after collapse (for combinatorial orientation)
  */
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping = nullptr, int *out_interior_flips = nullptr, int *out_boundary_flips = nullptr, std::size_t *out_clipped_count = nullptr, double *out_max_clip_distance = nullptr);
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeIsoCrossingPoints, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping = nullptr, int *out_interior_flips = nullptr, int *out_boundary_flips = nullptr, std::size_t *out_clipped_count = nullptr, double *out_max_clip_distance = nullptr);
 
 
 // Helper function declarations (internal linkage)

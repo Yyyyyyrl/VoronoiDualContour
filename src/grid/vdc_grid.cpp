@@ -498,4 +498,15 @@ std::vector<Point> get_cube_iso_crossing_points(const std::vector<Cube> &cubes)
     return isoCrossingPoints;
 }
 
+//! @brief Retrieves the accurate iso-crossing points of a list of cubes.
+std::vector<Point> get_cube_accurate_iso_crossing_points(const std::vector<Cube> &cubes)
+{
+    std::vector<Point> accurateIsoCrossingPoints;
+    for (auto &cube : cubes)
+    {
+        accurateIsoCrossingPoints.push_back(cube.accurateIsoCrossing);
+    }
+    return accurateIsoCrossingPoints;
+}
+
 // Separation routines have been moved to vdc_sep_isov.cpp

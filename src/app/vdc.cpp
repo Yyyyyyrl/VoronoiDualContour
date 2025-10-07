@@ -295,9 +295,6 @@ int main(int argc, char *argv[])
         std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
         activeCubes = separate_active_cubes_III(activeCubes, data_grid, vdc_param.isovalue);
         std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
-
-        // DEBUG: Check for nearly collinear iso-crossing points
-        check_collinear_isocrossings(activeCubes, data_grid, vdc_param.isovalue, 5.0);
     }
 
     // Create grid facets from the active cubes for further processing.
@@ -305,6 +302,7 @@ int main(int argc, char *argv[])
 
     // Extract the iso-crossing points of the active cubes.
     std::vector<Point> activeCubeIsoCrossingPoints = get_cube_iso_crossing_points(activeCubes);
+    std::vector<Point> activeCubeAccurateIsoCrossingPoints = get_cube_accurate_iso_crossing_points(activeCubes);
     std::clock_t test1 = std::clock();
     dt_test.insert(activeCubeIsoCrossingPoints.begin(), activeCubeIsoCrossingPoints.end());
     std::clock_t test2 = std::clock();
@@ -390,7 +388,7 @@ int main(int argc, char *argv[])
     int interior_flips = 0, boundary_flips = 0;
     std::size_t clipped_count = 0;
     double max_clip_distance = 0.0;
-    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
+    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeIsoCrossingPoints, activeCubeAccurateIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
 
     std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
