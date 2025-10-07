@@ -12,7 +12,8 @@ void print_help()
     std::cout << "  -off                        : Generate output in .off format (default).\n";
     std::cout << "  -ply                        : Generate output in .ply format.\n";
     std::cout << "  -out_csv {output_csv_name}  : Write the Voronoi diagram to a CSV file.\n";
-    std::cout << "  -sep_isov                   : Pick a subset of non-adjacent active cubes of the input data before constructing triangulation.\n";
+    std::cout << "  -sep_isov_1                 : Separation method I: Greedy cube-level (26-connectivity).\n";
+    std::cout << "  -sep_isov_3                 : Separation method III: 3×3×3 subgrid-based separation.\n";
     std::cout << "  -supersample {factor}       : Supersample the input data by the given factor.\n";
     std::cout << "  -collapse_eps {eps}         : Set absolute collapse threshold in world units (default: 1% of grid spacing).\n";
     std::cout << "  -multi_isov                 : Use multi iso-vertices mode.\n";
@@ -57,9 +58,13 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
             vp.out_csv = true;                // Enable CSV output.
             vp.out_csv_name = argv[++i];      // Set CSV output filename
         }
-        else if (arg == "-sep_isov")
+        else if (arg == "-sep_isov_1")
         {
-            vp.sep_isov = true; // Enable separation of non-adjacent active cubes.
+            vp.sep_isov_1 = true; // Enable separation method I (greedy cube-level).
+        }
+        else if (arg == "-sep_isov_3")
+        {
+            vp.sep_isov_3 = true; // Enable separation method III (3×3×3 subgrid).
         }
         else if (arg == "-supersample" && i + 1 < argc)
         {
@@ -159,9 +164,13 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
             vp.output_filename += "_sup" + std::to_string(vp.supersample_r);
         }
 
-        if (vp.sep_isov)
+        if (vp.sep_isov_1)
         {
-            vp.output_filename += "_sep-isov";
+            vp.output_filename += "_sep-isov-1";
+        }
+        else if (vp.sep_isov_3)
+        {
+            vp.output_filename += "_sep-isov-3";
         }
 
         if (vp.convex_hull)
