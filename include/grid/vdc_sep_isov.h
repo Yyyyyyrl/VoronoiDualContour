@@ -1,0 +1,119 @@
+//! @file vdc_sep_isov.h
+//! @brief Isosurface vertex separation algorithms
+//! @details Provides different methods to separate active cubes to ensure
+//! non-adjacent isosurface vertices for improved triangulation quality.
+
+#ifndef VDC_SEP_ISOV_H
+#define VDC_SEP_ISOV_H
+
+#include "core/vdc_type.h"
+#include "grid/vdc_grid.h"
+#include <vector>
+#include <unordered_map>
+
+//! @brief Separation method I: Cube-level separation (original)
+/*!
+ * Filters active cubes to ensure no two selected cubes share a vertex, edge, or face.
+ * Uses 26-connectivity in the cube lattice.
+ *
+ * @param activeCubes Input vector of active cubes (modified by sorting)
+ * @param grid Grid for bounds and neighbor checks
+ * @return Separated subset of cubes
+ */
+std::vector<Cube> separate_active_cubes_I(
+    std::vector<Cube> &activeCubes,
+    const UnifiedGrid &grid,
+    float isovalue);
+
+//! @brief Separation method III: Subgrid-based separation (3×3×3 refinement)
+/*!
+ * Divides each cube into 3×3×3 subcells and uses iso-crossing point location
+ * to determine conflicts at subcell level in a global 3× refined grid.
+ *
+ * IMPORTANT: This method computes accurate iso-crossing points for separation
+ * but returns cubes with centers for Delaunay stability (hybrid approach).
+ *
+ * @param activeCubes Input vector of active cubes
+ * @param grid Grid for iso-crossing point computation
+ * @param isovalue Isovalue for computing accurate crossing points
+ * @return Separated subset of cubes with stable Delaunay points
+ */
+std::vector<Cube> separate_active_cubes_III(
+    std::vector<Cube> &activeCubes,
+    const UnifiedGrid &grid,
+    float isovalue);
+
+//! @brief Compute accurate iso-crossing point using edge-intersection centroids
+/*!
+ * Finds all edge-isovalue intersections and returns their centroid.
+ * Used for separation logic, not for Delaunay triangulation.
+ *
+ * @param grid The scalar grid
+ * @param i,j,k Cube indices
+ * @param isovalue Target isovalue
+ * @return Centroid of edge-crossing points
+ */
+Point compute_iso_crossing_point_accurate(
+    const UnifiedGrid &grid,
+    int i, int j, int k,
+    float isovalue);
+
+//! @brief Determine subgrid index from iso-crossing point location
+/*!
+ * Maps the iso-crossing point position within a cube to a subcell index [0-26].
+ * Uses 3×3×3 subdivision with base-3 encoding.
+ *
+ * @param isoCrossingPoint The iso-crossing point in world coordinates
+ * @param cube The cube containing the point
+ * @param grid Grid for spacing information
+ * @return Subgrid index in range [0,26]
+ */
+unsigned char determine_subgrid_index(
+    const Point &isoCrossingPoint,
+    const Cube &cube,
+    const UnifiedGrid &grid);
+
+//! @brief Convert subgrid index to local subcell coordinates
+/*!
+ * Decodes base-3 subgrid index to (loc[0], loc[1], loc[2]) where each ∈ {0,1,2}.
+ *
+ * @param subgrid_index Index in range [0,26]
+ * @param loc Output array of size 3
+ */
+void compute_subgrid_loc(int subgrid_index, int loc[3]);
+
+//! @brief Compute linear index in 3× refined grid
+/*!
+ * @param i,j,k Coordinates in 3× refined grid
+ * @param grid Original grid (for dimensions)
+ * @return Linear index in 3× grid space
+ */
+int linear_cell_index3x(int i, int j, int k, const UnifiedGrid &grid);
+
+//! @brief Check if cube conflicts with already selected cubes (sep_isov_3)
+/*!
+ * Checks 26-connectivity in the 3× refined grid space.
+ *
+ * @param cube Cube to check
+ * @param selected_indices Set of selected subcell indices in 3× grid
+ * @param grid Grid for dimension calculations
+ * @param[out] indexA Index of this cube in 3× grid (if not nullptr)
+ * @return true if conflicts with any selected cube
+ */
+bool does_cell_conflict_with_selected_cubes(
+    const Cube &cube,
+    const std::unordered_map<int, Cube> &selected_indices,
+    const UnifiedGrid &grid,
+    int *indexA = nullptr);
+
+// ============================================================================
+// DEBUG UTILITIES (temporary)
+// ============================================================================
+
+//! @brief Check all triples of iso-crossing points for near-collinearity
+void check_collinear_isocrossings(const std::vector<Cube>& activeCubes,
+                                  const UnifiedGrid& grid,
+                                  float isovalue,
+                                  double angle_threshold = 5.0);
+
+#endif // VDC_SEP_ISOV_H

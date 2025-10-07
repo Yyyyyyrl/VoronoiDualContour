@@ -13,10 +13,33 @@ struct Cube {
     Point repVertex;        //!< Representative vertex (world coordinates).
     Point isoCrossingPoint; //!< Iso-crossing point within the cube (world coordinates).
     int i, j, k;            //!< Grid indices of the cube.
+    unsigned char isov_subgrid_index; //!< Subgrid index [0-26] for sep_isov_3 (3×3×3 subdivision).
 
-    Cube() : repVertex(0, 0, 0), isoCrossingPoint(0, 0, 0), i(0), j(0), k(0) {}
+    Cube() : repVertex(0, 0, 0), isoCrossingPoint(0, 0, 0), i(0), j(0), k(0), isov_subgrid_index(13) {}
     Cube(Point v, Point icp, int ix, int iy, int iz)
-        : repVertex(v), isoCrossingPoint(icp), i(ix), j(iy), k(iz) {}
+        : repVertex(v), isoCrossingPoint(icp), i(ix), j(iy), k(iz), isov_subgrid_index(13) {}
+
+    //! @brief Compute 3× grid location for a given subgrid index
+    void ComputeGrid3xLoc(int subgrid_index, int grid3x_loc[3]) const {
+        int loc[3];
+        // Decode subgrid index to local coordinates
+        int index = subgrid_index;
+        loc[0] = index % 3;
+        index = index / 3;
+        loc[1] = index % 3;
+        index = index / 3;
+        loc[2] = index;
+
+        // Map to global 3× grid coordinates
+        grid3x_loc[0] = 3 * i + loc[0];
+        grid3x_loc[1] = 3 * j + loc[1];
+        grid3x_loc[2] = 3 * k + loc[2];
+    }
+
+    //! @brief Compute 3× grid location for this cube's iso-crossing point
+    void ComputeIsovGrid3xLoc(int grid3x_loc[3]) const {
+        ComputeGrid3xLoc(isov_subgrid_index, grid3x_loc);
+    }
 };
 
 //! @brief A structure representing a 3D grid for storing scalar data.
