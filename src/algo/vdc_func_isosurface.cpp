@@ -1388,59 +1388,15 @@ bool compute_dual_triangles_multi(
 }
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
+/*!
+ * Directly uses pre-computed accurate iso-crossing points as isosurface vertices.
+ * The accurate iso-crossings were already calculated during the separation phase.
+ */
 void compute_isosurface_vertices_single(UnifiedGrid &grid, float isovalue, IsoSurface &iso_surface, std::vector<Point> &activeCubeIsoCrossingPoints)
 {
-    const int cubeVertices[8][3] = {
-        {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
-    const int cubeEdges[12][2] = {
-        {0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
-
-    int vertexIndex = 0;
-    for (const auto &isoCrossingPoint : activeCubeIsoCrossingPoints)
-    {
-        std::vector<Point> intersectionPoints;
-        std::array<float, 8> scalarValues;
-
-        for (int i = 0; i < 8; i++)
-        {
-            Point vertex(
-                isoCrossingPoint.x() + (cubeVertices[i][0] - 0.5f) * grid.dx,
-                isoCrossingPoint.y() + (cubeVertices[i][1] - 0.5f) * grid.dy,
-                isoCrossingPoint.z() + (cubeVertices[i][2] - 0.5f) * grid.dz);
-            scalarValues[i] = grid.get_scalar_value_at_point(vertex);
-        }
-
-        for (const auto &edge : cubeEdges)
-        {
-            int idx1 = edge[0];
-            int idx2 = edge[1];
-            float val1 = scalarValues[idx1];
-            float val2 = scalarValues[idx2];
-
-            if (is_bipolar(val1, val2, isovalue))
-            {
-                Point p1(
-                    isoCrossingPoint.x() + (cubeVertices[idx1][0] - 0.5f) * grid.dx,
-                    isoCrossingPoint.y() + (cubeVertices[idx1][1] - 0.5f) * grid.dy,
-                    isoCrossingPoint.z() + (cubeVertices[idx1][2] - 0.5f) * grid.dz);
-                Point p2(
-                    isoCrossingPoint.x() + (cubeVertices[idx2][0] - 0.5f) * grid.dx,
-                    isoCrossingPoint.y() + (cubeVertices[idx2][1] - 0.5f) * grid.dy,
-                    isoCrossingPoint.z() + (cubeVertices[idx2][2] - 0.5f) * grid.dz);
-
-                Point intersect = interpolate(p1, p2, val1, val2, isovalue, grid);
-                intersectionPoints.push_back(intersect);
-            }
-        }
-
-        if (!intersectionPoints.empty())
-        {
-            Point centroid = compute_centroid(intersectionPoints);
-            iso_surface.isosurfaceVertices.push_back(centroid);
-        }
-        else
-            std::cerr << "[WARNING] No intersection points for cube at iso-crossing point: " << isoCrossingPoint << std::endl;
-    }
+    // Directly use the accurate iso-crossing points as isosurface vertices
+    // These were pre-computed during the separation phase as the centroid of edge-isovalue intersections
+    iso_surface.isosurfaceVertices = activeCubeIsoCrossingPoints;
 }
 
 //! @brief Collects midpoints for bipolar edges in a Voronoi cell's facets.
@@ -2054,7 +2010,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     }
     else
     {
-        compute_isosurface_vertices_single(grid, vdc_param.isovalue, iso_surface, activeCubeIsoCrossingPoints);
+        compute_isosurface_vertices_single(grid, vdc_param.isovalue, iso_surface, activeCubeAccurateIsoCrossingPoints);
         compute_dual_triangles(iso_surface, vd, bbox, dt, grid, vdc_param.isovalue);
         dualBuilt = true;
     }
