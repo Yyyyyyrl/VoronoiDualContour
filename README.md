@@ -34,28 +34,47 @@ make -j
 ```
 
 ### Options
-- -o <file>: output basename (default derived from input)
-- -off: write mesh in OFF format (default)
-- -ply: write mesh in PLY format
-- -out_csv <file>: dump Voronoi diagram to CSV
-- -sep_isov: pick a subset of non-adjacent active cubes before triangulation
-- -supersample <factor>: supersample the input grid by factor
-- -collapse_eps <eps>: absolute collapse threshold (world units). Default is 1% of min grid spacing.
-- -multi_isov: enable multi iso-vertices mode
-- -single_isov: use single iso-vertex mode (default)
-- -conv_H: use CGAL convex hull for Voronoi cell construction
-- -mod_cyc: modify-cycles pass after initial cycles (advanced)
-- --help: print help
+- `-o {output_filename}`: Specify output filename (default: derived from input filename)
+- `-off`: Generate output in .off format (default)
+- `-ply`: Generate output in .ply format
+- `-out_csv {output_csv_name}`: Write the Voronoi diagram to a CSV file
+- `-sep_isov_1`: Separation method I: Greedy cube-level (26-connectivity)
+- `-sep_isov_3`: Separation method III: 3×3×3 subgrid-based separation
+- `-supersample {factor}`: Supersample the input data by the given factor
+- `-collapse_eps {eps}`: Set absolute collapse threshold in world units (default: 1% of grid spacing)
+- `-multi_isov`: Use multi iso-vertices mode
+- `-single_isov`: Use single iso-vertices mode (default)
+- `-conv_H`: Use the Convex_Hull_3 from CGAL in voronoi cell construction
+- `-mod_cyc`: After initial cycles, try facet rematching and recompute cycles
+- `--summary_stats`: Print summary statistics after the run
+- `--debug`: Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD])
+- `--help`: Print help message
 
 Advanced/debug options (subject to change):
-- -bound_cells: add bounding cells around the domain
-- --debug: enable verbose debug logs ([DEBUG]/[ISO]/[ISO-MATCH])
+- `-bound_cells`: Add bounding cells around the domain
+- `--test_vor`: Flag for testing the Voronoi diagram construction
 
 ### Examples
 - Basic run (OFF output):
-  `./vdc 0.0 ./data/sphere-32.nrrd`
+  ```bash
+  ./vdc 0.0 ./data/sphere-32.nrrd
+  ```
 - PLY output with supersampling x2:
-  `./vdc -ply -supersample 2 0.0 ./data/sphere-32.nrrd`
+  ```bash
+  ./vdc -ply -supersample 2 0.0 ./data/sphere-32.nrrd
+  ```
+- Multi iso-vertices with separation method I:
+  ```bash
+  ./vdc -multi_isov -sep_isov_1 0.0 ./data/sphere-32.nrrd
+  ```
+- Export Voronoi diagram to CSV with custom output name:
+  ```bash
+  ./vdc -o sphere_output -out_csv voronoi_data.csv 0.0 ./data/sphere-32.nrrd
+  ```
+- Using modify-cycles with summary statistics:
+  ```bash
+  ./vdc -mod_cyc --summary_stats 0.0 ./data/sphere-32.nrrd
+  ```
 
 
 ## File Structure
@@ -64,7 +83,7 @@ Advanced/debug options (subject to change):
 .
 ├── CMakeLists.txt            # CMake build configuration
 ├── README.md                 # Project documentation
-├── cmake/                    # CMake helpers (if any)
+├── cmake/                    # CMake helpers
 ├── include/                  # Header files
 │   ├── core/                 # Core types, utilities, CLI
 │   │   ├── vdc.h
@@ -72,28 +91,31 @@ Advanced/debug options (subject to change):
 │   │   ├── vdc_utilities.h
 │   │   ├── vdc_debug.h
 │   │   └── vdc_commandline.h
-│   ├── grid/                 # Grid data structures
-│   │   └── vdc_grid.h
+│   ├── grid/                 # Grid data structures and separation methods
+│   │   ├── vdc_grid.h
+│   │   └── vdc_sep_isov.h
 │   ├── io/                   # IO helpers (NRRD)
 │   │   └── vdc_io.h
 │   ├── delaunay/             # Delaunay types/utilities
 │   │   └── vdc_delaunay.h
-│   ├── voronoi/              # Voronoi structures and ops
+│   ├── voronoi/              # Voronoi structures and operations
 │   │   └── vdc_voronoi.h
 │   ├── algo/                 # High-level algorithm declarations
 │   │   └── vdc_func.h
 │   └── test/                 # Test helpers
 │       └── test_vor.h
 ├── src/                      # Source files
-│   ├── app/                  # Application entry points
+│   ├── app/                  # Application entry point
 │   │   └── vdc.cpp
 │   ├── core/                 # Core utilities and CLI
 │   │   ├── vdc_commandline.cpp
 │   │   ├── vdc_debug.cpp
 │   │   └── vdc_utilities.cpp
-│   ├── grid/
-│   │   └── vdc_grid.cpp
-│   ├── io/
+│   ├── grid/                 # Grid operations and separation methods
+│   │   ├── vdc_grid.cpp
+│   │   ├── vdc_sep_isov.cpp
+│   │   └── vdc_sep_isov_debug.cpp
+│   ├── io/                   # IO implementations
 │   │   └── vdc_io.cpp
 │   ├── algo/                 # Algorithm implementations
 │   │   ├── vdc_func_delaunay.cpp
@@ -108,10 +130,11 @@ Advanced/debug options (subject to change):
 │   └── tests/                # Test drivers
 │       ├── test_vor.cpp
 │       └── test_modcyc.cpp
-├── tools/
+├── tools/                    # Utility scripts
 │   ├── plot_modcyc.py        # Visualize modify-cycles test case
-│   ├── run_vdc_batch.py      # Generate output for different isovalues of a same input
-│   └── compExec.py           # Compare execution output of different configurations
+│   ├── plot_cells_and_edge.py # Visualize cells and edges
+│   ├── run_vdc_batch.py      # Generate output for different isovalues
+│   ├── compExec.py           # Compare execution output of different
 ```
 
 ## API Documentation
