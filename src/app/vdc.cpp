@@ -1,4 +1,5 @@
 #include "core/vdc.h"
+#include "grid/vdc_sep_isov.h"
 #include <algorithm>
 #include <array>
 #include <iomanip>
@@ -281,12 +282,22 @@ int main(int argc, char *argv[])
     find_active_cubes(data_grid, vdc_param.isovalue, activeCubes);
 
     // Separate active cubes to ensure non-adjacency if requested.
-    if (vdc_param.sep_isov)
+    if (vdc_param.sep_isov_1)
     {
-        std::cout << "Performing separation, original # of active cubes: " << activeCubes.size() << std::endl;
-        activeCubes = separate_active_cubes_greedy(activeCubes, data_grid);
-        //activeCubes = separate_active_cubes_graph(activeCubes, data_grid);
-        std::cout << "After separating, # of active Cubes: " << activeCubes.size() << std::endl;
+        std::cout << "[INFO] Separation method I: Cube-level (26-connectivity)" << std::endl;
+        std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
+        activeCubes = separate_active_cubes_I(activeCubes, data_grid, vdc_param.isovalue);
+        std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
+    }
+    else if (vdc_param.sep_isov_3)
+    {
+        std::cout << "[INFO] Separation method III: 3×3×3 subgrid-based separation" << std::endl;
+        std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
+        activeCubes = separate_active_cubes_III(activeCubes, data_grid, vdc_param.isovalue);
+        std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
+
+        // DEBUG: Check for nearly collinear iso-crossing points
+        check_collinear_isocrossings(activeCubes, data_grid, vdc_param.isovalue, 5.0);
     }
 
     // Create grid facets from the active cubes for further processing.
