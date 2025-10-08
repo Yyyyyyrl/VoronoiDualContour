@@ -30,13 +30,19 @@ std::vector<Cube> separate_active_cubes_I(
  * Divides each cube into 3×3×3 subcells and uses iso-crossing point location
  * to determine conflicts at subcell level in a global 3× refined grid.
  *
- * IMPORTANT: This method computes accurate iso-crossing points for separation
- * but returns cubes with centers for Delaunay stability (hybrid approach).
+ * Uses accurate iso-crossing points (centroid of edge-isovalue intersections)
+ * as Delaunay input for geometric accuracy.
+ *
+ * NOTE: The 3× grid mapping allows higher cube retention (70-85%) compared to
+ * method I (~15-20%), but this can create dense point sets that lead to complex
+ * Voronoi diagrams and occasional thin triangles in the final isosurface. The
+ * thin triangle issue is caused by Voronoi topology (too many nearby points),
+ * not by the choice of Delaunay input points (iso-crossings vs cube centers).
  *
  * @param activeCubes Input vector of active cubes
  * @param grid Grid for iso-crossing point computation
  * @param isovalue Isovalue for computing accurate crossing points
- * @return Separated subset of cubes with stable Delaunay points
+ * @return Separated subset of cubes with accurate iso-crossings as Delaunay points
  */
 std::vector<Cube> separate_active_cubes_III(
     std::vector<Cube> &activeCubes,

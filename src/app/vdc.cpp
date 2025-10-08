@@ -296,6 +296,15 @@ int main(int argc, char *argv[])
         activeCubes = separate_active_cubes_III(activeCubes, data_grid, vdc_param.isovalue);
         std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
     }
+    else
+    {
+        // When no separation is used, compute accurate iso-crossing points for all active cubes
+        // (separation methods already do this for kept cubes)
+        for (Cube &cube : activeCubes)
+        {
+            cube.accurateIsoCrossing = compute_iso_crossing_point_accurate(data_grid, cube.i, cube.j, cube.k, vdc_param.isovalue);
+        }
+    }
 
     // Create grid facets from the active cubes for further processing.
     std::vector<std::vector<GRID_FACETS>> grid_facets = create_grid_facets(activeCubes);
@@ -363,6 +372,11 @@ int main(int argc, char *argv[])
     VoronoiDiagram vd2 = collapseSmallEdges(vd, collapse_eps, bbox, dt, vertex_mapping);
     // Re-validate and normalize facet orientations on the collapsed diagram
     validate_facet_orientations_and_normals(vd2);
+    // Repopulate cell_edge_index arrays after collapse rebuilt the cellEdges
+    if (vdc_param.multi_isov)
+    {
+        populate_cell_edge_indices(vd2, dt);
+    }
     std::clock_t collapse_time = std::clock();
     double duration_col = static_cast<double>(collapse_time - cons_vd_time) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Collapsing time: " << std::to_string(duration_col) << " seconds." << std::endl;
