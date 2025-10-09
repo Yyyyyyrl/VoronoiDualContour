@@ -49,6 +49,17 @@ std::vector<Cube> separate_active_cubes_III(
     const UnifiedGrid &grid,
     float isovalue);
 
+//! @brief Separation method III (testing variant): widened clearance in 3× grid (5×5×5 neighborhood)
+/*!
+ * This helper mirrors method III but rejects cubes if any neighbor within a
+ * Chebyshev distance of 2 (a 5×5×5 block, 124 neighbors) in the refined grid
+ * is already selected.
+ */
+std::vector<Cube> separate_active_cubes_III_wide(
+    std::vector<Cube> &activeCubes,
+    const UnifiedGrid &grid,
+    float isovalue);
+
 //! @brief Compute accurate iso-crossing point using edge-intersection centroids
 /*!
  * Finds all edge-isovalue intersections and returns their centroid.
@@ -98,11 +109,13 @@ int linear_cell_index3x(int i, int j, int k, const UnifiedGrid &grid);
 
 //! @brief Check if cube conflicts with already selected cubes (sep_isov_3)
 /*!
- * Checks 26-connectivity in the 3× refined grid space.
+ * Checks connectivity in the 3× refined grid space within a configurable
+ * Chebyshev radius (clearance) measured in subgrid units.
  *
  * @param cube Cube to check
  * @param selected_indices Set of selected subcell indices in 3× grid
  * @param grid Grid for dimension calculations
+ * @param clearance Clearance radius (1 => 26-neighborhood, 2 => 5×5×5, etc.)
  * @param[out] indexA Index of this cube in 3× grid (if not nullptr)
  * @return true if conflicts with any selected cube
  */
@@ -110,7 +123,8 @@ bool does_cell_conflict_with_selected_cubes(
     const Cube &cube,
     const std::unordered_map<int, Cube> &selected_indices,
     const UnifiedGrid &grid,
-    int *indexA = nullptr);
+    int *indexA = nullptr,
+    int clearance = 1);
 
 // ============================================================================
 // DEBUG UTILITIES (temporary)

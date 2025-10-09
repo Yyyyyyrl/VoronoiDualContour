@@ -22,6 +22,7 @@ struct VDC_PARAM {
     bool out_csv;                  //!< Flag to enable exporting Voronoi diagram to CSV.
     bool sep_isov_1;               //!< Flag to enable separation method I (greedy cube-level).
     bool sep_isov_3;               //!< Flag to enable separation method III (3×3×3 subgrid-based).
+    bool sep_isov_3_wide;          //!< Flag to enable widened separation method III (5×5×5 clearance testing).
     bool multi_isov;               //!< Flag to enable multi-isosurface mode.
     bool supersample;              //!< Flag to enable supersampling of the input data.
     bool add_bounding_cells;       //!< Flag to include bounding cells in the Voronoi diagram.
@@ -43,6 +44,7 @@ struct VDC_PARAM {
           out_csv(false),
           sep_isov_1(false),
           sep_isov_3(false),
+          sep_isov_3_wide(false),
           multi_isov(false),
           supersample(false),
           add_bounding_cells(false),
