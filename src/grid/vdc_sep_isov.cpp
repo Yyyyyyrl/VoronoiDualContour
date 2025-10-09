@@ -69,10 +69,7 @@ std::vector<Cube> separate_active_cubes_I(
             // Compute accurate iso-crossing for iso-vertex computation
             c.accurateIsoCrossing = compute_iso_crossing_point_accurate(grid, ci, cj, ck, isovalue);
 
-            // Use cube center for Delaunay to avoid degenerate facets
-            // Even with good separation, accurate iso-crossing points can be nearly collinear
-            // or coplanar (especially near boundaries or on smooth isosurfaces), causing
-            // "Degenerate interior facet" errors and holes in the mesh.
+            // Use cube center for Delaunay to avoid degenerate interior facets and collinear or coplanar poitns
             c.isoCrossingPoint = Point(
                 (ci + 0.5f) * grid.dx + grid.min_x,
                 (cj + 0.5f) * grid.dy + grid.min_y,
@@ -322,9 +319,8 @@ std::vector<Cube> separate_active_cubes_III(
         if (!does_cell_conflict_with_selected_cubes(cube, selected_indices, grid, &indexA))
         {
             // No conflict - select this cube
-            // Use cube center for Delaunay to avoid degenerate facets
             // The accurate iso-crossing was used for subgrid index determination, but
-            // we use cube centers for Delaunay input to prevent nearly collinear/coplanar
+            // use cube centers for Delaunay input to prevent nearly collinear/coplanar
             // configurations that cause "Degenerate interior facet" errors and mesh holes.
             cube.isoCrossingPoint = Point(
                 (cube.i + 0.5f) * grid.dx + grid.min_x,
