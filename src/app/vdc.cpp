@@ -296,6 +296,13 @@ int main(int argc, char *argv[])
         activeCubes = separate_active_cubes_III(activeCubes, data_grid, vdc_param.isovalue);
         std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
     }
+    else if (vdc_param.sep_isov_3_wide)
+    {
+        std::cout << "[INFO] Separation method III-wide: 3×3×3 subgrid with 5×5×5 clearance" << std::endl;
+        std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
+        activeCubes = separate_active_cubes_III_wide(activeCubes, data_grid, vdc_param.isovalue);
+        std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
+    }
     else
     {
         // When no separation is used, compute accurate iso-crossing points for all active cubes
