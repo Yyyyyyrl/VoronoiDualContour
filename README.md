@@ -113,8 +113,7 @@ Advanced/debug options (subject to change):
 │   │   └── vdc_utilities.cpp
 │   ├── grid/                 # Grid operations and separation methods
 │   │   ├── vdc_grid.cpp
-│   │   ├── vdc_sep_isov.cpp
-│   │   └── vdc_sep_isov_debug.cpp
+│   │   └── vdc_sep_isov.cpp
 │   ├── io/                   # IO implementations
 │   │   └── vdc_io.cpp
 │   ├── algo/                 # Algorithm implementations
