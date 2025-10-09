@@ -40,6 +40,7 @@ make -j
 - `-out_csv {output_csv_name}`: Write the Voronoi diagram to a CSV file
 - `-sep_isov_1`: Separation method I: Greedy cube-level (26-connectivity)
 - `-sep_isov_3`: Separation method III: 3×3×3 subgrid-based separation
+- `-sep_isov_3_wide`: Testing variant of method III with 5×5×5 clearance in the 3× subgrid
 - `-supersample {factor}`: Supersample the input data by the given factor
 - `-collapse_eps {eps}`: Set absolute collapse threshold in world units (default: 1% of grid spacing)
 - `-multi_isov`: Use multi iso-vertices mode
