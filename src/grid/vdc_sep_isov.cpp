@@ -236,7 +236,8 @@ bool does_cell_conflict_with_selected_cubes(
     const Cube &cube,
     const std::unordered_map<int, Cube> &selected_indices,
     const UnifiedGrid &grid,
-    int *indexA)
+    int *indexA,
+    int clearance)
 {
     // Compute this cube's position in 3× grid
     int loc[3];
@@ -252,10 +253,12 @@ bool does_cell_conflict_with_selected_cubes(
         *indexA = myIndexA;
     }
 
-    // Check 26 neighbors in 3× grid
-    for (int dk = -1; dk <= 1; ++dk) {
-        for (int dj = -1; dj <= 1; ++dj) {
-            for (int di = -1; di <= 1; ++di) {
+    const int radius = std::max(1, clearance);
+
+    // Check neighbors in 3× grid within requested clearance
+    for (int dk = -radius; dk <= radius; ++dk) {
+        for (int dj = -radius; dj <= radius; ++dj) {
+            for (int di = -radius; di <= radius; ++di) {
                 // Skip self
                 if (di == 0 && dj == 0 && dk == 0) continue;
 
@@ -284,15 +287,16 @@ bool does_cell_conflict_with_selected_cubes(
 }
 
 // ============================================================================
-// SEPARATION METHOD III: Subgrid-Based (3×3×3 Division)
+// SEPARATION METHOD III: Subgrid-Based (3×3×3 Division and variants)
 // ============================================================================
 
-std::vector<Cube> separate_active_cubes_III(
+static std::vector<Cube> separate_active_cubes_III_with_clearance(
     std::vector<Cube> &activeCubes,
     const UnifiedGrid &grid,
-    float isovalue)
+    float isovalue,
+    int clearance)
 {
-    //Compute accurate iso-crossing points and determine subgrid indices
+    // Compute accurate iso-crossing points and determine subgrid indices
     for (Cube &cube : activeCubes)
     {
         Point accurate_crossing = compute_iso_crossing_point_accurate(grid, cube.i, cube.j, cube.k, isovalue);
@@ -300,33 +304,40 @@ std::vector<Cube> separate_active_cubes_III(
         cube.isov_subgrid_index = determine_subgrid_index(accurate_crossing, cube, grid);
     }
 
-    //Sort by distance to boundary (same as method I)
+    // Sort by distance to boundary (same as method I)
     std::sort(activeCubes.begin(), activeCubes.end(),
-              [&grid](const Cube& a, const Cube& b) {
+              [&grid](const Cube &a, const Cube &b) {
                   int dist_a = min_distance_to_boundary(a.i, a.j, a.k, grid);
                   int dist_b = min_distance_to_boundary(b.i, b.j, b.k, grid);
+                  if (dist_a == dist_b)
+                  {
+                      // deterministic tie-break to keep behavior stable across platforms
+                      if (a.k != b.k)
+                          return a.k < b.k;
+                      if (a.j != b.j)
+                          return a.j < b.j;
+                      return a.i < b.i;
+                  }
                   return dist_a < dist_b;
               });
 
-    // selection with 3× grid conflict detection
-    std::unordered_map<int, Cube> selected_indices;  // key: 3× grid index
+    // Selection with 3× grid conflict detection
+    std::unordered_map<int, Cube> selected_indices; // key: 3× grid index
+    selected_indices.reserve(activeCubes.size());
     std::vector<Cube> out;
     out.reserve(activeCubes.size());
 
     for (Cube &cube : activeCubes)
     {
         int indexA;
-        if (!does_cell_conflict_with_selected_cubes(cube, selected_indices, grid, &indexA))
+        if (!does_cell_conflict_with_selected_cubes(cube, selected_indices, grid, &indexA, clearance))
         {
             // No conflict - select this cube
-            // The accurate iso-crossing was used for subgrid index determination, but
-            // use cube centers for Delaunay input to prevent nearly collinear/coplanar
-            // configurations that cause "Degenerate interior facet" errors and mesh holes.
+            // Accurate iso-crossing used for subgrid determination; cube center stabilizes Delaunay points.
             cube.isoCrossingPoint = Point(
                 (cube.i + 0.5f) * grid.dx + grid.min_x,
                 (cube.j + 0.5f) * grid.dy + grid.min_y,
-                (cube.k + 0.5f) * grid.dz + grid.min_z
-            );
+                (cube.k + 0.5f) * grid.dz + grid.min_z);
 
             selected_indices.emplace(indexA, cube);
             out.push_back(cube);
@@ -334,4 +345,20 @@ std::vector<Cube> separate_active_cubes_III(
     }
 
     return out;
+}
+
+std::vector<Cube> separate_active_cubes_III(
+    std::vector<Cube> &activeCubes,
+    const UnifiedGrid &grid,
+    float isovalue)
+{
+    return separate_active_cubes_III_with_clearance(activeCubes, grid, isovalue, 1);
+}
+
+std::vector<Cube> separate_active_cubes_III_wide(
+    std::vector<Cube> &activeCubes,
+    const UnifiedGrid &grid,
+    float isovalue)
+{
+    return separate_active_cubes_III_with_clearance(activeCubes, grid, isovalue, 2);
 }
