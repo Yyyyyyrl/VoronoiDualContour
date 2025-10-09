@@ -65,11 +65,24 @@ struct VERTEX_INFO
 //! @brief Information associated with a cell in the Delaunay triangulation.
 /*!
  * Stores metadata for cells (tetrahedra) in the Delaunay triangulation.
+ * Each Delaunay cell (tetrahedron) has 4 facets indexed 0-3, where facet i
+ * is opposite to vertex i. Each facet is dual to a Voronoi edge.
  */
 struct CELL_INFO
 {
     int dualVoronoiVertexIndex; //!< Index of the Voronoi vertex dual to this cell
     int index;                  //!< Unique index of this cell in the triangulation
+    int cell_edge_index[4];     //!< Index of VoronoiCellEdge for each facet [0-3]
+                                //!< cell_edge_index[i] stores the index into VoronoiDiagram.cellEdges
+                                //!< for the edge dual to facet i (opposite vertex i)
+                                //!< -1 if not assigned or facet is at boundary/infinity
+
+    //! @brief Constructor to initialize CELL_INFO with default values
+    CELL_INFO() : dualVoronoiVertexIndex(-1), index(-1) {
+        for (int i = 0; i < 4; ++i) {
+            cell_edge_index[i] = -1;
+        }
+    }
 };
 
 //! @brief Enum indicating the method for matching bipolar edges on a facet.
