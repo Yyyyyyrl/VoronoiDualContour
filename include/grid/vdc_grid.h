@@ -11,14 +11,15 @@ static const int DIM3 = 3;
 //! @brief Represents a cube in 3D space.
 struct Cube {
     Point repVertex;        //!< Representative vertex (world coordinates).
-    Point isoCrossingPoint; //!< Iso-crossing point for Delaunay (cube center for robustness).
+    Point cubeCenter;       //!< Cube center used for Delaunay (provides robustness).
+    
     Point accurateIsoCrossing; //!< Accurate iso-crossing point (centroid of edge intersections).
     int i, j, k;            //!< Grid indices of the cube.
     unsigned char isov_subgrid_index; //!< Subgrid index [0-26] for sep_isov_3 (3×3×3 subdivision).
 
-    Cube() : repVertex(0, 0, 0), isoCrossingPoint(0, 0, 0), accurateIsoCrossing(0, 0, 0), i(0), j(0), k(0), isov_subgrid_index(13) {}
-    Cube(Point v, Point icp, int ix, int iy, int iz)
-        : repVertex(v), isoCrossingPoint(icp), accurateIsoCrossing(icp), i(ix), j(iy), k(iz), isov_subgrid_index(13) {}
+    Cube() : repVertex(0, 0, 0), cubeCenter(0, 0, 0), accurateIsoCrossing(0, 0, 0), i(0), j(0), k(0), isov_subgrid_index(13) {}
+    Cube(Point v, Point center, int ix, int iy, int iz)
+        : repVertex(v), cubeCenter(center), accurateIsoCrossing(center), i(ix), j(iy), k(iz), isov_subgrid_index(13) {}
 
     //! @brief Compute 3× grid location for a given subgrid index
     void ComputeGrid3xLoc(int subgrid_index, int grid3x_loc[3]) const {
@@ -63,11 +64,15 @@ struct UnifiedGrid
     //! @brief Spacing of the grid cells along the x, y, and z axes.
     float dx, dy, dz;
 
+    //! @brief Physical spacing of the grid cells (retained when internal spacing is rescaled).
+    float physical_dx, physical_dy, physical_dz;
+
     //! @brief Minimum and maximum coordinates of the grid.
     float min_x, min_y, min_z, max_x, max_y, max_z;
 
     //! @brief Constructor to initialize an empty grid.
     UnifiedGrid() : nx(0), ny(0), nz(0), dx(1.0f), dy(1.0f), dz(1.0f),
+                    physical_dx(1.0f), physical_dy(1.0f), physical_dz(1.0f),
                     min_x(0.0f), min_y(0.0f), min_z(0.0f),
                     max_x(0.0f), max_y(0.0f), max_z(0.0f) {}
 
@@ -88,6 +93,12 @@ struct UnifiedGrid
 
     //! @brief Print the grid's metadata and data.
     void print_grid() const;
+
+    //! @brief Recompute max bounds from current spacing.
+    void update_bounds();
+
+    //! @brief Force internal spacing to unit while keeping physical spacing metadata.
+    void force_unit_spacing();
 };
 
 
@@ -314,7 +325,7 @@ std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid
  * @param cubes Input cubes with precomputed iso-crossing points
  * @return Points where the isovalue is crossed within each cube
  */
-std::vector<Point> get_cube_iso_crossing_points(const std::vector<Cube> &cubes);
+std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes);
 
 //! @brief Extracts accurate iso-crossing points for a list of cubes.
 /*!

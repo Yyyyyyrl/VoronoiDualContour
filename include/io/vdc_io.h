@@ -10,38 +10,34 @@
 //! @brief Writes an isosurface mesh in OFF format (single-isovalue case).
 /*!
  * @param filename The output file path.
- * @param vertices The list of vertices in the mesh.
- * @param triangles The list of Delaunay triangles forming the mesh.
+ * @param iso_surface The isosurface container providing vertices and triangles.
  */
-void writeOFFSingle(const std::string &filename, const std::vector<Point> &vertices,
-                    const std::vector<DelaunayTriangle> &triangles);
+void writeOFFSingle(const std::string &filename, const IsoSurface &iso_surface);
 
 //! @brief Writes an isosurface mesh in PLY format (single-isovalue case).
 /*!
  * @param filename The output file path.
- * @param vertices The list of vertices in the mesh.
- * @param triangles The list of Delaunay triangles forming the mesh.
+ * @param iso_surface The isosurface container providing vertices and triangles.
  */
-void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices,
-                    const std::vector<DelaunayTriangle> &triangles);
+void writePLYSingle(const std::string &filename, const IsoSurface &iso_surface);
 
 //! @brief Writes an isosurface mesh in OFF format (multi-isovalue case).
 /*!
  * @param filename The output file path.
  * @param voronoiDiagram The Voronoi diagram containing isosurface data.
- * @param isoTriangles The list of isosurface triangles.
+ * @param iso_surface The isosurface container providing vertices and triangles.
  */
 void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram,
-                   const std::vector<std::tuple<int, int, int>> &isoTriangles, IsoSurface &iso_surface);
+                   const IsoSurface &iso_surface);
 
 //! @brief Writes an isosurface mesh in PLY format (multi-isovalue case).
 /*!
  * @param filename The output file path.
  * @param voronoiDiagram The Voronoi diagram containing isosurface data.
- * @param isoTriangles The list of isosurface triangles.
+ * @param iso_surface The isosurface container providing vertices and triangles.
  */
 void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram,
-                   const std::vector<std::tuple<int, int, int>> &isoTriangles, IsoSurface &iso_surface);
+                   const IsoSurface &iso_surface);
 
 //! @brief Exports Voronoi diagram data to a CSV file.
 /*!

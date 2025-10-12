@@ -7,6 +7,7 @@
 #include "core/vdc_type.h"
 #include "delaunay/vdc_delaunay.h"
 #include "core/vdc_utilities.h"
+#include <array>
 #include <utility> // for std::make_tuple
 
 //! @brief Represents a vertex in a Voronoi diagram.
@@ -379,6 +380,7 @@ struct IsoSurface
     std::vector<std::tuple<int, int, int>> isosurfaceTrianglesMulti; //!< Triangles forming the isosurface.
     std::vector<DelaunayTriangle> isosurfaceTrianglesSingle;
     std::vector<int> triangleSourceEdges;                            //!< Source Voronoi edge index for each multi-isov triangle (debug/fixup).
+    std::array<double, 3> vertex_scale{1.0, 1.0, 1.0};               //!< Per-axis scale to convert from grid units to physical space.
 };
 
 //! @brief Represents a midpoint on an edge, along with its facet information.
