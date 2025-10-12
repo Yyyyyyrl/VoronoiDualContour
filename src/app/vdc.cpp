@@ -316,16 +316,16 @@ int main(int argc, char *argv[])
     // Create grid facets from the active cubes for further processing.
     std::vector<std::vector<GRID_FACETS>> grid_facets = create_grid_facets(activeCubes);
 
-    // Extract the iso-crossing points of the active cubes.
-    std::vector<Point> activeCubeIsoCrossingPoints = get_cube_iso_crossing_points(activeCubes);
+    // Extract the centers of the active cubes.
+    std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> activeCubeAccurateIsoCrossingPoints = get_cube_accurate_iso_crossing_points(activeCubes);
     std::clock_t test1 = std::clock();
-    dt_test.insert(activeCubeIsoCrossingPoints.begin(), activeCubeIsoCrossingPoints.end());
+    dt_test.insert(activeCubeCenters.begin(), activeCubeCenters.end());
     std::clock_t test2 = std::clock();
     double d = static_cast<double>(test2 - test1) / CLOCKS_PER_SEC;
     std::cout << "[INFO] Delaunay test time: " << d << " seconds." << std::endl;
 
-    std::cout << "[INFO] Number of active cube iso-crossing points: " << activeCubeIsoCrossingPoints.size() << std::endl;
+    std::cout << "[INFO] Number of active cube centers: " << activeCubeCenters.size() << std::endl;
 
     // Define the bounding box of the grid.
     Point p_min(0, 0, 0);
@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
                   << bbox.max() << ")" << std::endl;
     }
 
-    float cubeSideLength = data_grid.dx; // Store the cube side length (equal to grid spacing, assuming regular grid so dx/dy/dz will be equal).
+    float cubeSideLength = data_grid.physical_dx; // Store the cube side length (equal to physical grid spacing).
 
     std::clock_t load_data_time = std::clock(); // Get ending clock ticks
     double duration_ld = static_cast<double>(load_data_time - start_time) / CLOCKS_PER_SEC;
@@ -351,7 +351,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "[INFO] Constructing Delaunay triangulation..." << std::endl;
     }
-    construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeIsoCrossingPoints);
+    construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
 
     std::clock_t construct_dt_time = std::clock(); // Get ending clock ticks
     double duration_dt = static_cast<double>(construct_dt_time - load_data_time) / CLOCKS_PER_SEC;
@@ -370,7 +370,7 @@ int main(int argc, char *argv[])
     // Collapse threshold: use CLI value if provided; otherwise scale to grid spacing (1% of min spacing)
     double collapse_eps = (vdc_param.collapse_eps > 0.0)
                               ? vdc_param.collapse_eps
-                              : std::min({data_grid.dx, data_grid.dy, data_grid.dz}) * 0.01;
+                              : std::min({data_grid.physical_dx, data_grid.physical_dy, data_grid.physical_dz}) * 0.01;
     if (vdc_param.collapse_eps <= 0.0) {
         // Persist the resolved default so downstream stages and logs can see it.
         vdc_param.collapse_eps = collapse_eps;
@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
     int interior_flips = 0, boundary_flips = 0;
     std::size_t clipped_count = 0;
     double max_clip_distance = 0.0;
-    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeIsoCrossingPoints, activeCubeAccurateIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
+    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, activeCubeAccurateIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
 
     std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
     double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;

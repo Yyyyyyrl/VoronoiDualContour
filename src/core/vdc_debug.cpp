@@ -91,9 +91,9 @@ void write_dummy_points(UnifiedGrid &grid, std::vector<Point> dummy_points)
     ofs << grid.nx << "," // Grid size along the x-axis.
         << grid.ny << "," // Grid size along the y-axis.
         << grid.nz << "," // Grid size along the z-axis.
-        << grid.dx << "," // Grid spacing along the x-axis.
-        << grid.dy << "," // Grid spacing along the y-axis.
-        << grid.dz << "\n"; // Grid spacing along the z-axis.
+        << grid.physical_dx << "," // Grid spacing along the x-axis.
+        << grid.physical_dy << "," // Grid spacing along the y-axis.
+        << grid.physical_dz << "\n"; // Grid spacing along the z-axis.
 
     // Write the column headers for the dummy points.
     ofs << "x,y,z\n";

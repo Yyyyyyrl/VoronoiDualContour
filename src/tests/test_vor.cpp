@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
         vdc_param.isovalue = isovalue;
         find_active_cubes(data_grid, isovalue, activeCubes);
         grid_facets = create_grid_facets(activeCubes);
-        activeCubeCenters = get_cube_iso_crossing_points(activeCubes);
+        activeCubeCenters = get_cube_centers(activeCubes);
 
         Point p_min(data_grid.min_x, data_grid.min_y, data_grid.min_z);
         Point p_max(data_grid.max_x, data_grid.max_y, data_grid.max_z);

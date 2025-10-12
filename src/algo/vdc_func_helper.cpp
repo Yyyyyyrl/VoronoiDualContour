@@ -40,11 +40,11 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
     {
         if (vdc_param.output_format == "off")
         {
-            writeOFFMulti(vdc_param.output_filename, vd, iso_surface.isosurfaceTrianglesMulti, iso_surface);
+            writeOFFMulti(vdc_param.output_filename, vd, iso_surface);
         }
         else if (vdc_param.output_format == "ply")
         {
-            writePLYMulti(vdc_param.output_filename, vd, iso_surface.isosurfaceTrianglesMulti, iso_surface);
+            writePLYMulti(vdc_param.output_filename, vd, iso_surface);
         }
         else
         {
@@ -57,11 +57,11 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
     {
         if (vdc_param.output_format == "off")
         {
-            writeOFFSingle(vdc_param.output_filename, iso_surface.isosurfaceVertices, iso_surface.isosurfaceTrianglesSingle);
+            writeOFFSingle(vdc_param.output_filename, iso_surface);
         }
         else if (vdc_param.output_format == "ply")
         {
-            writePLYSingle(vdc_param.output_filename, iso_surface.isosurfaceVertices, iso_surface.isosurfaceTrianglesSingle);
+            writePLYSingle(vdc_param.output_filename, iso_surface);
         }
         else
         {

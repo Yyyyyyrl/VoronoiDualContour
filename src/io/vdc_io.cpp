@@ -1,8 +1,12 @@
 #include "io/vdc_io.h"
 
 //! Writes a single-isovalue isosurface mesh in OFF format.
-void writeOFFSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles)
+void writeOFFSingle(const std::string &filename, const IsoSurface &iso_surface)
 {
+    const auto &vertices = iso_surface.isosurfaceVertices;
+    const auto &triangles = iso_surface.isosurfaceTrianglesSingle;
+    const auto &scale = iso_surface.vertex_scale;
+
     std::ofstream out(filename);
     if (!out)
     {
@@ -17,7 +21,7 @@ void writeOFFSingle(const std::string &filename, const std::vector<Point> &verti
     // Write the vertices
     for (const auto &vertex : vertices)
     {
-        out << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
+        out << vertex.x() * scale[0] << " " << vertex.y() * scale[1] << " " << vertex.z() * scale[2] << "\n";
     }
 
     // Write the faces
@@ -30,8 +34,11 @@ void writeOFFSingle(const std::string &filename, const std::vector<Point> &verti
 }
 
 //! Writes a multi-isovalue isosurface mesh in OFF format.
-void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles, IsoSurface &iso_surface)
+void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const IsoSurface &iso_surface)
 {
+    (void)voronoiDiagram;
+    const auto &scale = iso_surface.vertex_scale;
+
     std::ofstream out(filename);
     if (!out)
     {
@@ -46,7 +53,7 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
     // Write vertex coordinates
     for (const auto &v : iso_surface.isosurfaceVertices)
     {
-        out << v.x() << " " << v.y() << " " << v.z() << "\n";
+        out << v.x() * scale[0] << " " << v.y() * scale[1] << " " << v.z() * scale[2] << "\n";
     }
 
     // Write face indices
@@ -62,8 +69,12 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
 }
 
 //! Writes a single-isovalue isosurface mesh in PLY format.
-void writePLYSingle(const std::string &filename, const std::vector<Point> &vertices, const std::vector<DelaunayTriangle> &triangles)
+void writePLYSingle(const std::string &filename, const IsoSurface &iso_surface)
 {
+    const auto &vertices = iso_surface.isosurfaceVertices;
+    const auto &triangles = iso_surface.isosurfaceTrianglesSingle;
+    const auto &scale = iso_surface.vertex_scale;
+
     std::ofstream out(filename);
     if (!out)
     {
@@ -85,7 +96,7 @@ void writePLYSingle(const std::string &filename, const std::vector<Point> &verti
     // Write vertices
     for (const auto &vertex : vertices)
     {
-        out << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
+        out << vertex.x() * scale[0] << " " << vertex.y() * scale[1] << " " << vertex.z() * scale[2] << "\n";
     }
 
     // Write faces
@@ -98,8 +109,11 @@ void writePLYSingle(const std::string &filename, const std::vector<Point> &verti
 }
 
 //! Writes a multi-isovalue isosurface mesh in PLY format.
-void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const std::vector<std::tuple<int, int, int>> &isoTriangles, IsoSurface &iso_surface)
+void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const IsoSurface &iso_surface)
 {
+    (void)voronoiDiagram;
+    const auto &scale = iso_surface.vertex_scale;
+
     std::ofstream out(filename);
     if (!out)
     {
@@ -121,7 +135,7 @@ void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
     // Write vertex coordinates
     for (const auto &vertex : iso_surface.isosurfaceVertices)
     {
-        out << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
+        out << vertex.x() * scale[0] << " " << vertex.y() * scale[1] << " " << vertex.z() * scale[2] << "\n";
     }
 
     // Write face indices

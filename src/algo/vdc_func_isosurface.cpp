@@ -127,6 +127,7 @@ struct EdgeKeyHash
         return std::hash<int>{}(p.first) ^ (std::hash<int>{}(p.second) << 1);
     }
 };
+using EdgeIndexMap = std::unordered_map<std::pair<int, int>, int, EdgeKeyHash>;
 
 static void prune_duplicate_edge_triangles(IsoSurface &iso_surface, const VoronoiDiagram &vd)
 {
@@ -1408,7 +1409,7 @@ void compute_isosurface_vertices_single(UnifiedGrid &grid, float isovalue, IsoSu
  * @param voronoiDiagram The Voronoi diagram containing facet and vertex data.
  * @param isovalue The isovalue for bipolarity check.
  * @param midpoints Vector to store computed midpoints.
- * @param edge_to_midpoint_index Map linking edge keys to midpoint indices.
+ * @param edge_to_midpoint_index Hash map linking edge keys to midpoint indices.
  * @param facet_midpoint_indices Vector storing midpoint indices for each facet.
  */
 static void collect_midpoints(
@@ -1416,13 +1417,15 @@ static void collect_midpoints(
     VoronoiDiagram &voronoiDiagram,
     float isovalue,
     std::vector<MidpointNode> &midpoints,
-    std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
+    EdgeIndexMap &edge_to_midpoint_index,
     std::vector<std::vector<int>> &facet_midpoint_indices)
 {
     if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
     {
         std::cerr << "[ISO] cell " << vc.cellIndex << " collecting midpoints; facets=" << vc.facet_indices.size() << "\n";
     }
+
+    facet_midpoint_indices.reserve(facet_midpoint_indices.size() + vc.facet_indices.size());
     for (size_t i = 0; i < vc.facet_indices.size(); ++i)
     {
         int facet_index = vc.facet_indices[i];
@@ -1430,6 +1433,7 @@ static void collect_midpoints(
         size_t num_vertices = facet.vertices_indices.size();
 
         std::vector<int> current_facet_midpoints;
+        current_facet_midpoints.reserve(num_vertices);
 
         for (size_t j = 0; j < num_vertices; ++j)
         {
@@ -1453,7 +1457,8 @@ static void collect_midpoints(
                 auto edge_key = std::make_pair(std::min(vertex_index1, vertex_index2),
                                                std::max(vertex_index1, vertex_index2));
 
-                if (edge_to_midpoint_index.find(edge_key) == edge_to_midpoint_index.end())
+                auto [it, inserted] = edge_to_midpoint_index.try_emplace(edge_key, -1);
+                if (inserted)
                 {
                     int globalEdgeIndex = -1;
                     auto iter_glob = voronoiDiagram.segmentVertexPairToEdgeIndex.find(edge_key);
@@ -1462,6 +1467,9 @@ static void collect_midpoints(
                         globalEdgeIndex = iter_glob->second;
                     }
 
+                    double t = (isovalue - val1) / (val2 - val1);
+                    Point midpoint = p1 + (p2 - p1) * t;
+
                     MidpointNode node;
                     node.point = midpoint;
                     node.facet_index = facet_index;
@@ -1469,15 +1477,9 @@ static void collect_midpoints(
                     node.global_edge_index = globalEdgeIndex;
 
                     midpoints.push_back(node);
-                    int midpoint_index = midpoints.size() - 1;
-                    edge_to_midpoint_index[edge_key] = midpoint_index;
-                    current_facet_midpoints.push_back(midpoint_index);
+                    it->second = static_cast<int>(midpoints.size()) - 1;
                 }
-                else
-                {
-                    int midpoint_index = edge_to_midpoint_index[edge_key];
-                    current_facet_midpoints.push_back(midpoint_index);
-                }
+                current_facet_midpoints.push_back(it->second);
             }
         }
 
@@ -1503,7 +1505,7 @@ facet_slot_edge_key(const VoronoiFacet &gf, int slot)
 static void connect_midpoints_via_global_matches(
     const VoronoiDiagram &vd,
     const VoronoiCell &vc,
-    const std::map<std::pair<int, int>, int> &edge_to_midpoint_index,
+    const EdgeIndexMap &edge_to_midpoint_index,
     std::vector<MidpointNode> &midpoints)
 {
     if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
@@ -1563,8 +1565,13 @@ static void extract_cycles(
     std::vector<std::vector<int>> adj(n);
     for (int i = 0; i < n; ++i)
     {
-        std::unordered_set<int> uniq(midpoints[i].connected_to.begin(), midpoints[i].connected_to.end());
-        adj[i].assign(uniq.begin(), uniq.end());
+        adj[i] = midpoints[i].connected_to;
+        auto &neighbors = adj[i];
+        if (neighbors.size() > 1)
+        {
+            std::sort(neighbors.begin(), neighbors.end());
+            neighbors.erase(std::unique(neighbors.begin(), neighbors.end()), neighbors.end());
+        }
     }
 
     // degree histogram for diagnostics
@@ -1810,14 +1817,28 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
 {
     ISO_DBG_LOAD_ENV();
     // Extract cube side length from grid if provided (for clipping)
-    float cube_side_length = (grid != nullptr) ? grid->dx : 0.0f;
+    float cube_side_length = (grid != nullptr) ? grid->physical_dx : 0.0f;
 
     // Expect callers to keep voronoiDiagram.global_facets[vfi].bipolar_matches in sync.
     for (auto &vc : voronoiDiagram.cells)
     {
+        size_t approxEdges = 0;
+        for (int facet_index : vc.facet_indices)
+        {
+            if (facet_index >= 0 && facet_index < static_cast<int>(voronoiDiagram.facets.size()))
+            {
+                approxEdges += voronoiDiagram.facets[facet_index].vertices_indices.size();
+            }
+        }
+
         std::vector<MidpointNode> midpoints;
-        std::map<std::pair<int, int>, int> edge_to_midpoint_index;
+        midpoints.reserve(approxEdges);
+
+        EdgeIndexMap edge_to_midpoint_index;
+        edge_to_midpoint_index.reserve(approxEdges);
+
         std::vector<std::vector<int>> facet_midpoint_indices;
+        facet_midpoint_indices.reserve(vc.facet_indices.size());
 
         collect_midpoints(vc, voronoiDiagram, isovalue, midpoints, edge_to_midpoint_index, facet_midpoint_indices);
         // connect_midpoints(facet_midpoint_indices, midpoints);
@@ -1858,7 +1879,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
 }
 
 // ！@brief Wrap up function for constructing iso surface
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeIsoCrossingPoints, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping, int *out_interior_flips, int *out_boundary_flips, std::size_t *out_clipped_count, double *out_max_clip_distance)
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping, int *out_interior_flips, int *out_boundary_flips, std::size_t *out_clipped_count, double *out_max_clip_distance)
 {
     ISO_DBG_LOAD_ENV();
     if (ISO_DBG_ENABLED)
@@ -1866,6 +1887,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
     }
     std::clock_t start_time = std::clock();
+    iso_surface.vertex_scale = {grid.physical_dx, grid.physical_dy, grid.physical_dz};
     // Helper used before every new attempt of the multi-isov pipeline. Any facet flip
     // or cycle modification invalidates previously built iso vertices and triangle
     // bookkeeping, so we clear the shared buffers here to guarantee clean state.

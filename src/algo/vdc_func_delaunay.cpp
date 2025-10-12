@@ -69,21 +69,21 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet,
 //! @brief Collects points for the Delaunay triangulation.
 /*!
  * Gathers original points and dummy points from grid facets for multi-isovertex mode,
- * or uses only active cube iso-crossing points for single-isovertex mode.
+ * or uses only active cube centers for single-isovertex mode.
  *
  * @param grid The grid containing data.
  * @param grid_facets The grid facets for dummy point generation.
- * @param activeCubeIsoCrossingPoints The list of iso-crossing points of active cubes.
+ * @param activeCubeCenters The list of cube centers of active cubes.
  * @param vdc_param The VDC_PARAM instance containing user input options.
  * @param delaunay_points Output vector for all points (original + dummy).
  */
 static int collect_delaunay_points(UnifiedGrid &grid,
                                    const std::vector<std::vector<GRID_FACETS>> &grid_facets,
-                                   const std::vector<Point> &activeCubeIsoCrossingPoints,
+                                   const std::vector<Point> &activeCubeCenters,
                                    VDC_PARAM &vdc_param,
                                    std::vector<Point> &delaunay_points)
 {
-    delaunay_points = activeCubeIsoCrossingPoints;
+    delaunay_points = activeCubeCenters;
     int first_dummy_index = delaunay_points.size(); // Dummies start here
 
     const double supersampleMultiplier = vdc_param.supersample
@@ -135,14 +135,14 @@ static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
  * @param grid The grid containing scalar values.
  * @param grid_facets The grid facets to use in constructing the triangulation.
  * @param vdc_param The VDC_PARAM instance holding user input options.
- * @param activeCubeIsoCrossingPoints The list of iso-crossing points of active cubes.
+ * @param activeCubeCenters The list of cube centers of active cubes.
  */
-void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeIsoCrossingPoints)
+void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters)
 {
     std::clock_t start = std::clock();
 
     std::vector<Point> delaunay_points;
-    size_t first_dummy_index = collect_delaunay_points(grid, grid_facets, activeCubeIsoCrossingPoints, vdc_param, delaunay_points);
+    size_t first_dummy_index = collect_delaunay_points(grid, grid_facets, activeCubeCenters, vdc_param, delaunay_points);
 
     std::clock_t after_collect = std::clock();
     double collect_time = static_cast<double>(after_collect - start) / CLOCKS_PER_SEC;
