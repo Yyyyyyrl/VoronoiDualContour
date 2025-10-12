@@ -1,13 +1,15 @@
 #include "grid/vdc_grid.h"
+#include <cmath>
 
 
 //! Constructor for UnifiedGrid
 UnifiedGrid::UnifiedGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z)
-    : nx(nx), ny(ny), nz(nz), dx(dx), dy(dy), dz(dz), min_x(min_x), min_y(min_y), min_z(min_z)
+    : nx(nx), ny(ny), nz(nz),
+      dx(dx), dy(dy), dz(dz),
+      physical_dx(dx), physical_dy(dy), physical_dz(dz),
+      min_x(min_x), min_y(min_y), min_z(min_z)
 {
-    max_x = min_x + (nx - 1) * dx;
-    max_y = min_y + (ny - 1) * dy;
-    max_z = min_z + (nz - 1) * dz;
+    update_bounds();
     flat_data.resize(nx * ny * nz, 0.0f);
     data.resize(nx, std::vector<std::vector<float>>(ny, std::vector<float>(nz, 0.0f)));
 }
@@ -93,8 +95,13 @@ void UnifiedGrid::print_grid() const
 {
     std::cout << "Unified Grid Information:\n";
     std::cout << "Dimensions: " << nx << "x" << ny << "x" << nz << "\n";
-    std::cout << "Spacing: dx=" << dx << ", dy=" << dy << ", dz=" << dz << "\n";
-    std::cout << "Bounds: [" << min_x << ", " << max_x << "] x [" << min_y << ", " << max_y << "] x [" << min_z << ", " << max_z << "]\n\n";
+    std::cout << "Internal spacing (grid units): dx=" << dx << ", dy=" << dy << ", dz=" << dz << "\n";
+    std::cout << "Physical spacing: dx=" << physical_dx << ", dy=" << physical_dy << ", dz=" << physical_dz << "\n";
+    std::cout << "Bounds (grid units): [" << min_x << ", " << max_x << "] x [" << min_y << ", " << max_y << "] x [" << min_z << ", " << max_z << "]\n";
+    const float phys_max_x = min_x + (nx - 1) * physical_dx;
+    const float phys_max_y = min_y + (ny - 1) * physical_dy;
+    const float phys_max_z = min_z + (nz - 1) * physical_dz;
+    std::cout << "Bounds (physical): [" << min_x << ", " << phys_max_x << "] x [" << min_y << ", " << phys_max_y << "] x [" << min_z << ", " << phys_max_z << "]\n\n";
     std::cout << "Data:\n";
     for (int z = 0; z < nz; ++z)
     {
@@ -107,6 +114,19 @@ void UnifiedGrid::print_grid() const
         }
         std::cout << "\n";
     }
+}
+
+void UnifiedGrid::update_bounds()
+{
+    max_x = min_x + (nx - 1) * dx;
+    max_y = min_y + (ny - 1) * dy;
+    max_z = min_z + (nz - 1) * dz;
+}
+
+void UnifiedGrid::force_unit_spacing()
+{
+    dx = dy = dz = 1.0f;
+    update_bounds();
 }
 
 
@@ -144,9 +164,15 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
     int nx = nrrd->axis[0].size;
     int ny = nrrd->axis[1].size;
     int nz = nrrd->axis[2].size;
-    float dx = nrrd->axis[0].spacing;
-    float dy = nrrd->axis[1].spacing;
-    float dz = nrrd->axis[2].spacing;
+    auto sanitize_spacing = [](double spacing) -> float {
+        if (!std::isfinite(spacing) || spacing <= 0.0)
+            return 1.0f;
+        return static_cast<float>(spacing);
+    };
+
+    float dx = sanitize_spacing(nrrd->axis[0].spacing);
+    float dy = sanitize_spacing(nrrd->axis[1].spacing);
+    float dz = sanitize_spacing(nrrd->axis[2].spacing);
     float min_x = 0.0f, min_y = 0.0f, min_z = 0.0f;
 
     UnifiedGrid grid(nx, ny, nz, dx, dy, dz, min_x, min_y, min_z);
@@ -176,10 +202,18 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
 
     nrrdNuke(nrrd);
 
+    grid.force_unit_spacing();
+
     std::cout << "Grid dimensions: " << nx << "x" << ny << "x" << nz << "\n";
-    std::cout << "Spacing: dx=" << dx << ", dy=" << dy << ", dz=" << dz << "\n";
-    std::cout << "Bounds: [" << grid.min_x << ", " << grid.max_x << "] x ["
+    std::cout << "Physical spacing: dx=" << grid.physical_dx << ", dy=" << grid.physical_dy << ", dz=" << grid.physical_dz << "\n";
+    std::cout << "Internal spacing (grid units): dx=" << grid.dx << ", dy=" << grid.dy << ", dz=" << grid.dz << "\n";
+    const float phys_max_x = grid.min_x + (grid.nx - 1) * grid.physical_dx;
+    const float phys_max_y = grid.min_y + (grid.ny - 1) * grid.physical_dy;
+    const float phys_max_z = grid.min_z + (grid.nz - 1) * grid.physical_dz;
+    std::cout << "Bounds (grid units): [" << grid.min_x << ", " << grid.max_x << "] x ["
               << grid.min_y << ", " << grid.max_y << "] x [" << grid.min_z << ", " << grid.max_z << "]\n";
+    std::cout << "Bounds (physical): [" << grid.min_x << ", " << phys_max_x << "] x ["
+              << grid.min_y << ", " << phys_max_y << "] x [" << grid.min_z << ", " << phys_max_z << "]\n";
 
     return grid;
 }
@@ -190,9 +224,9 @@ UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n)
     int nx2 = grid.nx * n - (n - 1);
     int ny2 = grid.ny * n - (n - 1);
     int nz2 = grid.nz * n - (n - 1);
-    float dx2 = grid.dx / n;
-    float dy2 = grid.dy / n;
-    float dz2 = grid.dz / n;
+    float dx2 = grid.physical_dx / n;
+    float dy2 = grid.physical_dy / n;
+    float dz2 = grid.physical_dz / n;
 
     UnifiedGrid new_grid(nx2, ny2, nz2, dx2, dy2, dz2, grid.min_x, grid.min_y, grid.min_z);
 
@@ -210,6 +244,8 @@ UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n)
             }
         }
     }
+
+    new_grid.force_unit_spacing();
 
     return new_grid;
 }
@@ -301,8 +337,13 @@ void find_active_cubes(const UnifiedGrid &grid, float isovalue, std::vector<Cube
                 if (is_cube_active(grid, i, j, k, isovalue))
                 {
                     Point repVertex(i * grid.dx + grid.min_x, j * grid.dy + grid.min_y, k * grid.dz + grid.min_z);
-                    Point isoCrossingPoint = compute_iso_crossing_point(grid, i, j, k, isovalue);
-                    cubes.push_back(Cube(repVertex, isoCrossingPoint, i, j, k));
+                    Point cubeCenter(
+                        (i + 0.5f) * grid.dx + grid.min_x,
+                        (j + 0.5f) * grid.dy + grid.min_y,
+                        (k + 0.5f) * grid.dz + grid.min_z);
+                    Cube cube(repVertex, cubeCenter, i, j, k);
+                    cube.accurateIsoCrossing = compute_iso_crossing_point(grid, i, j, k, isovalue);
+                    cubes.push_back(cube);
                 }
             }
         }
@@ -487,15 +528,15 @@ std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid
     return neighbors;
 }
 
-//! @brief Retrieves the iso-crossing points of a list of cubes.
-std::vector<Point> get_cube_iso_crossing_points(const std::vector<Cube> &cubes)
+//! @brief Retrieves the centers of a list of cubes.
+std::vector<Point> get_cube_centers(const std::vector<Cube> &cubes)
 {
-    std::vector<Point> isoCrossingPoints;
+    std::vector<Point> cubeCenters;
     for (auto &cube : cubes)
     {
-        isoCrossingPoints.push_back(cube.isoCrossingPoint);
+        cubeCenters.push_back(cube.cubeCenter);
     }
-    return isoCrossingPoints;
+    return cubeCenters;
 }
 
 //! @brief Retrieves the accurate iso-crossing points of a list of cubes.

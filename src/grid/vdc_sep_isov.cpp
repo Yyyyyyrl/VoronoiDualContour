@@ -69,8 +69,8 @@ std::vector<Cube> separate_active_cubes_I(
             // Compute accurate iso-crossing for iso-vertex computation
             c.accurateIsoCrossing = compute_iso_crossing_point_accurate(grid, ci, cj, ck, isovalue);
 
-            // Use cube center for Delaunay to avoid degenerate interior facets and collinear or coplanar poitns
-            c.isoCrossingPoint = Point(
+            // Use cube center for Delaunay to avoid degenerate interior facets and collinear or coplanar points
+            c.cubeCenter = Point(
                 (ci + 0.5f) * grid.dx + grid.min_x,
                 (cj + 0.5f) * grid.dy + grid.min_y,
                 (ck + 0.5f) * grid.dz + grid.min_z
@@ -334,7 +334,7 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
         {
             // No conflict - select this cube
             // Accurate iso-crossing used for subgrid determination; cube center stabilizes Delaunay points.
-            cube.isoCrossingPoint = Point(
+            cube.cubeCenter = Point(
                 (cube.i + 0.5f) * grid.dx + grid.min_x,
                 (cube.j + 0.5f) * grid.dy + grid.min_y,
                 (cube.k + 0.5f) * grid.dz + grid.min_z);
