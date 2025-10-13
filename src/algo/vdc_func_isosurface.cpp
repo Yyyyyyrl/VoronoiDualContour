@@ -1887,7 +1887,9 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
     }
     std::clock_t start_time = std::clock();
-    iso_surface.vertex_scale = {grid.physical_dx, grid.physical_dy, grid.physical_dz};
+    // For sep_isov_3, multiply physical spacing by 3 to account for forced grid spacing of 3.0
+    float scale_factor = (vdc_param.sep_isov_3 || vdc_param.sep_isov_3_wide) ? 3.0f : 1.0f;
+    iso_surface.vertex_scale = {grid.physical_dx * scale_factor, grid.physical_dy * scale_factor, grid.physical_dz * scale_factor};
     // Helper used before every new attempt of the multi-isov pipeline. Any facet flip
     // or cycle modification invalidates previously built iso vertices and triangle
     // bookkeeping, so we clear the shared buffers here to guarantee clean state.

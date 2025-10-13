@@ -62,6 +62,38 @@ struct VERTEX_INFO
     int index;            //!< Unique index of this vertex in the triangulation
 };
 
+//! @brief Information associated with a facet in a Delaunay cell.
+/*!
+ * Each Delaunay facet is dual to a Voronoi edge. This structure stores
+ * references to the dual Voronoi edge and the corresponding Voronoi cell edges
+ * for quick lookup during Voronoi facet construction.
+ */
+struct DELAUNAY_FACET_INFO
+{
+    int dualEdgeIndex;           //!< Index of the Voronoi edge dual to this Delaunay facet
+    int dualCellEdgeIndex[3];    //!< Indices of Voronoi cell edges for the 3 vertices of this facet
+                                 //!< dualCellEdgeIndex[k] is the index of the cell edge dual to this facet
+                                 //!< and in the Voronoi cell around the k'th vertex of the facet
+
+    //! @brief Constructor to initialize DELAUNAY_FACET_INFO with default values
+    DELAUNAY_FACET_INFO() : dualEdgeIndex(-1)
+    {
+        dualCellEdgeIndex[0] = -1;
+        dualCellEdgeIndex[1] = -1;
+        dualCellEdgeIndex[2] = -1;
+    }
+
+    //! @brief Check if a dual cell edge index is undefined
+    /*!
+     * @param k Index into dualCellEdgeIndex array (0, 1, or 2)
+     * @return true if the index is undefined (-1), false otherwise
+     */
+    bool IsDualCellEdgeIndexUndefined(const int k) const
+    {
+        return (dualCellEdgeIndex[k] == -1);
+    }
+};
+
 //! @brief Information associated with a cell in the Delaunay triangulation.
 /*!
  * Stores metadata for cells (tetrahedra) in the Delaunay triangulation.
@@ -70,18 +102,33 @@ struct VERTEX_INFO
  */
 struct CELL_INFO
 {
-    int dualVoronoiVertexIndex; //!< Index of the Voronoi vertex dual to this cell
-    int index;                  //!< Unique index of this cell in the triangulation
-    int cell_edge_index[4];     //!< Index of VoronoiCellEdge for each facet [0-3]
-                                //!< cell_edge_index[i] stores the index into VoronoiDiagram.cellEdges
-                                //!< for the edge dual to facet i (opposite vertex i)
-                                //!< -1 if not assigned or facet is at boundary/infinity
+    int dualVoronoiVertexIndex;        //!< Index of the Voronoi vertex dual to this cell
+    int index;                         //!< Unique index of this cell in the triangulation
+    int cell_edge_index[4];            //!< Index of VoronoiCellEdge for each facet [0-3]
+                                       //!< cell_edge_index[i] stores the index into VoronoiDiagram.cellEdges
+                                       //!< for the edge dual to facet i (opposite vertex i)
+                                       //!< -1 if not assigned or facet is at boundary/infinity
+    DELAUNAY_FACET_INFO facet_info[4]; //!< Information for each of the 4 facets of this cell
 
     //! @brief Constructor to initialize CELL_INFO with default values
     CELL_INFO() : dualVoronoiVertexIndex(-1), index(-1) {
         for (int i = 0; i < 4; ++i) {
             cell_edge_index[i] = -1;
         }
+    }
+
+    //! @brief Return the index (0, 1, 2, or 3) of the k'th vertex of facet facet_index
+    /*!
+     * For a Delaunay cell with facet indexed as facet_index (opposite to vertex facet_index),
+     * this computes the cell vertex index of the k'th vertex (k = 0, 1, 2) on that facet.
+     *
+     * @param facet_index The facet index (0-3)
+     * @param k The vertex position on the facet (0, 1, or 2)
+     * @return The cell vertex index (0-3)
+     */
+    static int FacetVertexIndex(const int facet_index, const int k)
+    {
+        return (facet_index + k + 1) % 4;
     }
 };
 
