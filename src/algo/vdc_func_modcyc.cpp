@@ -632,13 +632,6 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
         recompute_cell_cycles_for_matches_single_cell(vd, cidx, isovalue);
     }
 
-    std::clock_t end_time = std::clock();
-    double elapsed = static_cast<double>(end_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Modify cycles time: " << elapsed << " seconds. "
-              << "Interior flips: " << interior_flips << ", "
-              << "Boundary flips: " << boundary_flips << ", "
-              << "Total flips: " << flippedFacets.size() << std::endl;
-
     ModifyCyclesResult result;
     result.interior_flips = interior_flips;
     result.boundary_flips = boundary_flips;
