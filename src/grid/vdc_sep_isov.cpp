@@ -333,11 +333,23 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
         if (!does_cell_conflict_with_selected_cubes(cube, selected_indices, grid, &indexA, clearance))
         {
             // No conflict - select this cube
-            // Accurate iso-crossing used for subgrid determination; cube center stabilizes Delaunay points.
+
+            // 1. Big cube center (original approach - commented out for comparison)
+            //    cube.cubeCenter = Point(
+            //        (cube.i + 0.5f) * grid.dx + grid.min_x,
+            //        (cube.j + 0.5f) * grid.dy + grid.min_y,
+            //        (cube.k + 0.5f) * grid.dz + grid.min_z);
+
+            // 2. Small cube center in 3x3x3 subgrid (current approach)
+            //    Compute the center of the small cube containing the iso-crossing point
+            int loc[3];
+            compute_subgrid_loc(cube.isov_subgrid_index, loc);
+
+            // Small cube center: big cube base + (subgrid_loc + 0.5) / 3.0 * cell_size
             cube.cubeCenter = Point(
-                (cube.i + 0.5f) * grid.dx + grid.min_x,
-                (cube.j + 0.5f) * grid.dy + grid.min_y,
-                (cube.k + 0.5f) * grid.dz + grid.min_z);
+                (cube.i + (loc[0] + 0.5f) / 3.0f) * grid.dx + grid.min_x,
+                (cube.j + (loc[1] + 0.5f) / 3.0f) * grid.dy + grid.min_y,
+                (cube.k + (loc[2] + 0.5f) / 3.0f) * grid.dz + grid.min_z);
 
             selected_indices.emplace(indexA, cube);
             out.push_back(cube);
