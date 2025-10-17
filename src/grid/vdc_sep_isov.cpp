@@ -335,10 +335,10 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
             // No conflict - select this cube
 
             // 1. Big cube center (original approach - commented out for comparison)
-            //    cube.cubeCenter = Point(
-            //        (cube.i + 0.5f) * grid.dx + grid.min_x,
-            //        (cube.j + 0.5f) * grid.dy + grid.min_y,
-            //        (cube.k + 0.5f) * grid.dz + grid.min_z);
+/*                 cube.cubeCenter = Point(
+                    (cube.i + 0.5f) * grid.dx + grid.min_x,
+                    (cube.j + 0.5f) * grid.dy + grid.min_y,
+                    (cube.k + 0.5f) * grid.dz + grid.min_z); */
 
             // 2. Small cube center in 3x3x3 subgrid (current approach)
             //    Compute the center of the small cube containing the iso-crossing point
