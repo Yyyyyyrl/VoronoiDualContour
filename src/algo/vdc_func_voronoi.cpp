@@ -433,7 +433,63 @@ static void process_incident_edges(
         // Verify facet validity
         if (facet.vertices_indices.size() < 3)
         {
-            std::cout << "[ERROR] Degenerate interior facet detected with " << facet.vertices_indices.size() << " vertices despite " << finite_cell_count << " finite cells\n";
+            // Enhanced error logging for debugging degenerate facets
+            std::cout << "[ERROR] Degenerate interior facet detected:\n";
+            std::cout << "  - Facet vertices count: " << facet.vertices_indices.size() << "\n";
+            std::cout << "  - Finite incident cells: " << finite_cell_count << "\n";
+
+            // Extract edge endpoints
+            Cell_handle cell_ed = ed.first;
+            int edge_idx = ed.second;
+            int i1, i2;
+            // CGAL edge encoding: edge index determines which two vertices form the edge
+            // Edge indices 0-5 correspond to the 6 edges of a tetrahedron
+            static const int edge_vertices[6][2] = {{0,1}, {0,2}, {0,3}, {1,2}, {1,3}, {2,3}};
+            i1 = edge_vertices[edge_idx][0];
+            i2 = edge_vertices[edge_idx][1];
+            Vertex_handle v1 = cell_ed->vertex(i1);
+            Vertex_handle v2 = cell_ed->vertex(i2);
+
+            std::cout << "  - Edge endpoints:\n";
+            std::cout << "      v1: " << v1->point() << " (index: " << v1->info().index << ")\n";
+            std::cout << "      v2: " << v2->point() << " (index: " << v2->info().index << ")\n";
+
+            // Information about the Delaunay vertex (Voronoi cell center)
+            std::cout << "  - Delaunay vertex (Voronoi cell): " << delaunay_vertex->point()
+                      << " (index: " << delaunay_vertex->info().index << ")\n";
+
+            // Detailed incident cell information
+            std::cout << "  - Incident cells around edge:\n";
+            Delaunay::Cell_circulator cc_dbg = dt.incident_cells(ed);
+            Delaunay::Cell_circulator start_dbg = cc_dbg;
+            int cell_num = 0;
+            do
+            {
+                std::cout << "      Cell " << cell_num << ": ";
+                if (dt.is_infinite(cc_dbg))
+                {
+                    std::cout << "INFINITE\n";
+                }
+                else
+                {
+                    int vor_idx = cc_dbg->info().dualVoronoiVertexIndex;
+                    std::cout << "dualVoronoiVertexIndex=" << vor_idx;
+                    if (vor_idx >= 0)
+                    {
+                        std::cout << " (circumcenter: " << dt.dual(cc_dbg) << ")";
+                    }
+                    else
+                    {
+                        std::cout << " [INVALID - no Voronoi vertex assigned]";
+                    }
+                    std::cout << "\n";
+                }
+                ++cc_dbg;
+                ++cell_num;
+            } while (cc_dbg != start_dbg);
+
+            std::cout << "  - Voronoi cell index: " << vc.cellIndex << "\n";
+            std::cout << std::flush;
             continue;
         }
 
