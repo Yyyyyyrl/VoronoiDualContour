@@ -23,13 +23,13 @@ struct TimerNode {
 };
 
 //! @brief Singleton class for managing hierarchical timing measurements
-class TimingManager {
+class TimingStats {
 public:
-    static TimingManager& getInstance();
+    static TimingStats& getInstance();
 
     // Prevent copying and assignment
-    TimingManager(const TimingManager&) = delete;
-    TimingManager& operator=(const TimingManager&) = delete;
+    TimingStats(const TimingStats&) = delete;
+    TimingStats& operator=(const TimingStats&) = delete;
 
     //! Start a timer with the given name. If parent is specified, this timer
     //! becomes a child of that parent. If parent is empty, it's a top-level timer.
@@ -45,8 +45,8 @@ public:
     void reset();
 
 private:
-    TimingManager();
-    ~TimingManager() = default;
+    TimingStats();
+    ~TimingStats() = default;
 
     TimerNode* findTimer(const std::string& name);
     TimerNode* findTimerInSubtree(TimerNode* node, const std::string& name);

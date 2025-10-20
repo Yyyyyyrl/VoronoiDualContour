@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <ctime>
 #include <iostream>
+#include <fstream>
 
 // Return undirected edge key for a global facet boundary slot.
 static inline std::pair<int, int> facet_slot_edge_key(const VoronoiFacet &gf, int slot)
@@ -636,5 +637,62 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
     result.interior_flips = interior_flips;
     result.boundary_flips = boundary_flips;
     result.total_flips = static_cast<int>(flippedFacets.size());
+
+    if (std::getenv("MODCYC_DEBUG_BOUNDARY"))
+    {
+        std::unordered_map<long long, std::vector<int>> boundary_usage;
+        for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+        {
+            const auto &vf = vd.global_facets[vfi];
+            int validSide = -1;
+            int validCellIdx = -1;
+            for (int side = 0; side < 2; ++side)
+            {
+                if (vf.incident_cell_indices[side] >= 0)
+                {
+                    if (validSide >= 0)
+                    {
+                        validSide = -1;
+                        break;
+                    }
+                    validSide = side;
+                    validCellIdx = vf.incident_cell_indices[side];
+                }
+            }
+            if (validSide < 0 || validCellIdx < 0)
+                continue;
+            for (const auto &seg : vf.iso_segments)
+            {
+                const int comp = seg.comp[validSide];
+                if (comp < 0)
+                    continue;
+                long long key = (static_cast<long long>(validCellIdx) << 32) ^ static_cast<unsigned int>(comp);
+                boundary_usage[key].push_back(static_cast<int>(vfi));
+            }
+        }
+
+        std::ofstream out("modcyc_boundary_debug.csv");
+        if (out)
+        {
+            out << "cell,cycle,count,facets\n";
+            for (const auto &entry : boundary_usage)
+            {
+                const auto &facets = entry.second;
+                if (facets.size() <= 1)
+                    continue;
+                int cell = static_cast<int>(entry.first >> 32);
+                int cycle = static_cast<int>(entry.first & 0xffffffff);
+                out << cell << ',' << cycle << ',' << facets.size() << ',';
+                for (size_t i = 0; i < facets.size(); ++i)
+                {
+                    if (i > 0)
+                        out << ';';
+                    out << facets[i];
+                }
+                out << '\n';
+            }
+        }
+    }
+
     return result;
 }

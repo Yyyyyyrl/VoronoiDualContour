@@ -16,6 +16,7 @@
 static int ISO_DBG_FOCUS_CELL = -1;
 static int ISO_DBG_FOCUS_GFACET = -1;
 static int ISO_DBG_FOCUS_EDGE = -1;
+static int ISO_DBG_FOCUS_CYCLE = -1;
 static bool ISO_DBG_ONLY_ERRORS = false;
 static bool ISO_DBG_ENABLED = true; // set via ISO_DBG_LOAD_ENV(), tied to global 'debug'
 
@@ -53,6 +54,7 @@ static void ISO_DBG_LOAD_ENV()
     ISO_DBG_FOCUS_CELL = iso_getenv_int("ISO_DEBUG_CELL", -1);
     ISO_DBG_FOCUS_GFACET = iso_getenv_int("ISO_DEBUG_GLOBAL_FACET", -1);
     ISO_DBG_FOCUS_EDGE = iso_getenv_int("ISO_DEBUG_EDGE", -1);
+    ISO_DBG_FOCUS_CYCLE = iso_getenv_int("ISO_DEBUG_CYCLE", -1);
     ISO_DBG_ONLY_ERRORS = iso_getenv_bool("ISO_DEBUG_ONLY_ERRORS", false);
     // Respect global 'debug' flag; allow env var to force off
     ISO_DBG_ENABLED = debug && !iso_getenv_bool("ISO_DEBUG_OFF", false);
@@ -61,6 +63,7 @@ static void ISO_DBG_LOAD_ENV()
 static inline bool iso_dbg_cell_ok(int c) { return ISO_DBG_FOCUS_CELL < 0 || ISO_DBG_FOCUS_CELL == c; }
 static inline bool iso_dbg_gfacet_ok(int g) { return ISO_DBG_FOCUS_GFACET < 0 || ISO_DBG_FOCUS_GFACET == g; }
 static inline bool iso_dbg_edge_ok(int e) { return ISO_DBG_FOCUS_EDGE < 0 || ISO_DBG_FOCUS_EDGE == e; }
+static inline bool iso_dbg_cycle_ok(int cyc) { return ISO_DBG_FOCUS_CYCLE < 0 || ISO_DBG_FOCUS_CYCLE == cyc; }
 
 struct IsoStats
 {
@@ -1887,7 +1890,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     {
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
     }
-    TimingManager& timer = TimingManager::getInstance();
+    TimingStats& timer = TimingStats::getInstance();
     iso_surface.vertex_scale = {grid.physical_dx, grid.physical_dy, grid.physical_dz};
     // Helper used before every new attempt of the multi-isov pipeline. Any facet flip
     // or cycle modification invalidates previously built iso vertices and triangle

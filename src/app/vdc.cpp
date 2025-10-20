@@ -255,7 +255,7 @@ void print_summary_report(const SummaryStats &stats)
 
 int main(int argc, char *argv[])
 {
-    TimingManager& timer = TimingManager::getInstance();
+    TimingStats& timer = TimingStats::getInstance();
     timer.startTimer("Total Processing");
 
     VoronoiDiagram vd; // Initialize an empty Voronoi diagram.

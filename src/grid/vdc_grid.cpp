@@ -151,7 +151,7 @@ std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
 // Load NRRD data
 UnifiedGrid load_nrrd_data(const std::string &file_path)
 {
-    TimingManager& timer = TimingManager::getInstance();
+    TimingStats& timer = TimingStats::getInstance();
     timer.startTimer("Load NRRD file", "1. Load Data and Grid Formation");
 
     Nrrd *nrrd = nrrdNew();
@@ -228,7 +228,7 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
 // Supersample grid
 UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n)
 {
-    TimingManager& timer = TimingManager::getInstance();
+    TimingStats& timer = TimingStats::getInstance();
     timer.startTimer("Supersample", "1. Load Data and Grid Formation");
 
     int nx2 = grid.nx * n - (n - 1);

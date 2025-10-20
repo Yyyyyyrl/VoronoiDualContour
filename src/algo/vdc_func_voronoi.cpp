@@ -1321,7 +1321,7 @@ void construct_voronoi_cell_edges(
     CGAL::Epick::Iso_cuboid_3 &bbox,
     Delaunay &dt)
 {
-    TimingManager& timer = TimingManager::getInstance();
+    TimingStats& timer = TimingStats::getInstance();
     voronoiDiagram.cellEdges.clear();
 
     // Note: Parent timer "Construct cell edges" is started in construct_voronoi_diagram()
@@ -1346,7 +1346,7 @@ void construct_voronoi_cell_edges(
 //! @brief Wrap up function of constructing voronoi diagram
 void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, UnifiedGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
 {
-    TimingManager& timer = TimingManager::getInstance();
+    TimingStats& timer = TimingStats::getInstance();
 
     std::cout << "[INFO] Start constructing Voronoi vertices and edges..." << std::endl;
     timer.startTimer("Construct Voronoi vertices", "4. Voronoi Diagram Construction");

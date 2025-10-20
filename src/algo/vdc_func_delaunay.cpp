@@ -140,7 +140,7 @@ static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
  */
 void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters)
 {
-    TimingManager& timer = TimingManager::getInstance();
+    TimingStats& timer = TimingStats::getInstance();
 
     timer.startTimer("Collect Delaunay points", "3. Delaunay Triangulation Construction");
     std::vector<Point> delaunay_points;

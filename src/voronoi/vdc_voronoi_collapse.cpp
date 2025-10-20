@@ -52,7 +52,7 @@ namespace
         return {std::min(u, v), std::max(u, v)};
     }
 
-        // After edge collapse we rebuild cell facets, but the mapping from each
+    // After edge collapse we rebuild cell facets, but the mapping from each
     // facet boundary slot back to its VoronoiCellEdge is lost. The modify-cycles
     // module relies on this lookup to recover per-cell cycle ids when building
     // iso-segments. Restore the association using the fresh cellEdgeLookup map.
@@ -394,7 +394,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
                                   Delaunay & /*dt*/,
                                   std::vector<int> &out_vertex_mapping)
 {
-    TimingManager& timer = TimingManager::getInstance();
+    TimingStats& timer = TimingStats::getInstance();
 
     // 0) Set up
     VoronoiDiagram out;      // fresh diagram — don't mutate input_vd
@@ -637,6 +637,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         out.facets[nf].orientation = input_vd.facets[fi].orientation;
         out.facets[nf].mirror_facet_index = -1;  // will be repaired if needed elsewhere
         out.facets[nf].voronoi_facet_index = -1; // re-created later by create_global_facets()
+        // Note: cell_edge_indices will be rebuilt by rebuild_cell_facet_edge_indices()
     }
 
     // Patch each cell’s facet_indices with the new facet ids, skipping dropped
