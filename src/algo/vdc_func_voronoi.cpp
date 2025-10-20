@@ -1,5 +1,6 @@
 #include "algo/vdc_func.h"
 #include "core/vdc_debug.h"
+#include "core/vdc_timing.h"
 
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
@@ -1320,87 +1321,75 @@ void construct_voronoi_cell_edges(
     CGAL::Epick::Iso_cuboid_3 &bbox,
     Delaunay &dt)
 {
+    TimingManager& timer = TimingManager::getInstance();
     voronoiDiagram.cellEdges.clear();
 
-    std::clock_t start = std::clock();
-
+    // Note: Parent timer "Construct cell edges" is started in construct_voronoi_diagram()
+    timer.startTimer("Build cell edges", "Construct cell edges");
     build_cell_edges(voronoiDiagram, dt);
-    std::clock_t check1 = std::clock();
-    double duration1 = static_cast<double>(check1 - start) / CLOCKS_PER_SEC;
+    timer.stopTimer("Build cell edges");
 
-    std::cout << "build cell edge Execution time: " << duration1 << " seconds" << std::endl;
-
+    timer.startTimer("Populate cell edge indices", "Construct cell edges");
     populate_cell_edge_indices(voronoiDiagram, dt);
-    std::clock_t check1_5 = std::clock();
-    double duration1_5 = static_cast<double>(check1_5 - check1) / CLOCKS_PER_SEC;
-    std::cout << "populate cell edge indices Execution time: " << duration1_5 << " seconds" << std::endl;
+    timer.stopTimer("Populate cell edge indices");
 
+    timer.startTimer("Link cell edges", "Construct cell edges");
     link_cell_edges(voronoiDiagram);
-    std::clock_t check2 = std::clock();
-    double duration2 = static_cast<double>(check2 - check1_5) / CLOCKS_PER_SEC;
+    timer.stopTimer("Link cell edges");
 
-    std::cout << "link cell edge Execution time: " << duration2 << " seconds" << std::endl;
-
+    timer.startTimer("Update edge mapping", "Construct cell edges");
     update_edge_mapping(voronoiDiagram, bbox);
-
-    std::clock_t check3 = std::clock();
-
-    double duration3 = static_cast<double>(check3 - check2) / CLOCKS_PER_SEC;
-
-    std::cout << "update edge mapping Execution time: " << duration3 << " seconds" << std::endl;
+    timer.stopTimer("Update edge mapping");
 }
 
 
 //! @brief Wrap up function of constructing voronoi diagram
 void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, UnifiedGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
 {
-    std::clock_t start = std::clock();
+    TimingManager& timer = TimingManager::getInstance();
+
     std::cout << "[INFO] Start constructing Voronoi vertices and edges..." << std::endl;
+    timer.startTimer("Construct Voronoi vertices", "4. Voronoi Diagram Construction");
     construct_voronoi_vertices(vd, dt);
-    std::clock_t check0 = std::clock();
-    double duration0 = static_cast<double>(check0 - start) / CLOCKS_PER_SEC;
-    std::cout << "construct vertices Execution time: " << duration0 << " seconds" << std::endl;
+    timer.stopTimer("Construct Voronoi vertices");
 
+    timer.startTimer("Construct Voronoi edges", "4. Voronoi Diagram Construction");
     construct_voronoi_edges(vd, dt);
-    std::clock_t check1 = std::clock();
-    double duration1 = static_cast<double>(check1 - start) / CLOCKS_PER_SEC;
-    std::cout << "construct edges Execution time: " << duration1 << " seconds" << std::endl;
+    timer.stopTimer("Construct Voronoi edges");
 
+    timer.startTimer("Compute vertex values", "4. Voronoi Diagram Construction");
     compute_voronoi_values(vd, grid);
-    std::clock_t check2 = std::clock();
-    double duration2 = static_cast<double>(check2 - check1) / CLOCKS_PER_SEC;
+    timer.stopTimer("Compute vertex values");
 
     if (vdc_param.multi_isov)
     {
         if (vdc_param.convex_hull)
         {
+            timer.startTimer("Construct Voronoi cells", "4. Voronoi Diagram Construction");
             construct_voronoi_cells_as_convex_hull(vd, dt);
+            timer.stopTimer("Construct Voronoi cells");
         }
         else
         {
+            timer.startTimer("Construct Voronoi cells", "4. Voronoi Diagram Construction");
             construct_voronoi_cells_from_delaunay_triangulation(vd, dt);
-            std::clock_t check3 = std::clock();
-            double duration3 = static_cast<double>(check3 - check2) / CLOCKS_PER_SEC;
-            std::cout << "construct cells Execution time: " << duration3 << " seconds" << std::endl;
+            timer.stopTimer("Construct Voronoi cells");
+
+            timer.startTimer("Validate facet orientations", "4. Voronoi Diagram Construction");
             validate_facet_orientations_and_normals(vd);
-            std::clock_t check4 = std::clock();
-            double duration4 = static_cast<double>(check4 - check3) / CLOCKS_PER_SEC;
-            std::cout << "validate facet orientations and normals in cells Execution time: " << duration4 << " seconds" << std::endl;
+            timer.stopTimer("Validate facet orientations");
         }
 
-        std::clock_t t = std::clock();
-
+        timer.startTimer("Construct cell edges", "4. Voronoi Diagram Construction");
         construct_voronoi_cell_edges(vd, bbox, dt);
-        std::clock_t check5 = std::clock();
-        double duration5 = static_cast<double>(check5 - t) / CLOCKS_PER_SEC;
-        std::cout << "construct cell edges Execution time: " << duration5 << " seconds" << std::endl;
+        timer.stopTimer("Construct cell edges");
 
+        timer.startTimer("Create global facets", "4. Voronoi Diagram Construction");
         vd.create_global_facets();
+        timer.stopTimer("Create global facets");
     }
 
-    std::clock_t t2 = std::clock();
+    timer.startTimer("VD initial check", "4. Voronoi Diagram Construction");
     vd.check(false);
-    std::clock_t check6 = std::clock();
-    double duration6 = static_cast<double>(check6 - t2) / CLOCKS_PER_SEC;
-    std::cout << "vd.check() Execution time: " << duration6 << " seconds" << std::endl;
+    timer.stopTimer("VD initial check");
 }

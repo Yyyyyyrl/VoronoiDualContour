@@ -1,4 +1,5 @@
 #include "algo/vdc_func.h"
+#include "core/vdc_timing.h"
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet,
@@ -139,25 +140,22 @@ static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
  */
 void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters)
 {
-    std::clock_t start = std::clock();
+    TimingManager& timer = TimingManager::getInstance();
 
+    timer.startTimer("Collect Delaunay points", "3. Delaunay Triangulation Construction");
     std::vector<Point> delaunay_points;
     size_t first_dummy_index = collect_delaunay_points(grid, grid_facets, activeCubeCenters, vdc_param, delaunay_points);
-
-    std::clock_t after_collect = std::clock();
-    double collect_time = static_cast<double>(after_collect - start) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Time to build point list: " << collect_time << " seconds" << std::endl;
+    timer.stopTimer("Collect Delaunay points");
 
     dt.clear();
 
     // Batch insert all points
+    timer.startTimer("Insert vertices", "3. Delaunay Triangulation Construction");
     dt.insert(delaunay_points.begin(), delaunay_points.end());
-
-    std::clock_t after_insert = std::clock();
-    double insert_time = static_cast<double>(after_insert - after_collect) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Vertices insert time: " << insert_time << " seconds" << std::endl;
+    timer.stopTimer("Insert vertices");
 
     // Create map from point to original index
+    timer.startTimer("Assign vertex info", "3. Delaunay Triangulation Construction");
     std::map<Point, size_t> point_to_index;
     for (size_t i = 0; i < delaunay_points.size(); ++i)
     {
@@ -179,8 +177,5 @@ void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std
         vit->info().is_dummy = (original_index >= first_dummy_index);
         vit->info().voronoiCellIndex = -1; // Initialize if needed
     }
-
-    std::clock_t after_assign = std::clock();
-    double assign_time = static_cast<double>(after_assign - after_insert) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Time to assign vertex info: " << assign_time << " seconds" << std::endl;
+    timer.stopTimer("Assign vertex info");
 }

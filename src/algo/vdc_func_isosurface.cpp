@@ -1,4 +1,5 @@
 #include "algo/vdc_func.h"
+#include "core/vdc_timing.h"
 
 // ===== Debug instrumentation for isosurface pipeline =====
 #include <cstdlib>
@@ -1886,7 +1887,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     {
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
     }
-    std::clock_t start_time = std::clock();
+    TimingManager& timer = TimingManager::getInstance();
     iso_surface.vertex_scale = {grid.physical_dx, grid.physical_dy, grid.physical_dz};
     // Helper used before every new attempt of the multi-isov pipeline. Any facet flip
     // or cycle modification invalidates previously built iso vertices and triangle
@@ -1947,11 +1948,16 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
             {
                 if (recomputeAllMatches)
                 {
+                    timer.startTimer("Compute bipolar matches", "7. Isosurface Construction");
                     vd.compute_bipolar_matches(vdc_param.isovalue);
+                    timer.stopTimer("Compute bipolar matches");
+
+                    timer.startTimer("Build iso segments", "7. Isosurface Construction");
                     for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
                     {
                         build_iso_segments_for_facet(vd, static_cast<int>(vfi), vdc_param.isovalue);
                     }
+                    timer.stopTimer("Build iso segments");
                 }
                 else
                 {
@@ -1973,7 +1979,9 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
                 reset_iso_accumulators();
 
             // Build cycles and isovertex centroids using the current set of facet matches.
+            timer.startTimer("Compute isosurface vertices", "7. Isosurface Construction");
             compute_isosurface_vertices_multi(vd, vdc_param.isovalue, iso_surface, &grid, vertex_mapping, &activeCubeAccurateIsoCrossingPoints);
+            timer.stopTimer("Compute isosurface vertices");
 
             if (vdc_param.mod_cyc)
             {
@@ -1988,7 +1996,9 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
 
                 // modify_cycles_pass already recomputes matches for the facets it flips,
                 // so we can treat the facet cache as up to date once this returns.
+                timer.startTimer("Modify cycles", "7. Isosurface Construction");
                 mod_cyc_result = modify_cycles_pass(vd, vdc_param.isovalue);
+                timer.stopTimer("Modify cycles");
 
                 matchesDirty = false; // modify_cycles_pass already recalculates matches locally.
                 recomputeAllMatches = false;
@@ -2008,7 +2018,9 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
                 }
             }
 
+            timer.startTimer("Compute dual triangles", "7. Isosurface Construction");
             bindingConflict = compute_dual_triangles_multi(vd, bbox, grid, vdc_param.isovalue, iso_surface, vertex_mapping);
+            timer.stopTimer("Compute dual triangles");
             dualBuilt = true;
 
             if (bindingConflict && vdc_param.mod_cyc)
@@ -2032,8 +2044,13 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     }
     else
     {
+        timer.startTimer("Compute isosurface vertices", "7. Isosurface Construction");
         compute_isosurface_vertices_single(grid, vdc_param.isovalue, iso_surface, activeCubeAccurateIsoCrossingPoints);
+        timer.stopTimer("Compute isosurface vertices");
+
+        timer.startTimer("Compute dual triangles", "7. Isosurface Construction");
         compute_dual_triangles(iso_surface, vd, bbox, dt, grid, vdc_param.isovalue);
+        timer.stopTimer("Compute dual triangles");
         dualBuilt = true;
     }
 
@@ -2041,10 +2058,6 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     {
         dump_iso_vertex_cycles(vd, iso_surface, "modcyc_cycles.csv");
     }
-
-    std::clock_t check_time = std::clock();
-    double duration = static_cast<double>(check_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << "Compute isosurface vertices Execution time: " << duration << " seconds" << std::endl;
 
     if (vdc_param.multi_isov && !dualBuilt)
     {
@@ -2054,10 +2067,6 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
     {
         compute_dual_triangles(iso_surface, vd, bbox, dt, grid, vdc_param.isovalue);
     }
-
-    std::clock_t check2_time = std::clock();
-    double duration2 = static_cast<double>(check2_time - check_time) / CLOCKS_PER_SEC;
-    std::cout << "Compute isosurface facets Execution time: " << duration2 << " seconds" << std::endl;
 
     if (out_interior_flips)
         *out_interior_flips = mod_cyc_result.interior_flips;

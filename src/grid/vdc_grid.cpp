@@ -1,4 +1,5 @@
 #include "grid/vdc_grid.h"
+#include "core/vdc_timing.h"
 #include <cmath>
 
 
@@ -150,6 +151,9 @@ std::vector<float> convert_to_float_vector(T *data_ptr, size_t total_size)
 // Load NRRD data
 UnifiedGrid load_nrrd_data(const std::string &file_path)
 {
+    TimingManager& timer = TimingManager::getInstance();
+    timer.startTimer("Load NRRD file", "1. Load Data and Grid Formation");
+
     Nrrd *nrrd = nrrdNew();
     if (nrrdLoad(nrrd, file_path.c_str(), NULL))
     {
@@ -174,7 +178,9 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
     float dy = sanitize_spacing(nrrd->axis[1].spacing);
     float dz = sanitize_spacing(nrrd->axis[2].spacing);
     float min_x = 0.0f, min_y = 0.0f, min_z = 0.0f;
+    timer.stopTimer("Load NRRD file");
 
+    timer.startTimer("Grid initialization", "1. Load Data and Grid Formation");
     UnifiedGrid grid(nx, ny, nz, dx, dy, dz, min_x, min_y, min_z);
 
     if (nrrd->type == nrrdTypeFloat)
@@ -203,6 +209,7 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
     nrrdNuke(nrrd);
 
     grid.force_unit_spacing();
+    timer.stopTimer("Grid initialization");
 
     std::cout << "Grid dimensions: " << nx << "x" << ny << "x" << nz << "\n";
     std::cout << "Physical spacing: dx=" << grid.physical_dx << ", dy=" << grid.physical_dy << ", dz=" << grid.physical_dz << "\n";
@@ -221,6 +228,9 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
 // Supersample grid
 UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n)
 {
+    TimingManager& timer = TimingManager::getInstance();
+    timer.startTimer("Supersample", "1. Load Data and Grid Formation");
+
     int nx2 = grid.nx * n - (n - 1);
     int ny2 = grid.ny * n - (n - 1);
     int nz2 = grid.nz * n - (n - 1);
@@ -246,6 +256,7 @@ UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n)
     }
 
     new_grid.force_unit_spacing();
+    timer.stopTimer("Supersample");
 
     return new_grid;
 }

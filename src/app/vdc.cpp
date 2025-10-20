@@ -1,4 +1,5 @@
 #include "core/vdc.h"
+#include "core/vdc_timing.h"
 #include "grid/vdc_sep_isov.h"
 #include <algorithm>
 #include <array>
@@ -254,76 +255,89 @@ void print_summary_report(const SummaryStats &stats)
 
 int main(int argc, char *argv[])
 {
-    std::clock_t initial_time = std::clock();
+    TimingManager& timer = TimingManager::getInstance();
+    timer.startTimer("Total Processing");
+
     VoronoiDiagram vd; // Initialize an empty Voronoi diagram.
     VDC_PARAM vdc_param;
     IsoSurface iso_surface;
     Delaunay dt;
     Delaunay dt_test;
 
-    std::clock_t start_time = std::clock();
-
     // Parse command-line arguments to set program options and parameters.
     parse_arguments(argc, argv, vdc_param);
 
     // Load the NRRD data file into a grid structure.
+    timer.startTimer("1. Load Data and Grid Formation", "Total Processing");
     UnifiedGrid data_grid = load_nrrd_data(vdc_param.file_path);
+    timer.stopTimer("1. Load Data and Grid Formation");
 
     // Apply supersampling if requested.
     if (vdc_param.supersample)
     {
+        timer.startTimer("1. Load Data and Grid Formation", "Total Processing");
         data_grid = supersample_grid(data_grid, vdc_param.supersample_r);
+        timer.stopTimer("1. Load Data and Grid Formation");
         if (debug) {
         data_grid.print_grid();}
     }
 
     // Identify active cubes in the grid based on the given isovalue.
+    timer.startTimer("2. Data Pre-processing", "Total Processing");
+    timer.startTimer("Find active cubes", "2. Data Pre-processing");
     std::vector<Cube> activeCubes;
     find_active_cubes(data_grid, vdc_param.isovalue, activeCubes);
+    timer.stopTimer("Find active cubes");
 
     // Separate active cubes to ensure non-adjacency if requested.
     if (vdc_param.sep_isov_1)
     {
+        timer.startTimer("Separation", "2. Data Pre-processing");
         std::cout << "[INFO] Separation method I: Cube-level (26-connectivity)" << std::endl;
         std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
         activeCubes = separate_active_cubes_I(activeCubes, data_grid, vdc_param.isovalue);
         std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
+        timer.stopTimer("Separation");
     }
     else if (vdc_param.sep_isov_3)
     {
+        timer.startTimer("Separation", "2. Data Pre-processing");
         std::cout << "[INFO] Separation method III: 3×3×3 subgrid-based separation" << std::endl;
         std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
         activeCubes = separate_active_cubes_III(activeCubes, data_grid, vdc_param.isovalue);
         std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
+        timer.stopTimer("Separation");
     }
     else if (vdc_param.sep_isov_3_wide)
     {
+        timer.startTimer("Separation", "2. Data Pre-processing");
         std::cout << "[INFO] Separation method III-wide: 3×3×3 subgrid with 5×5×5 clearance" << std::endl;
         std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
         activeCubes = separate_active_cubes_III_wide(activeCubes, data_grid, vdc_param.isovalue);
         std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
+        timer.stopTimer("Separation");
     }
     else
     {
         // When no separation is used, compute accurate iso-crossing points for all active cubes
         // (separation methods already do this for kept cubes)
+        timer.startTimer("Compute iso-crossing points", "2. Data Pre-processing");
         for (Cube &cube : activeCubes)
         {
             cube.accurateIsoCrossing = compute_iso_crossing_point_accurate(data_grid, cube.i, cube.j, cube.k, vdc_param.isovalue);
         }
+        timer.stopTimer("Compute iso-crossing points");
     }
 
     // Create grid facets from the active cubes for further processing.
+    timer.startTimer("Create grid facets", "2. Data Pre-processing");
     std::vector<std::vector<GRID_FACETS>> grid_facets = create_grid_facets(activeCubes);
+    timer.stopTimer("Create grid facets");
+    timer.stopTimer("2. Data Pre-processing");
 
     // Extract the centers of the active cubes.
     std::vector<Point> activeCubeCenters = get_cube_centers(activeCubes);
     std::vector<Point> activeCubeAccurateIsoCrossingPoints = get_cube_accurate_iso_crossing_points(activeCubes);
-    std::clock_t test1 = std::clock();
-    dt_test.insert(activeCubeCenters.begin(), activeCubeCenters.end());
-    std::clock_t test2 = std::clock();
-    double d = static_cast<double>(test2 - test1) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Delaunay test time: " << d << " seconds." << std::endl;
 
     std::cout << "[INFO] Number of active cube centers: " << activeCubeCenters.size() << std::endl;
 
@@ -341,21 +355,14 @@ int main(int argc, char *argv[])
 
     float cubeSideLength = data_grid.physical_dx; // Store the cube side length (equal to physical grid spacing).
 
-    std::clock_t load_data_time = std::clock(); // Get ending clock ticks
-    double duration_ld = static_cast<double>(load_data_time - start_time) / CLOCKS_PER_SEC;
-
-    std::cout << "[INFO] Loading Data processing time: " << std::to_string(duration_ld) << " seconds." << std::endl;
-
     // Construct the Delaunay triangulation using the grid facets.
     if (indicator)
     {
         std::cout << "[INFO] Constructing Delaunay triangulation..." << std::endl;
     }
+    timer.startTimer("3. Delaunay Triangulation Construction", "Total Processing");
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
-
-    std::clock_t construct_dt_time = std::clock(); // Get ending clock ticks
-    double duration_dt = static_cast<double>(construct_dt_time - load_data_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Constructing Delaunay triangulation time: " << std::to_string(duration_dt) << " seconds." << std::endl;
+    timer.stopTimer("3. Delaunay Triangulation Construction");
 
     //std::cout << dt << std::endl;
     // Construct the Voronoi diagram based on the Delaunay triangulation.
@@ -364,9 +371,9 @@ int main(int argc, char *argv[])
         std::cout << "[INFO] Constructing Voronoi diagram..." << std::endl;
     }
 
+    timer.startTimer("4. Voronoi Diagram Construction", "Total Processing");
     construct_voronoi_diagram(vd, vdc_param, data_grid, bbox, dt);
-
-    std::clock_t cons_vd_time = std::clock();
+    timer.stopTimer("4. Voronoi Diagram Construction");
     // Collapse threshold: use CLI value if provided; otherwise scale to grid spacing (1% of min spacing)
     double collapse_eps = (vdc_param.collapse_eps > 0.0)
                               ? vdc_param.collapse_eps
@@ -376,22 +383,26 @@ int main(int argc, char *argv[])
         vdc_param.collapse_eps = collapse_eps;
     }
     std::vector<int> vertex_mapping;  // Maps old vertex indices to new after collapse
+    timer.startTimer("5. Collapse Small Edges", "Total Processing");
     VoronoiDiagram vd2 = collapseSmallEdges(vd, collapse_eps, bbox, dt, vertex_mapping);
+
     // Re-validate and normalize facet orientations on the collapsed diagram
+    timer.startTimer("Post-collapse facet validation", "5. Collapse Small Edges");
     validate_facet_orientations_and_normals(vd2);
+    timer.stopTimer("Post-collapse facet validation");
+
     // Repopulate cell_edge_index arrays after collapse rebuilt the cellEdges
     if (vdc_param.multi_isov)
     {
+        timer.startTimer("Repopulate cell edge indices", "5. Collapse Small Edges");
         populate_cell_edge_indices(vd2, dt);
+        timer.stopTimer("Repopulate cell edge indices");
     }
-    std::clock_t collapse_time = std::clock();
-    double duration_col = static_cast<double>(collapse_time - cons_vd_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Collapsing time: " << std::to_string(duration_col) << " seconds." << std::endl;
-    
+    timer.stopTimer("5. Collapse Small Edges");
+
+    timer.startTimer("6. Post-collapse Validation", "Total Processing");
     vd2.check(true);
-    std::clock_t check2_time = std::clock();
-    double duration_vd2check = static_cast<double>(check2_time - collapse_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Checking vd2 time: " << std::to_string(duration_vd2check) << " seconds." << std::endl;
+    timer.stopTimer("6. Post-collapse Validation");
 
     //std::cout << dt <<std::endl;
     if (indicator)
@@ -409,17 +420,18 @@ int main(int argc, char *argv[])
     int interior_flips = 0, boundary_flips = 0;
     std::size_t clipped_count = 0;
     double max_clip_distance = 0.0;
+    timer.startTimer("7. Isosurface Construction", "Total Processing");
     construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, activeCubeAccurateIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
-
-    std::clock_t construct_iso_time = std::clock(); // Get ending clock ticks
-    double duration_iso = static_cast<double>(construct_iso_time - check2_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Constructing Iso Surface time: " << std::to_string(duration_iso) << " seconds." << std::endl;
+    timer.stopTimer("7. Isosurface Construction");
 
     //write_voronoiDiagram(vd2, vdc_param.output_filename);
 
     // Handle the output mesh generation and return the appropriate status.
+    timer.startTimer("8. Output Mesh", "Total Processing");
     bool retFlag;
     int retVal = handle_output_mesh(retFlag, vd2, vdc_param, iso_surface);
+    timer.stopTimer("8. Output Mesh");
+
     if (retFlag)
         return retVal;
 
@@ -434,9 +446,10 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "Finished." << std::endl;
-    std::clock_t finish_time = std::clock();
-    double duration = static_cast<double>(finish_time - initial_time) / CLOCKS_PER_SEC;
-    std::cout << "[INFO] Total processing time: " << std::to_string(duration) << " seconds." << std::endl;
+    timer.stopTimer("Total Processing");
+
+    // Print the comprehensive timing report
+    timer.printReport();
 
     return EXIT_SUCCESS;
 }
