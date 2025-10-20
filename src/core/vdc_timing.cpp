@@ -147,16 +147,6 @@ void TimingManager::printNode(const TimerNode* node, int indent, bool is_last_ch
     // Print current node
     std::cout << prefix << node->name << " (" << formatTime(elapsed) << " s)";
 
-    // Validation: warn if children don't sum to parent time (with tolerance)
-    if (!node->children.empty() && elapsed >= 0.001) {
-        double diff = std::abs(elapsed - children_total);
-        double tolerance = std::max(elapsed * 0.05, 0.001);
-        if (diff > tolerance) {
-            std::cout << " [WARNING: children sum=" << formatTime(children_total)
-                      << "s, diff=" << formatTime(diff) << "s]";
-        }
-    }
-
     std::cout << "\n";
 
     // Print children with updated ancestor state
