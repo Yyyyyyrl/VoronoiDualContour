@@ -322,9 +322,7 @@ static VoronoiCellFacet build_facet_from_edge(
         std::max(v1->info().index, v2->info().index));
     edge_to_facets[edge_key].push_back(facetIndex);
 
-    // Map vertex loop → cell-edge loop for this cell facet
-    // Optimized approach: Single-pass iteration using stored facet_info indices
-    // Following the pattern from TD/build_facet_from_edge.cpp
+    //Single-pass iteration using stored facet_info indices
     facet.cell_edge_indices.clear();
     const int n = (int)facet.vertices_indices.size();
     facet.cell_edge_indices.reserve(n);
@@ -360,7 +358,6 @@ static VoronoiCellFacet build_facet_from_edge(
         const int a = facet.vertices_indices[i];
 
         // Find the Delaunay facet corresponding to Voronoi vertex 'a'
-        // Use linear search since n is typically small (3-8 elements)
         bool found = false;
         for (size_t j = 0; j < vorVertexIndices.size(); ++j)
         {
