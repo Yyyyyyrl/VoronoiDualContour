@@ -374,7 +374,7 @@ static VoronoiCellFacet build_facet_from_edge(
 
         if (!found)
         {
-            // This should rarely happen - only for boundary/degenerate cases
+            // should rarely happen - only for boundary/degenerate cases
             if (debug)
             {
                 std::cerr << "[WARNING] build_facet_from_edge: Voronoi vertex " << a
