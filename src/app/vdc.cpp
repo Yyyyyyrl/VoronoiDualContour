@@ -417,11 +417,11 @@ int main(int argc, char *argv[])
                                                     ? (vd.edges.size() - vd2.edges.size())
                                                     : 0;
 
-    int interior_flips = 0, boundary_flips = 0;
+    int interior_flips = 0, boundary_flips = 0, total_flips = 0;
     std::size_t clipped_count = 0;
     double max_clip_distance = 0.0;
     timer.startTimer("7. Isosurface Construction", "Total Processing");
-    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, activeCubeAccurateIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &clipped_count, &max_clip_distance);
+    construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, activeCubeAccurateIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &total_flips, &clipped_count, &max_clip_distance);
     timer.stopTimer("7. Isosurface Construction");
 
     //write_voronoiDiagram(vd2, vdc_param.output_filename);
@@ -437,7 +437,6 @@ int main(int argc, char *argv[])
 
     if (vdc_param.summary_stats)
     {
-        const int total_flips = interior_flips + boundary_flips;
         SummaryStats summary = collect_summary_stats(activeCubes, dt, vd2, iso_surface, vdc_param.multi_isov,
                                                     collapsed_vertices_removed, collapsed_edges_removed,
                                                     total_flips, interior_flips, boundary_flips,
