@@ -1,6 +1,7 @@
 #include "algo/vdc_func.h"
 #include "core/vdc_debug.h"
 #include "core/vdc_timing.h"
+#include <sstream>
 
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
@@ -406,6 +407,8 @@ static void process_incident_edges(
     std::vector<Edge> incidentEdges;
     dt.incident_edges(delaunay_vertex, std::back_inserter(incidentEdges));
 
+    int t = 0;
+
     for (const Edge &ed : incidentEdges)
     {
         // Count finite incident cells
@@ -439,9 +442,9 @@ static void process_incident_edges(
         if (facet.vertices_indices.size() < 3)
         {
             // Enhanced error logging for debugging degenerate facets
-            std::cout << "[ERROR] Degenerate interior facet detected:\n";
-            std::cout << "  - Facet vertices count: " << facet.vertices_indices.size() << "\n";
-            std::cout << "  - Finite incident cells: " << finite_cell_count << "\n";
+            std::cout << "[ERROR] Degenerate Voronoi facet detected:\n";
+            std::cout << "  - Voronoi facet vertices count: " << facet.vertices_indices.size() << "\n";
+            std::cout << "  - Finite incident Delaunay cells around edge: " << finite_cell_count << "\n";
 
             // Extract edge endpoints
             Cell_handle cell_ed = ed.first;
@@ -455,39 +458,42 @@ static void process_incident_edges(
             Vertex_handle v1 = cell_ed->vertex(i1);
             Vertex_handle v2 = cell_ed->vertex(i2);
 
-            std::cout << "  - Edge endpoints:\n";
+            std::cout << "  - Delaunay edge endpoints:\n";
             std::cout << "      v1: " << v1->point() << " (index: " << v1->info().index << ")\n";
             std::cout << "      v2: " << v2->point() << " (index: " << v2->info().index << ")\n";
 
             // Information about the Delaunay vertex (Voronoi cell center)
-            std::cout << "  - Delaunay vertex (Voronoi cell): " << delaunay_vertex->point()
+            std::cout << "  - Delaunay vertex (Voronoi cell center): " << delaunay_vertex->point()
                       << " (index: " << delaunay_vertex->info().index << ")\n";
 
-            // Detailed incident cell information
-            std::cout << "  - Incident cells around edge:\n";
+            // Detailed incident cell information using Cell_handle << operator
+            std::cout << "  - Incident Delaunay cells around Delaunay edge:\n";
             Delaunay::Cell_circulator cc_dbg = dt.incident_cells(ed);
             Delaunay::Cell_circulator start_dbg = cc_dbg;
             int cell_num = 0;
             do
             {
-                std::cout << "      Cell " << cell_num << ": ";
+                std::cout << "      ===== Delaunay Cell " << cell_num << " =====\n";
                 if (dt.is_infinite(cc_dbg))
                 {
-                    std::cout << "INFINITE\n";
+                    std::cout << "      INFINITE CELL\n";
                 }
                 else
                 {
-                    int vor_idx = cc_dbg->info().dualVoronoiVertexIndex;
-                    std::cout << "dualVoronoiVertexIndex=" << vor_idx;
-                    if (vor_idx >= 0)
+                    // Use the Cell_handle << operator for comprehensive output
+                    Cell_handle ch = cc_dbg;
+                    std::string cell_output;
+                    std::ostringstream oss;
+                    oss << ch;
+                    cell_output = oss.str();
+
+                    // Indent each line of the cell output
+                    std::istringstream iss(cell_output);
+                    std::string line;
+                    while (std::getline(iss, line))
                     {
-                        std::cout << " (circumcenter: " << dt.dual(cc_dbg) << ")";
+                        std::cout << "      " << line << "\n";
                     }
-                    else
-                    {
-                        std::cout << " [INVALID - no Voronoi vertex assigned]";
-                    }
-                    std::cout << "\n";
                 }
                 ++cc_dbg;
                 ++cell_num;
