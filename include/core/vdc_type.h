@@ -60,6 +60,15 @@ struct VERTEX_INFO
     bool is_dummy;        //!< Flag indicating if this is a dummy vertex added for bounding
     int voronoiCellIndex; //!< Index of the Voronoi cell dual to this vertex
     int index;            //!< Unique index of this vertex in the triangulation
+
+    //! @brief Print vertex info for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VERTEX_INFO:\n";
+        out << "  Index: " << index << "\n";
+        out << "  Is dummy: " << (is_dummy ? "true" : "false") << "\n";
+        out << "  Voronoi cell index: " << voronoiCellIndex << "\n";
+    }
 };
 
 //! @brief Information associated with a facet in a Delaunay cell.
@@ -91,6 +100,17 @@ struct DELAUNAY_FACET_INFO
     bool IsDualCellEdgeIndexUndefined(const int k) const
     {
         return (dualCellEdgeIndex[k] == -1);
+    }
+
+    //! @brief Print Delaunay facet info for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "DELAUNAY_FACET_INFO:\n";
+        out << "  Dual edge index: " << dualEdgeIndex << "\n";
+        out << "  Dual cell edge indices: ["
+            << dualCellEdgeIndex[0] << ", "
+            << dualCellEdgeIndex[1] << ", "
+            << dualCellEdgeIndex[2] << "]\n";
     }
 };
 
@@ -129,6 +149,20 @@ struct CELL_INFO
     static int FacetVertexIndex(const int facet_index, const int k)
     {
         return (facet_index + k + 1) % 4;
+    }
+
+    //! @brief Print cell info for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "CELL_INFO:\n";
+        out << "  Index: " << index << "\n";
+        out << "  Dual Voronoi vertex index: " << dualVoronoiVertexIndex << "\n";
+        out << "  Cell edge indices: ["
+            << cell_edge_index[0] << ", "
+            << cell_edge_index[1] << ", "
+            << cell_edge_index[2] << ", "
+            << cell_edge_index[3] << "]\n";
+        out << "  Facet info count: 4\n";
     }
 };
 

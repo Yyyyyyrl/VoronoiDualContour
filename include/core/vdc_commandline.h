@@ -54,6 +54,30 @@ struct VDC_PARAM {
           mod_cyc(false),
           summary_stats(false)
     {}
+
+    //! @brief Print VDC parameters for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VDC_PARAM:\n";
+        out << "  File path: " << file_path << "\n";
+        out << "  Isovalue: " << isovalue << "\n";
+        out << "  Output format: " << output_format << "\n";
+        out << "  Output filename: " << output_filename << "\n";
+        out << "  Out CSV name: " << out_csv_name << "\n";
+        out << "  Out CSV: " << (out_csv ? "true" : "false") << "\n";
+        out << "  Sep isov 1: " << (sep_isov_1 ? "true" : "false") << "\n";
+        out << "  Sep isov 3: " << (sep_isov_3 ? "true" : "false") << "\n";
+        out << "  Sep isov 3 wide: " << (sep_isov_3_wide ? "true" : "false") << "\n";
+        out << "  Multi isov: " << (multi_isov ? "true" : "false") << "\n";
+        out << "  Supersample: " << (supersample ? "true" : "false") << "\n";
+        out << "  Add bounding cells: " << (add_bounding_cells ? "true" : "false") << "\n";
+        out << "  Convex hull: " << (convex_hull ? "true" : "false") << "\n";
+        out << "  Test vor: " << (test_vor ? "true" : "false") << "\n";
+        out << "  Mod cyc: " << (mod_cyc ? "true" : "false") << "\n";
+        out << "  Summary stats: " << (summary_stats ? "true" : "false") << "\n";
+        out << "  Supersample r: " << supersample_r << "\n";
+        out << "  Collapse eps: " << collapse_eps << "\n";
+    }
 };
 
 //! @brief Prints the help message to the console.

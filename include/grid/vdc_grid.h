@@ -42,6 +42,17 @@ struct Cube {
     void ComputeIsovGrid3xLoc(int grid3x_loc[3]) const {
         ComputeGrid3xLoc(isov_subgrid_index, grid3x_loc);
     }
+
+    //! @brief Print the cube information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "Cube:\n";
+        out << "  Representative vertex: " << repVertex << "\n";
+        out << "  Cube center: " << cubeCenter << "\n";
+        out << "  Accurate iso-crossing point: " << accurateIsoCrossing << "\n";
+        out << "  Grid indices (i, j, k): (" << i << ", " << j << ", " << k << ")\n";
+        out << "  Isov subgrid index: " << static_cast<int>(isov_subgrid_index) << "\n";
+    }
 };
 
 //! @brief A structure representing a 3D grid for storing scalar data.
@@ -105,6 +116,18 @@ struct UnifiedGrid
 
     //! @brief Detect whether boundary voxel range straddles the given isovalue.
     bool boundary_crosses_isovalue(float isovalue) const;
+
+    //! @brief Print unified grid information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "UnifiedGrid:\n";
+        out << "  Dimensions (nx, ny, nz): (" << nx << ", " << ny << ", " << nz << ")\n";
+        out << "  Spacing (dx, dy, dz): (" << dx << ", " << dy << ", " << dz << ")\n";
+        out << "  Physical spacing: (" << physical_dx << ", " << physical_dy << ", " << physical_dz << ")\n";
+        out << "  Min coords: (" << min_x << ", " << min_y << ", " << min_z << ")\n";
+        out << "  Max coords: (" << max_x << ", " << max_y << ", " << max_z << ")\n";
+        out << "  Flat data size: " << flat_data.size() << " element(s)\n";
+    }
 };
 
 
@@ -175,6 +198,20 @@ struct GRID_FACETS
      * @return The boolean flag at `(coord0, coord1)`.
      */
     bool CubeFlag(int coord0, int coord1) const;
+
+    //! @brief Print grid facets information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "GRID_FACETS:\n";
+        out << "  Orthogonal direction: " << orth_dir << " (0=x, 1=y, 2=z)\n";
+        out << "  Side: " << side << " (0=lower, 1=upper)\n";
+        out << "  Axis directions: [" << axis_dir[0] << ", " << axis_dir[1] << "]\n";
+        out << "  Axis sizes: [" << axis_size[0] << ", " << axis_size[1] << "]\n";
+        out << "  Min index: (" << minIndex[0] << ", " << minIndex[1] << ", " << minIndex[2] << ")\n";
+        out << "  Max index: (" << maxIndex[0] << ", " << maxIndex[1] << ", " << maxIndex[2] << ")\n";
+        out << "  Local size: (" << localSize[0] << ", " << localSize[1] << ", " << localSize[2] << ")\n";
+        out << "  Cube flags: " << cube_flag.size() << " flag(s)\n";
+    }
 
 private:
     //! @brief Convert a 2D coordinate `(coord0, coord1)` to a linear index.

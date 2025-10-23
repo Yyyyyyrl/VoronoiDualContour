@@ -22,8 +22,17 @@ struct DelaunayTriangle {
      * @param v2 Handle to the second vertex.
      * @param v3 Handle to the third vertex.
      */
-    DelaunayTriangle(Vertex_handle v1, Vertex_handle v2, Vertex_handle v3) 
+    DelaunayTriangle(Vertex_handle v1, Vertex_handle v2, Vertex_handle v3)
         : vertex1(v1), vertex2(v2), vertex3(v3) {}
+
+    //! @brief Print Delaunay triangle information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "DelaunayTriangle:\n";
+        out << "  Vertex 1: " << vertex1->point() << "\n";
+        out << "  Vertex 2: " << vertex2->point() << "\n";
+        out << "  Vertex 3: " << vertex3->point() << "\n";
+    }
 };
 
 //! @brief Represents a triangle on an isosurface.
@@ -44,6 +53,14 @@ struct IsoTriangle {
         vertex_indices[0] = idx1;
         vertex_indices[1] = idx2;
         vertex_indices[2] = idx3;
+    }
+
+    //! @brief Print iso-triangle information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "IsoTriangle:\n";
+        out << "  Vertex indices: [" << vertex_indices[0] << ", "
+            << vertex_indices[1] << ", " << vertex_indices[2] << "]\n";
     }
 };
 

@@ -27,6 +27,21 @@ struct VoronoiVertex
      * @param p Coordinates of the vertex.
      */
     VoronoiVertex(Point p) : coord(p) {}
+
+    //! @brief Print the Voronoi vertex information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VoronoiVertex:\n";
+        out << "  Coordinate: " << coord << "\n";
+        out << "  Index: " << index << "\n";
+        out << "  Scalar value: " << value << "\n";
+        out << "  Cell indices: [";
+        for (size_t i = 0; i < cellIndices.size(); ++i) {
+            out << cellIndices[i];
+            if (i + 1 < cellIndices.size()) out << ", ";
+        }
+        out << "]\n";
+    }
 };
 
 struct VoronoiEdge
@@ -67,6 +82,50 @@ struct VoronoiEdge
                                   other.direction.x(), other.direction.y(), other.direction.z());
         return t1 < t2;
     }
+
+    //! @brief Print basic edge information
+    template <typename OSTREAM_TYPE>
+    void PrintBasic(OSTREAM_TYPE & out) const {
+        out << "  Index: " << index << "\n";
+        out << "  Type: " << type << " (0=segment, 1=ray, 2=line, -1=unknown)\n";
+        out << "  Vertex1: " << vertex1 << "\n";
+        out << "  Vertex2: " << vertex2 << "\n";
+    }
+
+    //! @brief Print geometric information
+    template <typename OSTREAM_TYPE>
+    void PrintGeometry(OSTREAM_TYPE & out) const {
+        if (type == 0) {
+            // Segment
+            Segment3 segment;
+            if (CGAL::assign(segment, edgeObject)) {
+                out << "  Segment: " << segment.source() << " -> " << segment.target() << "\n";
+            }
+        } else if (type == 1) {
+            // Ray
+            out << "  Ray source: " << source << "\n";
+            out << "  Ray direction: " << direction << "\n";
+        } else if (type == 2) {
+            // Line
+            out << "  Line source: " << source << "\n";
+            out << "  Line direction: " << direction << "\n";
+        }
+    }
+
+    //! @brief Print Delaunay facets associated with this edge
+    template <typename OSTREAM_TYPE>
+    void PrintDelaunayFacets(OSTREAM_TYPE & out) const {
+        out << "  Delaunay facets: " << delaunayFacets.size() << " facet(s)\n";
+    }
+
+    //! @brief Print complete edge information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VoronoiEdge:\n";
+        PrintBasic(out);
+        PrintGeometry(out);
+        PrintDelaunayFacets(out);
+    }
 };
 
 //! @brief Represents a midpoint of an edge in a Voronoi diagram.
@@ -84,6 +143,23 @@ struct MidpointNode
     int cycle_index;               //!< Index of the cycle this midpoint belongs to.
     int global_edge_index = -1;
     bool is_bipolar = false;
+
+    //! @brief Print midpoint node information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "MidpointNode:\n";
+        out << "  Point: " << point << "\n";
+        out << "  Connected to: [";
+        for (size_t i = 0; i < connected_to.size(); ++i) {
+            out << connected_to[i];
+            if (i + 1 < connected_to.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  Facet index: " << facet_index << "\n";
+        out << "  Cycle index: " << cycle_index << "\n";
+        out << "  Global edge index: " << global_edge_index << "\n";
+        out << "  Is bipolar: " << (is_bipolar ? "true" : "false") << "\n";
+    }
 };
 
 //! @brief Represents a facet in a Voronoi diagram.
@@ -101,6 +177,46 @@ struct VoronoiCellFacet
     int voronoi_facet_index = -1; //!< Index of the unique facet in voronoi_facets.
     int orientation = 1;          //!< 1 if using vertices_indices as-is, -1 if reversed.    //! @brief Default constructor.
     VoronoiCellFacet() = default;
+
+    //! @brief Print vertex indices
+    template <typename OSTREAM_TYPE>
+    void PrintVertices(OSTREAM_TYPE & out) const {
+        out << "  Vertex indices: [";
+        for (size_t i = 0; i < vertices_indices.size(); ++i) {
+            out << vertices_indices[i];
+            if (i + 1 < vertices_indices.size()) out << ", ";
+        }
+        out << "]\n";
+    }
+
+    //! @brief Print cell edge indices
+    template <typename OSTREAM_TYPE>
+    void PrintCellEdgeIndices(OSTREAM_TYPE & out) const {
+        out << "  Cell edge indices: [";
+        for (size_t i = 0; i < cell_edge_indices.size(); ++i) {
+            out << cell_edge_indices[i];
+            if (i + 1 < cell_edge_indices.size()) out << ", ";
+        }
+        out << "]\n";
+    }
+
+    //! @brief Print metadata
+    template <typename OSTREAM_TYPE>
+    void PrintMetadata(OSTREAM_TYPE & out) const {
+        out << "  Mirror facet index: " << mirror_facet_index << "\n";
+        out << "  Facet index: " << facet_index << "\n";
+        out << "  Voronoi facet index: " << voronoi_facet_index << "\n";
+        out << "  Orientation: " << orientation << "\n";
+    }
+
+    //! @brief Print complete cell facet information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VoronoiCellFacet:\n";
+        PrintVertices(out);
+        PrintCellEdgeIndices(out);
+        PrintMetadata(out);
+    }
 };
 
 // One iso-segment per bipolar match inside a global facet.
@@ -113,6 +229,18 @@ struct IsoSegment
     int edgeA = -1;              // global Voronoi edge id for slotA (optional, for logging/asserts)
     int edgeB = -1;              // global Voronoi edge id for slotB
     int comp[2] = {-1, -1};      // component (=cycle id) in incident cells C0/C1; -1 if none/unknown
+
+    //! @brief Print iso-segment information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "IsoSegment:\n";
+        out << "  Global facet index: " << global_facet_index << "\n";
+        out << "  Slot A: " << slotA << "\n";
+        out << "  Slot B: " << slotB << "\n";
+        out << "  Edge A: " << edgeA << "\n";
+        out << "  Edge B: " << edgeB << "\n";
+        out << "  Components: [" << comp[0] << ", " << comp[1] << "]\n";
+    }
 };
 
 //! @brief Represents a facet in the Voronoi diagram (unique, shared by cells).
@@ -132,6 +260,42 @@ struct VoronoiFacet
     std::array<int, 2> incident_cell_indices = {-1, -1};       // {C0, C1} or {-1, X}
     std::array<int, 2> incident_cell_facet_indices = {-1, -1}; // cell-facet indices for C0/C1
     std::vector<IsoSegment> iso_segments;
+
+    //! @brief Print Voronoi facet information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VoronoiFacet:\n";
+        out << "  Index: " << index << "\n";
+        out << "  Primary cell facet index: " << primary_cell_facet_index << "\n";
+        out << "  Vertex indices: [";
+        for (size_t i = 0; i < vertices_indices.size(); ++i) {
+            out << vertices_indices[i];
+            if (i + 1 < vertices_indices.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  Voronoi edge indices: [";
+        for (size_t i = 0; i < voronoi_edge_indices.size(); ++i) {
+            out << voronoi_edge_indices[i];
+            if (i + 1 < voronoi_edge_indices.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  Bipolar match method: " << static_cast<int>(bipolar_match_method) << "\n";
+        out << "  Bipolar edge indices: [";
+        for (size_t i = 0; i < bipolar_edge_indices.size(); ++i) {
+            out << bipolar_edge_indices[i];
+            if (i + 1 < bipolar_edge_indices.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  Bipolar matches: [";
+        for (size_t i = 0; i < bipolar_matches.size(); ++i) {
+            out << "(" << bipolar_matches[i].first << "," << bipolar_matches[i].second << ")";
+            if (i + 1 < bipolar_matches.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  Incident cells: [" << incident_cell_indices[0] << ", " << incident_cell_indices[1] << "]\n";
+        out << "  Incident cell facets: [" << incident_cell_facet_indices[0] << ", " << incident_cell_facet_indices[1] << "]\n";
+        out << "  Iso segments count: " << iso_segments.size() << "\n";
+    }
 };
 
 //! @brief Represents a closed cycle in a Voronoi cell formed by midpoints.
@@ -149,6 +313,33 @@ struct Cycle
     std::vector<int> bipolar_voronoi_edge_indices; // Global Voronoi edge indices for the paired bipolar edges
 
     void compute_centroid(const std::vector<MidpointNode> &midpoints);
+
+    //! @brief Print cycle information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "Cycle:\n";
+        out << "  Isovertex: " << isovertex << "\n";
+        out << "  Voronoi cell index: " << voronoi_cell_index << "\n";
+        out << "  Facet index: " << facet_index << "\n";
+        out << "  Midpoint indices: [";
+        for (size_t i = 0; i < midpoint_indices.size(); ++i) {
+            out << midpoint_indices[i];
+            if (i + 1 < midpoint_indices.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  Edges: [";
+        for (size_t i = 0; i < edges.size(); ++i) {
+            out << "(" << edges[i].first << "," << edges[i].second << ")";
+            if (i + 1 < edges.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  Bipolar voronoi edge indices: [";
+        for (size_t i = 0; i < bipolar_voronoi_edge_indices.size(); ++i) {
+            out << bipolar_voronoi_edge_indices[i];
+            if (i + 1 < bipolar_voronoi_edge_indices.size()) out << ", ";
+        }
+        out << "]\n";
+    }
 };
 
 //! @brief Represents a Voronoi cell (polytope) in the Voronoi diagram.
@@ -173,6 +364,29 @@ struct VoronoiCell
      */
     VoronoiCell(Vertex_handle vh)
         : delaunay_vertex(vh), isoVertexStartIndex(-1), numIsoVertices(0) {}
+
+    //! @brief Print Voronoi cell information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VoronoiCell:\n";
+        out << "  Cell index: " << cellIndex << "\n";
+        out << "  Delaunay vertex: " << delaunay_vertex->point() << "\n";
+        out << "  Vertices indices: [";
+        for (size_t i = 0; i < vertices_indices.size(); ++i) {
+            out << vertices_indices[i];
+            if (i + 1 < vertices_indices.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  Facet indices: [";
+        for (size_t i = 0; i < facet_indices.size(); ++i) {
+            out << facet_indices[i];
+            if (i + 1 < facet_indices.size()) out << ", ";
+        }
+        out << "]\n";
+        out << "  IsoVertex start index: " << isoVertexStartIndex << "\n";
+        out << "  Number of isoVertices: " << numIsoVertices << "\n";
+        out << "  Cycles count: " << cycles.size() << "\n";
+    }
 };
 
 struct VoronoiCellEdge
@@ -181,6 +395,21 @@ struct VoronoiCellEdge
     int edgeIndex;                 //!< Index of this edge in the vector of edges in the VoronoiDiagram instance that contains the cell this egde is in
     std::vector<int> cycleIndices; //!< Indices of cycles in this VoronoiCell that corresponding to this edge
     int nextCellEdge;              //!< Index of next cell edge around the Voronoi Edge ( VoronoiDiagram.edges[edgeIndex])
+
+    //! @brief Print Voronoi cell edge information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VoronoiCellEdge:\n";
+        out << "  Cell index: " << cellIndex << "\n";
+        out << "  Edge index: " << edgeIndex << "\n";
+        out << "  Next cell edge: " << nextCellEdge << "\n";
+        out << "  Cycle indices: [";
+        for (size_t i = 0; i < cycleIndices.size(); ++i) {
+            out << cycleIndices[i];
+            if (i + 1 < cycleIndices.size()) out << ", ";
+        }
+        out << "]\n";
+    }
 };
 
 //! @brief Hash function for std::tuple<int,int,int>
@@ -283,6 +512,20 @@ struct VoronoiDiagram
     bool haveOppositeOrientation(const std::vector<int> &f1,
                                  const std::vector<int> &f2) const;
 
+    //! @brief Print Voronoi diagram information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "VoronoiDiagram:\n";
+        out << "  Vertices: " << vertices.size() << " vertex(es)\n";
+        out << "  Edges: " << edges.size() << " edge(s)\n";
+        out << "  Cell edges: " << cellEdges.size() << " cell edge(s)\n";
+        out << "  Cells: " << cells.size() << " cell(s)\n";
+        out << "  Cell facets: " << facets.size() << " cell facet(s)\n";
+        out << "  Global facets: " << global_facets.size() << " global facet(s)\n";
+        out << "  Cell edge lookup entries: " << cellEdgeLookup.size() << "\n";
+        out << "  Segment vertex pair to edge index entries: " << segmentVertexPairToEdgeIndex.size() << "\n";
+    }
+
 private:
     //! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
     void checkCellEdgeLookup() const;
@@ -381,6 +624,17 @@ struct IsoSurface
     std::vector<DelaunayTriangle> isosurfaceTrianglesSingle;
     std::vector<int> triangleSourceEdges;                            //!< Source Voronoi edge index for each multi-isov triangle (debug/fixup).
     std::array<double, 3> vertex_scale{1.0, 1.0, 1.0};               //!< Per-axis scale to convert from grid units to physical space.
+
+    //! @brief Print isosurface information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "IsoSurface:\n";
+        out << "  Vertices: " << isosurfaceVertices.size() << " vertex(es)\n";
+        out << "  Multi-isov triangles: " << isosurfaceTrianglesMulti.size() << " triangle(s)\n";
+        out << "  Single-isov triangles: " << isosurfaceTrianglesSingle.size() << " triangle(s)\n";
+        out << "  Triangle source edges: " << triangleSourceEdges.size() << " entry(es)\n";
+        out << "  Vertex scale: [" << vertex_scale[0] << ", " << vertex_scale[1] << ", " << vertex_scale[2] << "]\n";
+    }
 };
 
 //! @brief Represents a midpoint on an edge, along with its facet information.
@@ -388,6 +642,14 @@ struct EdgeMidpoint
 {
     Point midpoint;  //!< Geometric coordinates of the midpoint.
     int facet_index; //!< Index of the facet this midpoint belongs to.
+
+    //! @brief Print edge midpoint information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "EdgeMidpoint:\n";
+        out << "  Midpoint: " << midpoint << "\n";
+        out << "  Facet index: " << facet_index << "\n";
+    }
 };
 
 //! @brief Represents a vertex in the Delaunay triangulation.
@@ -399,6 +661,14 @@ struct DelaunayVertex
 {
     Point point;   //!< Coordinates of the vertex.
     bool is_dummy; //!< Flag indicating whether the vertex is a dummy point.
+
+    //! @brief Print Delaunay vertex information for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "DelaunayVertex:\n";
+        out << "  Point: " << point << "\n";
+        out << "  Is dummy: " << (is_dummy ? "true" : "false") << "\n";
+    }
 };
 
 //! @brief Comparator for approximate point equality
@@ -878,6 +1148,15 @@ struct ModifyCyclesResult {
     int interior_flips = 0;
     int boundary_flips = 0;
     int total_flips = 0;
+
+    //! @brief Print modify cycles result for debugging
+    template <typename OSTREAM_TYPE>
+    void Print(OSTREAM_TYPE & out) const {
+        out << "ModifyCyclesResult:\n";
+        out << "  Interior flips: " << interior_flips << "\n";
+        out << "  Boundary flips: " << boundary_flips << "\n";
+        out << "  Total flips: " << total_flips << "\n";
+    }
 };
 
 ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue);
