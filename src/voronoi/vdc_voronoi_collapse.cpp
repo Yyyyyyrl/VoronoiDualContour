@@ -5,7 +5,7 @@
 namespace
 {
 
-    constexpr double NORMAL_SQ_EPS = 1e-6; // treat facets with smaller squared normal as degenerate
+    constexpr double NORMAL_SQ_EPS = 1e-4; // treat facets with smaller squared normal as degenerate
 
     // --------- Small utilities -------------------------------------------------
 
