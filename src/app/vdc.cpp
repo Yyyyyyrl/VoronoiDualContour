@@ -282,6 +282,8 @@ int main(int argc, char *argv[])
         data_grid.print_grid();}
     }
 
+    data_grid.zero_boundary_shell();
+
     // Identify active cubes in the grid based on the given isovalue.
     timer.startTimer("2. Data Pre-processing", "Total Processing");
     timer.startTimer("Find active cubes", "2. Data Pre-processing");
