@@ -69,7 +69,6 @@ std::vector<Cube> separate_active_cubes_I(
             // Compute accurate iso-crossing for iso-vertex computation
             c.accurateIsoCrossing = compute_iso_crossing_point_accurate(grid, ci, cj, ck, isovalue);
 
-            // Use cube center for Delaunay to avoid degenerate interior facets and collinear or coplanar points
             c.cubeCenter = Point(
                 (ci + 0.5f) * grid.dx + grid.min_x,
                 (cj + 0.5f) * grid.dy + grid.min_y,
@@ -334,13 +333,13 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
         {
             // No conflict - select this cube
 
-            // 1. Big cube center (original approach - commented out for comparison)
+            // 1. Big cube center
 /*                 cube.cubeCenter = Point(
                     (cube.i + 0.5f) * grid.dx + grid.min_x,
                     (cube.j + 0.5f) * grid.dy + grid.min_y,
                     (cube.k + 0.5f) * grid.dz + grid.min_z); */
 
-            // 2. Small cube center in 3x3x3 subgrid (current approach)
+            // 2. Small cube center in 3x3x3 subgrid
             //    Compute the center of the small cube containing the iso-crossing point
             int loc[3];
             compute_subgrid_loc(cube.isov_subgrid_index, loc);
@@ -350,7 +349,7 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
                 (cube.i + (loc[0] + 0.5f) / 3.0f) * grid.dx + grid.min_x,
                 (cube.j + (loc[1] + 0.5f) / 3.0f) * grid.dy + grid.min_y,
                 (cube.k + (loc[2] + 0.5f) / 3.0f) * grid.dz + grid.min_z);
-
+           
             selected_indices.emplace(indexA, cube);
             out.push_back(cube);
         }
