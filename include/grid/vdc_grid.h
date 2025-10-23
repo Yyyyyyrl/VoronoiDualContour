@@ -102,6 +102,9 @@ struct UnifiedGrid
 
     //! @brief Clamp all boundary voxels to the global minimum scalar value.
     void zero_boundary_shell();
+
+    //! @brief Detect whether boundary voxel range straddles the given isovalue.
+    bool boundary_crosses_isovalue(float isovalue) const;
 };
 
 

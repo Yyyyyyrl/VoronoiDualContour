@@ -2,6 +2,7 @@
 #include "core/vdc_timing.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 
 //! Constructor for UnifiedGrid
@@ -173,6 +174,56 @@ void UnifiedGrid::zero_boundary_shell()
             assign(nx - 1, y, z);
         }
     }
+}
+
+bool UnifiedGrid::boundary_crosses_isovalue(float isovalue) const
+{
+    if (nx <= 0 || ny <= 0 || nz <= 0)
+        return false;
+
+    float boundary_min = std::numeric_limits<float>::infinity();
+    float boundary_max = -std::numeric_limits<float>::infinity();
+
+    auto consider = [&](int x, int y, int z)
+    {
+        if (x < 0 || x >= nx || y < 0 || y >= ny || z < 0 || z >= nz)
+            return;
+        float val = data[x][y][z];
+        boundary_min = std::min(boundary_min, val);
+        boundary_max = std::max(boundary_max, val);
+    };
+
+    for (int x = 0; x < nx; ++x)
+    {
+        for (int y = 0; y < ny; ++y)
+        {
+            consider(x, y, 0);
+            consider(x, y, nz - 1);
+        }
+    }
+
+    for (int x = 0; x < nx; ++x)
+    {
+        for (int z = 1; z < nz - 1; ++z)
+        {
+            consider(x, 0, z);
+            consider(x, ny - 1, z);
+        }
+    }
+
+    for (int y = 1; y < ny - 1; ++y)
+    {
+        for (int z = 1; z < nz - 1; ++z)
+        {
+            consider(0, y, z);
+            consider(nx - 1, y, z);
+        }
+    }
+
+    if (!std::isfinite(boundary_min) || !std::isfinite(boundary_max))
+        return false;
+
+    return (boundary_min < isovalue) && (isovalue < boundary_max);
 }
 
 

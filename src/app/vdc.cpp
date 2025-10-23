@@ -282,7 +282,11 @@ int main(int argc, char *argv[])
         data_grid.print_grid();}
     }
 
-    data_grid.zero_boundary_shell();
+    if (data_grid.boundary_crosses_isovalue(vdc_param.isovalue))
+    {
+        data_grid.zero_boundary_shell();
+        std::cout << "[INFO] Clamped boundary voxels to minimum scalar value.\n";
+    }
 
     // Identify active cubes in the grid based on the given isovalue.
     timer.startTimer("2. Data Pre-processing", "Total Processing");
