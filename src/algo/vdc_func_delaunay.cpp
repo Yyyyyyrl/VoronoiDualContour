@@ -178,4 +178,13 @@ void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std
         vit->info().voronoiCellIndex = -1; // Initialize if needed
     }
     timer.stopTimer("Assign vertex info");
+
+    // Assign indices to cells for debugging and tracking
+    timer.startTimer("Assign cell indices", "3. Delaunay Triangulation Construction");
+    int cellIndex = 0;
+    for (auto cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
+    {
+        cit->info().index = cellIndex++;
+    }
+    timer.stopTimer("Assign cell indices");
 }
