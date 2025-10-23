@@ -99,6 +99,9 @@ struct UnifiedGrid
 
     //! @brief Force internal spacing to unit while keeping physical spacing metadata.
     void force_unit_spacing();
+
+    //! @brief Clamp all boundary voxels to the global minimum scalar value.
+    void zero_boundary_shell();
 };
 
 

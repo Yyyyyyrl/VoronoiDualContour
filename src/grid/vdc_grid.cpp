@@ -1,5 +1,6 @@
 #include "grid/vdc_grid.h"
 #include "core/vdc_timing.h"
+#include <algorithm>
 #include <cmath>
 
 
@@ -128,6 +129,50 @@ void UnifiedGrid::force_unit_spacing()
 {
     dx = dy = dz = 1.0f;
     update_bounds();
+}
+
+void UnifiedGrid::zero_boundary_shell()
+{
+    if (nx <= 0 || ny <= 0 || nz <= 0)
+        return;
+
+    const float fill_value = flat_data.empty()
+                                 ? 0.0f
+                                 : *std::min_element(flat_data.begin(), flat_data.end());
+
+    auto assign = [&](int x, int y, int z) {
+        if (x < 0 || x >= nx || y < 0 || y >= ny || z < 0 || z >= nz)
+            return;
+        data[x][y][z] = fill_value;
+        flat_data[z * nx * ny + y * nx + x] = fill_value;
+    };
+
+    for (int x = 0; x < nx; ++x)
+    {
+        for (int y = 0; y < ny; ++y)
+        {
+            assign(x, y, 0);
+            assign(x, y, nz - 1);
+        }
+    }
+
+    for (int x = 0; x < nx; ++x)
+    {
+        for (int z = 0; z < nz; ++z)
+        {
+            assign(x, 0, z);
+            assign(x, ny - 1, z);
+        }
+    }
+
+    for (int y = 0; y < ny; ++y)
+    {
+        for (int z = 0; z < nz; ++z)
+        {
+            assign(0, y, z);
+            assign(nx - 1, y, z);
+        }
+    }
 }
 
 
