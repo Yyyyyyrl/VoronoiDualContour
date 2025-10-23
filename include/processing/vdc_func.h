@@ -3,9 +3,9 @@
 
 #include "core/vdc_type.h"
 #include "core/vdc_utilities.h"
-#include "io/vdc_io.h"
+#include "vdc_io.h"
 #include "core/vdc_commandline.h"
-#include "voronoi/vdc_voronoi.h"
+#include "processing/vdc_voronoi.h"
 #include "core/vdc_debug.h"
 
 //! @brief Tests whether two directions are approximately equal.

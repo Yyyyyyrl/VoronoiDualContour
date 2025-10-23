@@ -1,7 +1,7 @@
 //! @file vdc_sep_isov.cpp
 //! @brief Implementation of isosurface vertex separation algorithms
 
-#include "grid/vdc_sep_isov.h"
+#include "processing/vdc_sep_isov.h"
 #include <algorithm>
 #include <cmath>
 
@@ -334,21 +334,21 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
             // No conflict - select this cube
 
             // 1. Big cube center
-/*                 cube.cubeCenter = Point(
+                cube.cubeCenter = Point(
                     (cube.i + 0.5f) * grid.dx + grid.min_x,
                     (cube.j + 0.5f) * grid.dy + grid.min_y,
-                    (cube.k + 0.5f) * grid.dz + grid.min_z); */
+                    (cube.k + 0.5f) * grid.dz + grid.min_z);
 
             // 2. Small cube center in 3x3x3 subgrid
             //    Compute the center of the small cube containing the iso-crossing point
-            int loc[3];
+/*             int loc[3];
             compute_subgrid_loc(cube.isov_subgrid_index, loc);
 
             // Small cube center: big cube base + (subgrid_loc + 0.5) / 3.0 * cell_size
             cube.cubeCenter = Point(
                 (cube.i + (loc[0] + 0.5f) / 3.0f) * grid.dx + grid.min_x,
                 (cube.j + (loc[1] + 0.5f) / 3.0f) * grid.dy + grid.min_y,
-                (cube.k + (loc[2] + 0.5f) / 3.0f) * grid.dz + grid.min_z);
+                (cube.k + (loc[2] + 0.5f) / 3.0f) * grid.dz + grid.min_z); */
            
             selected_indices.emplace(indexA, cube);
             out.push_back(cube);

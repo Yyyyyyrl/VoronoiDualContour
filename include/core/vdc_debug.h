@@ -5,7 +5,7 @@
 #define VDC_DEBUG_H
 
 #include "core/vdc_type.h"
-#include "grid/vdc_grid.h"
+#include "processing/vdc_grid.h"
 
 //! @brief Global variable to enable or disable debug output.
 /*!

@@ -10,9 +10,9 @@
 
 #include "core/vdc_utilities.h"
 #include "core/vdc_debug.h"
-#include "io/vdc_io.h"
+#include "vdc_io.h"
 #include "core/vdc_commandline.h"
-#include "algo/vdc_func.h"
+#include "processing/vdc_func.h"
 #include <cstdlib>
 #include <map>
 

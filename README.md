@@ -84,58 +84,59 @@ Advanced/debug options (subject to change):
 .
 ├── CMakeLists.txt            # CMake build configuration
 ├── README.md                 # Project documentation
-├── cmake/                    # CMake helpers
-├── include/                  # Header files
-│   ├── core/                 # Core types, utilities, CLI
-│   │   ├── vdc.h
-│   │   ├── vdc_type.h
-│   │   ├── vdc_utilities.h
-│   │   ├── vdc_debug.h
-│   │   └── vdc_commandline.h
-│   ├── grid/                 # Grid data structures and separation methods
-│   │   ├── vdc_grid.h
-│   │   └── vdc_sep_isov.h
-│   ├── io/                   # IO helpers (NRRD)
-│   │   └── vdc_io.h
-│   ├── delaunay/             # Delaunay types/utilities
-│   │   └── vdc_delaunay.h
-│   ├── voronoi/              # Voronoi structures and operations
-│   │   └── vdc_voronoi.h
-│   ├── algo/                 # High-level algorithm declarations
-│   │   └── vdc_func.h
-│   └── test/                 # Test helpers
-│       └── test_vor.h
-├── src/                      # Source files
-│   ├── app/                  # Application entry point
-│   │   └── vdc.cpp
-│   ├── core/                 # Core utilities and CLI
+├── include/                  # Header files (14 total)
+│   ├── core/                 # Core infrastructure (7 files)
+│   │   ├── vdc.h             # Main umbrella header
+│   │   ├── vdc_type.h        # Type definitions and CGAL types
+│   │   ├── vdc_utilities.h   # Utility functions and helpers
+│   │   ├── vdc_debug.h       # Debug output and logging
+│   │   ├── vdc_commandline.h # CLI parsing
+│   │   ├── vdc_timing.h      # Performance timing
+│   │   └── vdc_stats.h       # Statistics collection and reporting
+│   ├── processing/           # All algorithm headers (5 files)
+│   │   ├── vdc_func.h        # High-level algorithm orchestration
+│   │   ├── vdc_delaunay.h    # Delaunay triangulation structures
+│   │   ├── vdc_voronoi.h     # Voronoi diagram structures and operations
+│   │   ├── vdc_grid.h        # Grid data structures
+│   │   └── vdc_sep_isov.h    # Isosurface vertex separation methods
+│   ├── vdc_io.h              # I/O operations (NRRD, OFF, PLY)
+│   └── test_vor.h            # Test utilities
+├── src/                      # Source files (20 total)
+│   ├── core/                 # Core implementations (5 files)
 │   │   ├── vdc_commandline.cpp
 │   │   ├── vdc_debug.cpp
-│   │   └── vdc_utilities.cpp
-│   ├── grid/                 # Grid operations and separation methods
-│   │   ├── vdc_grid.cpp
-│   │   └── vdc_sep_isov.cpp
-│   ├── io/                   # IO implementations
-│   │   └── vdc_io.cpp
-│   ├── algo/                 # Algorithm implementations
-│   │   ├── vdc_func_delaunay.cpp
-│   │   ├── vdc_func_helper.cpp
-│   │   ├── vdc_func_isosurface.cpp
-│   │   ├── vdc_func_modcyc.cpp
-│   │   └── vdc_func_voronoi.cpp
-│   ├── voronoi/              # Voronoi core and utilities
-│   │   ├── vdc_voronoi_collapse.cpp
-│   │   ├── vdc_voronoi_core.cpp
-│   │   └── vdc_voronoi_matching.cpp
-│   └── tests/                # Test drivers
-│       ├── test_vor.cpp
-│       └── test_modcyc.cpp
+│   │   ├── vdc_utilities.cpp
+│   │   ├── vdc_timing.cpp
+│   │   └── vdc_stats.cpp     # Statistics implementation
+│   ├── processing/           # All algorithmic implementations (11 files)
+│   │   ├── vdc_func_delaunay.cpp      # Delaunay triangulation construction
+│   │   ├── vdc_func_voronoi.cpp       # Voronoi diagram construction
+│   │   ├── vdc_func_isosurface.cpp    # Isosurface extraction
+│   │   ├── vdc_func_modcyc.cpp        # Modify-cycles algorithm
+│   │   ├── vdc_func_helper.cpp        # Algorithm helper functions
+│   │   ├── vdc_voronoi_core.cpp       # Core Voronoi operations
+│   │   ├── vdc_voronoi_collapse.cpp   # Edge collapse operations
+│   │   ├── vdc_voronoi_matching.cpp   # Bipolar edge matching
+│   │   ├── vdc_grid.cpp               # Grid operations
+│   │   ├── vdc_sep_isov.cpp           # Separation implementations
+│   │   └── vdc_sep_isov_debug.cpp     # Separation debug utilities
+│   ├── testing/              # Test drivers (2 files)
+│   │   ├── test_vor.cpp      # Voronoi test driver
+│   │   └── test_modcyc.cpp   # Modify-cycles test driver
+│   ├── vdc_main.cpp          # Main application entry point
+│   └── vdc_io.cpp            # I/O implementations
 ├── tools/                    # Utility scripts
 │   ├── plot_modcyc.py        # Visualize modify-cycles test case
 │   ├── plot_cells_and_edge.py # Visualize cells and edges
 │   ├── run_vdc_batch.py      # Generate output for different isovalues
-│   ├── compExec.py           # Compare execution output of different
+│   └── compExec.py           # Compare execution outputs
 ```
+
+**Directory Organization Philosophy:**
+- **`core/`**: Infrastructure code (types, utilities, I/O, CLI, debugging, timing, stats)
+- **`processing/`**: All computational geometry algorithms (Delaunay, Voronoi, grid, isosurface extraction)
+- **`testing/`**: Test drivers and utilities
+- **Root level**: Main application and I/O implementations
 
 ## API Documentation
 

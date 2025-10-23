@@ -5,7 +5,7 @@
 #define VDC_VORONOI_H
 
 #include "core/vdc_type.h"
-#include "delaunay/vdc_delaunay.h"
+#include "processing/vdc_delaunay.h"
 #include "core/vdc_utilities.h"
 #include <array>
 #include <utility> // for std::make_tuple

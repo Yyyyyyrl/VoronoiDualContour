@@ -1,7 +1,7 @@
 //! @file vdc_func.cpp
 //! @brief Implementation of functions for Voronoi Diagram and Isosurface computation.
 
-#include "algo/vdc_func.h"
+#include "processing/vdc_func.h"
 
 // Helper for positive mod
 static int positive_mod(int val, int mod)

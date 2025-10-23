@@ -45,17 +45,19 @@ message(STATUS "Found Teem lib:     ${TEEM_LIBRARY}")
 # (CGAL::CGAL already brings in its include dirs)
 include_directories(${TEEM_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# ─── Common source files (all vdc*.cpp except vdc.cpp) ───────────────────────
+# ─── Common source files (all vdc*.cpp except vdc_main.cpp) ─────────────────
 file(GLOB_RECURSE COMMON_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/src/vdc_*.cpp"  # Matches vdc_* but not vdc.cpp
+     "${CMAKE_CURRENT_SOURCE_DIR}/src/vdc_*.cpp"  # Matches vdc_* but not test files
 )
+# Remove vdc_main.cpp from common sources (it's the main entry point)
+list(FILTER COMMON_SOURCES EXCLUDE REGEX ".*vdc_main\\.cpp$")
 
 # ─── Main executable ─────────────────────────────────────────────────────────
-add_executable(vdc src/app/vdc.cpp ${COMMON_SOURCES})
+add_executable(vdc src/vdc_main.cpp ${COMMON_SOURCES})
 
-# ─── Test executable ─────────────────────────────────────────────────────────
-add_executable(test_vor src/tests/test_vor.cpp ${COMMON_SOURCES})
-add_executable(test_modcyc src/tests/test_modcyc.cpp ${COMMON_SOURCES})
+# ─── Test executables ────────────────────────────────────────────────────────
+add_executable(test_vor src/testing/test_vor.cpp ${COMMON_SOURCES})
+add_executable(test_modcyc src/testing/test_modcyc.cpp ${COMMON_SOURCES})
 
 # ─── Link libraries ──────────────────────────────────────────────────────────
 target_link_libraries(vdc

@@ -1,4 +1,4 @@
-#include "io/vdc_io.h"
+#include "vdc_io.h"
 
 //! Writes a single-isovalue isosurface mesh in OFF format.
 void writeOFFSingle(const std::string &filename, const IsoSurface &iso_surface)

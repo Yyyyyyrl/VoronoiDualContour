@@ -1,4 +1,4 @@
-#include "voronoi/vdc_voronoi.h"
+#include "processing/vdc_voronoi.h"
 #include "core/vdc_debug.h"
 
 //! @brief Adds a vertex to the Voronoi diagram with the given point and value.

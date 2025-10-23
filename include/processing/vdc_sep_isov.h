@@ -7,7 +7,7 @@
 #define VDC_SEP_ISOV_H
 
 #include "core/vdc_type.h"
-#include "grid/vdc_grid.h"
+#include "processing/vdc_grid.h"
 #include <vector>
 #include <unordered_map>
 

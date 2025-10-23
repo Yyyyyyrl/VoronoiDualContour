@@ -5,7 +5,7 @@
 #define VDC_IO_H
 
 #include "core/vdc_utilities.h"
-#include "voronoi/vdc_voronoi.h"
+#include "processing/vdc_voronoi.h"
 
 //! @brief Writes an isosurface mesh in OFF format (single-isovalue case).
 /*!

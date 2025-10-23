@@ -1,5 +1,5 @@
 // Temporary debug utilities for analyzing thin triangle issues
-#include "grid/vdc_sep_isov.h"
+#include "processing/vdc_sep_isov.h"
 #include <cmath>
 #include <iostream>
 

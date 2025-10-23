@@ -6,8 +6,8 @@
 
 #include "core/vdc_debug.h"
 #include "core/vdc_type.h"
-#include "grid/vdc_grid.h"
-#include "delaunay/vdc_delaunay.h"
+#include "processing/vdc_grid.h"
+#include "processing/vdc_delaunay.h"
 #include "core/vdc_commandline.h"
 
 

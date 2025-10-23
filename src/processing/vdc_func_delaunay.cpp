@@ -1,4 +1,4 @@
-#include "algo/vdc_func.h"
+#include "processing/vdc_func.h"
 #include "core/vdc_timing.h"
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.

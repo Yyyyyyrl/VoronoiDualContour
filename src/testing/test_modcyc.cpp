@@ -1,5 +1,5 @@
-#include "voronoi/vdc_voronoi.h"
-#include "algo/vdc_func.h"
+#include "processing/vdc_voronoi.h"
+#include "processing/vdc_func.h"
 #include <iostream>
 #include <fstream>
 #include <iomanip>

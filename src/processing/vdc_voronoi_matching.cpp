@@ -1,4 +1,4 @@
-#include "voronoi/vdc_voronoi.h"
+#include "processing/vdc_voronoi.h"
 
 static std::vector<int> collectFacetVoronoiEdges(const VoronoiDiagram &vd, const std::vector<int> &verts)
 {

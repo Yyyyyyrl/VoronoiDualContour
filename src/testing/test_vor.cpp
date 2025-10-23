@@ -1,4 +1,4 @@
-#include "test/test_vor.h"
+#include "test_vor.h"
 #include "core/vdc_utilities.h"  // For readPointsFromFile and write_voronoiDiagram
 
 void print_message()
