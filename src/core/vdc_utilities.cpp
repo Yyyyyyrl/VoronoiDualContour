@@ -49,7 +49,7 @@ bool is_degenerate(Delaunay::Cell_handle cell)
     K::FT vol = CGAL::volume(p0, p1, p2, p3);
 
     // Consider degenerate if volume is near zero.
-    return CGAL::abs(vol) < 1e-6;
+    return CGAL::abs(vol) < 1e-4;
 }
 
 //! Checks if two scalar values are bipolar.
