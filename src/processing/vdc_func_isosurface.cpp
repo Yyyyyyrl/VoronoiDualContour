@@ -1666,7 +1666,7 @@ static Point clip_isovertex_to_circumscribed_sphere(
     float cube_side_length)
 {
     // Circumscribed sphere radius = (sqrt(3) / 2) * side_length
-    const double circumscribed_radius = (std::sqrt(3.0) / 2.0) * cube_side_length;
+    const double circumscribed_radius = 0.5 * cube_side_length;
 
     // Vector from cube center to isovertex
     Vector3 direction = isovertex - cube_center;
