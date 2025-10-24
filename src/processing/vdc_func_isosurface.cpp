@@ -1761,14 +1761,7 @@ static void compute_cycle_centroids(
         {
             // Multiple cycles: clip centroid to sphere around accurate iso-crossing
             cycle.isovertex = clip_isovertex_to_circumscribed_sphere(
-                cycle.isovertex, *accurate_crossing, cube_side_length);
-        }
-        else if (cube_side_length > 0.0f)
-        {
-            // Fallback: clip to sphere around cube center (original behavior)
-            Point cube_center = vc.delaunay_vertex->point();
-            cycle.isovertex = clip_isovertex_to_circumscribed_sphere(
-                cycle.isovertex, cube_center, cube_side_length);
+                cycle.isovertex, vc.delaunay_vertex->point(), cube_side_length);
         }
 
         for (int ptIdx : single_cycle)
