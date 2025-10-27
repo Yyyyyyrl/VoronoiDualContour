@@ -138,6 +138,12 @@ int main(int argc, char *argv[])
         // Persist the resolved default so downstream stages and logs can see it.
         vdc_param.collapse_eps = collapse_eps;
     }
+
+    if (indicator)
+    {
+        std::cout << "[INFO] VoronoiDiagram small edge Collapsing ..." << std::endl;
+    }
+
     std::vector<int> vertex_mapping;  // Maps old vertex indices to new after collapse
     timer.startTimer("5. Collapse Small Edges", "Total Processing");
     VoronoiDiagram vd2 = collapseSmallEdges(vd, collapse_eps, bbox, dt, vertex_mapping);
