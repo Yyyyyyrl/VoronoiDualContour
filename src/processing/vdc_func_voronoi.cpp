@@ -12,33 +12,36 @@ void construct_voronoi_vertices(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
     for (Delaunay::Finite_cells_iterator cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
     {
         cit->info().dualVoronoiVertexIndex = -1; // Default to invalid until a vertex is recorded
-        // Skip degenerate cells to avoid invalid circumcenters (e.g., NaN coordinates)
-        if (is_degenerate(cit))
-        {
-            if (debug)
-            {
-                std::cerr << "[DEBUG] Skipping degenerate cell with vertices: "
-                          << cit->vertex(0)->point() << ", "
-                          << cit->vertex(1)->point() << ", "
-                          << cit->vertex(2)->point() << ", "
-                          << cit->vertex(3)->point() << "\n";
-            }
-            continue;
-        }
 
         Point circumcenter = dt.dual(cit);
 
+        // Check for degenerate (flat/coplanar) Delaunay tetrahedron
         if (std::isnan(circumcenter.x()) || std::isnan(circumcenter.y()) || std::isnan(circumcenter.z()))
         {
-            if (debug)
-            {
-                std::cerr << "[DEBUG] Skipping cell with NaN circumcenter: vertices "
-                          << cit->vertex(0)->point() << ", "
-                          << cit->vertex(1)->point() << ", "
-                          << cit->vertex(2)->point() << ", "
-                          << cit->vertex(3)->point() << "\n";
-            }
-            continue;
+            // Print warning with Delaunay vertex details
+            std::cerr << "[WARNING] Degenerate Delaunay tetrahedron detected (NaN circumcenter)\n";
+            std::cerr << "  Delaunay vertices:\n";
+            std::cerr << "    v0: " << cit->vertex(0)->point()
+                      << " (index: " << cit->vertex(0)->info().index << ")\n";
+            std::cerr << "    v1: " << cit->vertex(1)->point()
+                      << " (index: " << cit->vertex(1)->info().index << ")\n";
+            std::cerr << "    v2: " << cit->vertex(2)->point()
+                      << " (index: " << cit->vertex(2)->info().index << ")\n";
+            std::cerr << "    v3: " << cit->vertex(3)->point()
+                      << " (index: " << cit->vertex(3)->info().index << ")\n";
+
+            // Use centroid of Delaunay vertices as Voronoi vertex instead of skipping
+            Point v0 = cit->vertex(0)->point();
+            Point v1 = cit->vertex(1)->point();
+            Point v2 = cit->vertex(2)->point();
+            Point v3 = cit->vertex(3)->point();
+
+            double cx = (v0.x() + v1.x() + v2.x() + v3.x()) / 4.0;
+            double cy = (v0.y() + v1.y() + v2.y() + v3.y()) / 4.0;
+            double cz = (v0.z() + v1.z() + v2.z() + v3.z()) / 4.0;
+
+            circumcenter = Point(cx, cy, cz);
+            std::cerr << "  Using centroid as Voronoi vertex: " << circumcenter << "\n";
         }
         VoronoiVertex vv(circumcenter);
         vv.index = vertexIndex;
@@ -197,6 +200,7 @@ static void collcet_cell_vertices(
     for (Cell_handle c : incidentCells)
     {
         int vertex_index = c->info().dualVoronoiVertexIndex;
+        // Only include cells where the dual Voronoi vertex is defined (>= 0)
         if (vertex_index >= 0)
         {
             uniqueVertexIndices.insert(vertex_index);
@@ -284,6 +288,7 @@ static VoronoiCellFacet build_facet_from_edge(
         if (!dt.is_infinite(cc))
         {
             int vertex_index = cc->info().dualVoronoiVertexIndex;
+            // Only include vertices where the Voronoi vertex is defined (>= 0)
             if (vertex_index >= 0)
             {
                 facetVertices.push_back(vertex_index);
@@ -293,6 +298,7 @@ static VoronoiCellFacet build_facet_from_edge(
         ++cc;
     } while (cc != start);
 
+    // Check for degenerate facet: need at least 3 Voronoi vertices
     if (facetVertices.size() < 3)
     {
         if (debug)
@@ -302,12 +308,13 @@ static VoronoiCellFacet build_facet_from_edge(
         return VoronoiCellFacet();
     }
 
+    // Check for degenerate facet: need at least 3 unique Voronoi vertices
     std::set<int> unique_vertices(facetVertices.begin(), facetVertices.end());
     if (unique_vertices.size() < 3)
     {
         if (debug)
         {
-            std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells\n";
+            std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells (duplicate vertices)\n";
         }
         return VoronoiCellFacet();
     }
@@ -343,6 +350,7 @@ static VoronoiCellFacet build_facet_from_edge(
         if (!dt.is_infinite(cc))
         {
             const int vor_vertex_index = cc->info().dualVoronoiVertexIndex;
+            // Only include facets where the dual Voronoi vertex is defined (>= 0)
             if (vor_vertex_index >= 0)
             {
                 vorVertexIndices.push_back(vor_vertex_index);
