@@ -373,3 +373,64 @@ std::vector<Cube> separate_active_cubes_III_wide(
 {
     return separate_active_cubes_III_with_clearance(activeCubes, grid, isovalue, 2);
 }
+
+std::vector<Cube> separate_active_cubes_III_exact_binary(
+    std::vector<Cube> &activeCubes,
+    const UnifiedGrid &grid,
+    float isovalue)
+{
+    // Compute accurate iso-crossing points and determine subgrid indices
+    for (Cube &cube : activeCubes)
+    {
+        Point accurate_crossing = compute_iso_crossing_point_accurate(grid, cube.i, cube.j, cube.k, isovalue);
+        cube.accurateIsoCrossing = accurate_crossing;
+        cube.isov_subgrid_index = determine_subgrid_index(accurate_crossing, cube, grid);
+    }
+
+    // Sort by distance to boundary (same as method III)
+    std::sort(activeCubes.begin(), activeCubes.end(),
+              [&grid](const Cube &a, const Cube &b) {
+                  int dist_a = min_distance_to_boundary(a.i, a.j, a.k, grid);
+                  int dist_b = min_distance_to_boundary(b.i, b.j, b.k, grid);
+                  if (dist_a == dist_b)
+                  {
+                      // Deterministic tie-break
+                      if (a.k != b.k) return a.k < b.k;
+                      if (a.j != b.j) return a.j < b.j;
+                      return a.i < b.i;
+                  }
+                  return dist_a < dist_b;
+              });
+
+    // Selection with 3× grid conflict detection
+    std::unordered_map<int, Cube> selected_indices;
+    selected_indices.reserve(activeCubes.size());
+    std::vector<Cube> out;
+    out.reserve(activeCubes.size());
+
+    for (Cube &cube : activeCubes)
+    {
+        int indexA;
+        if (!does_cell_conflict_with_selected_cubes(cube, selected_indices, grid, &indexA, 1))
+        {
+            // No conflict - select this cube
+            int loc[3];
+            compute_subgrid_loc(cube.isov_subgrid_index, loc);
+
+            // KEY CHANGE: Use exact binary fractions instead of thirds
+            // Map loc[d] ∈ {0, 1, 2} to {0.25, 0.5, 0.75}
+            // These have exact binary representations: 1/4, 1/2, 3/4
+            static const float exact_offsets[3] = {0.25f, 0.5f, 0.75f};
+
+            cube.cubeCenter = Point(
+                (cube.i + exact_offsets[loc[0]]) * grid.dx + grid.min_x,
+                (cube.j + exact_offsets[loc[1]]) * grid.dy + grid.min_y,
+                (cube.k + exact_offsets[loc[2]]) * grid.dz + grid.min_z);
+
+            selected_indices.emplace(indexA, cube);
+            out.push_back(cube);
+        }
+    }
+
+    return out;
+}

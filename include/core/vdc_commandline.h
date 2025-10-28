@@ -23,6 +23,7 @@ struct VDC_PARAM {
     bool sep_isov_1;               //!< Flag to enable separation method I (greedy cube-level).
     bool sep_isov_3;               //!< Flag to enable separation method III (3×3×3 subgrid-based).
     bool sep_isov_3_wide;          //!< Flag to enable widened separation method III (5×5×5 clearance testing).
+    bool sep_isov_3B;              //!< Flag to enable sep_isov_3 with exact binary fractions (1/4, 1/2, 3/4).
     bool multi_isov;               //!< Flag to enable multi-isosurface mode.
     bool supersample;              //!< Flag to enable supersampling of the input data.
     bool add_bounding_cells;       //!< Flag to include bounding cells in the Voronoi diagram.
@@ -45,6 +46,7 @@ struct VDC_PARAM {
           sep_isov_1(false),
           sep_isov_3(false),
           sep_isov_3_wide(false),
+          sep_isov_3B(false),
           multi_isov(false),
           supersample(false),
           add_bounding_cells(false),
@@ -68,6 +70,7 @@ struct VDC_PARAM {
         out << "  Sep isov 1: " << (sep_isov_1 ? "true" : "false") << "\n";
         out << "  Sep isov 3: " << (sep_isov_3 ? "true" : "false") << "\n";
         out << "  Sep isov 3 wide: " << (sep_isov_3_wide ? "true" : "false") << "\n";
+        out << "  Sep isov 3B: " << (sep_isov_3B ? "true" : "false") << "\n";
         out << "  Multi isov: " << (multi_isov ? "true" : "false") << "\n";
         out << "  Supersample: " << (supersample ? "true" : "false") << "\n";
         out << "  Add bounding cells: " << (add_bounding_cells ? "true" : "false") << "\n";

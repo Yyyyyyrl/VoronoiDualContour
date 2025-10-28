@@ -15,6 +15,7 @@ void print_help()
     std::cout << "  -sep_isov_1                 : Separation method I: Greedy cube-level (26-connectivity).\n";
     std::cout << "  -sep_isov_3                 : Separation method III: 3×3×3 subgrid-based separation.\n";
     std::cout << "  -sep_isov_3_wide            : Testing variant of method III using a 5×5×5 clearance in the 3× grid.\n";
+    std::cout << "  -sep_isov_3B                : Variation of method III using exact binary fractions (1/4, 1/2, 3/4).\n";
     std::cout << "  -supersample {factor}       : Supersample the input data by the given factor.\n";
     std::cout << "  -collapse_eps {eps}         : Set absolute collapse threshold in world units (default: 1% of grid spacing).\n";
     std::cout << "  -multi_isov                 : Use multi iso-vertices mode.\n";
@@ -70,6 +71,10 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         else if (arg == "-sep_isov_3_wide")
         {
             vp.sep_isov_3_wide = true; // Enable widened clearance testing variant of method III.
+        }
+        else if (arg == "-sep_isov_3B")
+        {
+            vp.sep_isov_3B = true; // Enable sep_isov_3 with exact binary fractions.
         }
         else if (arg == "-supersample" && i + 1 < argc)
         {
@@ -180,6 +185,10 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         else if (vp.sep_isov_3_wide)
         {
             vp.output_filename += "_sep-isov-3-wide";
+        }
+        else if (vp.sep_isov_3B)
+        {
+            vp.output_filename += "_sep-isov-3B";
         }
 
         if (vp.convex_hull)

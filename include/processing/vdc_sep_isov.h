@@ -60,6 +60,25 @@ std::vector<Cube> separate_active_cubes_III_wide(
     const UnifiedGrid &grid,
     float isovalue);
 
+//! @brief Separation method III variant: exact binary fractions (1/4, 1/2, 3/4)
+/*!
+ * Identical to sep_isov_3 but uses exact binary fractional offsets instead of
+ * thirds (1/6, 1/2, 5/6) to avoid floating-point representation errors that may
+ * cause CGAL to generate degenerate Delaunay tetrahedra.
+ *
+ * The offset change is: 1/6→1/4, 5/6→3/4 (difference of ±1/12 ≈ 8.3% cube width).
+ * All three offsets (0.25, 0.5, 0.75) have exact binary representations.
+ *
+ * @param activeCubes Input vector of active cubes
+ * @param grid Grid for iso-crossing point computation
+ * @param isovalue Isovalue for computing accurate crossing points
+ * @return Separated subset of cubes with exact binary offsets
+ */
+std::vector<Cube> separate_active_cubes_III_exact_binary(
+    std::vector<Cube> &activeCubes,
+    const UnifiedGrid &grid,
+    float isovalue);
+
 //! @brief Compute accurate iso-crossing point using edge-intersection centroids
 /*!
  * Finds all edge-isovalue intersections and returns their centroid.
