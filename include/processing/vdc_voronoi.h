@@ -256,10 +256,10 @@ struct VoronoiFacet
     std::vector<std::pair<int, int>> bipolar_matches; //!< Pairs of edge indices for matched bipolar edges.
     std::vector<int> bipolar_edge_indices;            //!< Boundary slot indices (0..m-1) around the facet that are bipolar
 
-    // NEW
     std::array<int, 2> incident_cell_indices = {-1, -1};       // {C0, C1} or {-1, X}
     std::array<int, 2> incident_cell_facet_indices = {-1, -1}; // cell-facet indices for C0/C1
     std::vector<IsoSegment> iso_segments;
+    int conflict_retry_count = 0; // # of times attempted to resolve triangle binding conflicts for this facet.
 
     //! @brief Print Voronoi facet information for debugging
     template <typename OSTREAM_TYPE>

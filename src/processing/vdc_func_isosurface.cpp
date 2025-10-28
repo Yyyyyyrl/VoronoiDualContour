@@ -336,7 +336,7 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
     }
 
     bool adjusted = false;
-    std::unordered_set<int> tweakedFacets;
+    std::unordered_set<int> queuedFacets;
 
     for (const auto &kv : edgeToTriangles)
     {
@@ -352,6 +352,8 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
         const auto &ccB = vertexToCellCycle[vB];
         if (ccA.first < 0 || ccB.first < 0)
             continue;
+
+        bool resolvedForEdge = false;
 
         if (modcycDebug)
         {
@@ -400,45 +402,97 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
                 if (!match)
                     continue;
 
-                if (!tweakedFacets.insert(static_cast<int>(vfi)).second)
-                    continue;
+                const int facetIndex = static_cast<int>(vfi);
+                auto &facet = vd.global_facets[facetIndex];
+                const int retryCount = ++facet.conflict_retry_count;
 
-                auto &facet = vd.global_facets[vfi];
                 if (modcycDebug)
                 {
                     std::cerr << "  [MODCYC] facet " << vfi << " method=" << matchMethodToString(facet.bipolar_match_method)
                               << " slots(" << seg.slotA << ',' << seg.slotB << ")"
                               << " edges(" << seg.edgeA << ',' << seg.edgeB << ")\n";
                 }
-                BIPOLAR_MATCH_METHOD nextMethod;
-                switch (facet.bipolar_match_method)
+                if (facet.bipolar_match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
                 {
-                case BIPOLAR_MATCH_METHOD::SEP_POS:
-                    nextMethod = BIPOLAR_MATCH_METHOD::SEP_NEG;
-                    break;
-                case BIPOLAR_MATCH_METHOD::SEP_NEG:
+                    continue;
+                }
+
+                BIPOLAR_MATCH_METHOD nextMethod = facet.bipolar_match_method;
+                if (facet.bipolar_match_method == BIPOLAR_MATCH_METHOD::SEP_POS)
+                {
+                    nextMethod = (retryCount <= 1)
+                                     ? BIPOLAR_MATCH_METHOD::SEP_NEG
+                                     : BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
+                }
+                else
+                {
                     nextMethod = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
-                    break;
-                default:
-                    nextMethod = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
-                    break;
                 }
 
                 if (facet.bipolar_match_method != nextMethod)
                 {
                     facet.bipolar_match_method = nextMethod;
+                    if (nextMethod == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
+                    {
+                        facet.conflict_retry_count = 0;
+                    }
+                    else
+                    {
+                        facet.conflict_retry_count = std::min(facet.conflict_retry_count, 1);
+                    }
                     adjusted = true;
+                    resolvedForEdge = true;
                     if (modcycDebug)
                     {
                         std::cerr << "    [MODCYC] facet " << vfi << " switched to " << matchMethodToString(nextMethod) << "\n";
                     }
                     if (outTweakedFacets)
                     {
-                        outTweakedFacets->push_back(static_cast<int>(vfi));
+                        if (queuedFacets.insert(facetIndex).second)
+                        {
+                            outTweakedFacets->push_back(facetIndex);
+                        }
                     }
                 }
 
                 break;
+            }
+        }
+
+        if (!resolvedForEdge)
+        {
+            if (modcycDebug)
+            {
+                std::cerr << "  [MODCYC] fallback escalating edge {" << vA << "," << vB << "} (cells "
+                          << ccA.first << "," << ccB.first << ")\n";
+            }
+            for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+            {
+                auto &facet = vd.global_facets[vfi];
+                const auto cells = facet.incident_cell_indices;
+                if (cells[0] < 0 || cells[1] < 0)
+                    continue;
+
+                const bool matchForward = (cells[0] == ccA.first && cells[1] == ccB.first);
+                const bool matchReverse = (cells[0] == ccB.first && cells[1] == ccA.first);
+                if (!matchForward && !matchReverse)
+                    continue;
+
+                if (facet.bipolar_match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
+                    continue;
+
+                facet.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
+                facet.conflict_retry_count = 0;
+                adjusted = true;
+                resolvedForEdge = true;
+                if (modcycDebug)
+                {
+                    std::cerr << "    [MODCYC] fallback facet " << vfi << " forced to UNCONSTRAINED_MATCH\n";
+                }
+                if (outTweakedFacets && queuedFacets.insert(static_cast<int>(vfi)).second)
+                {
+                    outTweakedFacets->push_back(static_cast<int>(vfi));
+                }
             }
         }
     }
@@ -1388,7 +1442,7 @@ bool compute_dual_triangles_multi(
         ISO_STATS.dump_summary();
     }
 
-    prune_duplicate_edge_triangles(iso_surface, voronoiDiagram);
+    //prune_duplicate_edge_triangles(iso_surface, voronoiDiagram);
     return bindingConflict;
 }
 
