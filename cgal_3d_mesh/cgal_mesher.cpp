@@ -172,7 +172,7 @@ public:
 // ============================================================================
 
 void print_help() {
-    std::cout << "CGAL Mesh Generator - Comparison tool for VDC\n\n";
+    std::cout << "CGAL Mesh Generator - Using CGAL's 3D Mesh Generation package\n\n";
     std::cout << "Usage: cgal_mesher [OPTIONS] <isovalue> <nrrd_file>\n\n";
     std::cout << "Arguments:\n";
     std::cout << "  isovalue              Isovalue for surface extraction\n";
@@ -186,10 +186,6 @@ void print_help() {
     std::cout << "  -cell_size <value>    Maximum cell size (default: auto)\n";
     std::cout << "  -surface_only         Generate surface mesh only (no volume)\n";
     std::cout << "  -h, --help            Show this help message\n\n";
-    std::cout << "Examples:\n";
-    std::cout << "  cgal_mesher 128 data.nrrd\n";
-    std::cout << "  cgal_mesher -o sphere.off -facet_angle 25 -surface_only 128 sphere.nrrd\n\n";
-    std::cout << "Note: Uses CGAL's modern Mesh_3 package (non-deprecated).\n";
 }
 
 // ============================================================================
