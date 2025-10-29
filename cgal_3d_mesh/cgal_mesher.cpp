@@ -196,10 +196,10 @@ int main(int argc, char* argv[]) {
     // Default parameters
     std::string output_file = "cgal_output.off";
     double facet_angle = 20.0;
-    double facet_size = 0.5;      
-    double facet_distance = 0.5; 
+    double facet_size = 0.7;      
+    double facet_distance = 0.6; 
     double cell_ratio = 3.0;
-    double cell_size = 2.0;      
+    double cell_size = 4.0;      
     bool surface_only = false;
     double isovalue = 0.0;
     std::string input_file;
