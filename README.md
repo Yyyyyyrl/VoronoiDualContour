@@ -43,11 +43,12 @@ make -j
 - `-sep_isov_3_wide`: Testing variant of method III with 5×5×5 clearance in the 3× subgrid
 - `-supersample {factor}`: Supersample the input data by the given factor
 - `-collapse_eps {eps}`: Set absolute collapse threshold in world units (default: 1% of grid spacing)
-- `-multi_isov`: Use multi iso-vertices mode
-- `-single_isov`: Use single iso-vertices mode (default)
+- `-multi_isov`: Use multi iso-vertices mode (default)
+- `-single_isov`: Use single iso-vertices mode
 - `-conv_H`: Use the Convex_Hull_3 from CGAL in voronoi cell construction
-- `-mod_cyc`: After initial cycles, try facet rematching and recompute cycles
+- `-non_modcyc`: Disable modify-cycles pass (enabled by default)
 - `--summary_stats`: Print summary statistics after the run
+- `--timing_stats`: Print timing statistics after the run
 - `--debug`: Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD])
 - `--help`: Print help message
 
@@ -56,7 +57,7 @@ Advanced/debug options (subject to change):
 - `--test_vor`: Flag for testing the Voronoi diagram construction
 
 ### Examples
-- Basic run (OFF output):
+- Basic run (OFF output, multi-isov and modcyc enabled by default):
   ```bash
   ./vdc 0.0 ./data/sphere-32.nrrd
   ```
@@ -64,17 +65,17 @@ Advanced/debug options (subject to change):
   ```bash
   ./vdc -ply -supersample 2 0.0 ./data/sphere-32.nrrd
   ```
-- Multi iso-vertices with separation method I:
+- Single iso-vertices mode with separation method I:
   ```bash
-  ./vdc -multi_isov -sep_isov_1 0.0 ./data/sphere-32.nrrd
+  ./vdc -single_isov -sep_isov_1 0.0 ./data/sphere-32.nrrd
   ```
 - Export Voronoi diagram to CSV with custom output name:
   ```bash
   ./vdc -o sphere_output -out_csv voronoi_data.csv 0.0 ./data/sphere-32.nrrd
   ```
-- Using modify-cycles with summary statistics:
+- Disable modify-cycles with summary and timing statistics:
   ```bash
-  ./vdc -mod_cyc --summary_stats 0.0 ./data/sphere-32.nrrd
+  ./vdc -non_modcyc --summary_stats -timing_stats 0.0 ./data/sphere-32.nrrd
   ```
 
 
