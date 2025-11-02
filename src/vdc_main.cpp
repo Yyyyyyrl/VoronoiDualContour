@@ -218,8 +218,11 @@ int main(int argc, char *argv[])
     std::cout << "Finished." << std::endl;
     timer.stopTimer("Total Processing");
 
-    // Print the comprehensive timing report
-    timer.printReport();
+    // Print the comprehensive timing report (only if requested)
+    if (vdc_param.timing_stats)
+    {
+        timer.printReport();
+    }
 
     return EXIT_SUCCESS;
 }

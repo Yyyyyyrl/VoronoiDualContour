@@ -18,11 +18,12 @@ void print_help()
     std::cout << "  -sep_isov_3B                : Variation of method III using exact binary fractions (1/4, 1/2, 3/4).\n";
     std::cout << "  -supersample {factor}       : Supersample the input data by the given factor.\n";
     std::cout << "  -collapse_eps {eps}         : Set absolute collapse threshold in world units (default: 1% of grid spacing).\n";
-    std::cout << "  -multi_isov                 : Use multi iso-vertices mode.\n";
-    std::cout << "  -single_isov                : Use single iso-vertices mode (default).\n";
+    std::cout << "  -multi_isov                 : Use multi iso-vertices mode (default).\n";
+    std::cout << "  -single_isov                : Use single iso-vertices mode.\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
-    std::cout << "  -mod_cyc                    : After initial cycles, try facet rematching and recompute cycles.\n";
+    std::cout << "  -non_modcyc                 : Disable modify-cycles pass (enabled by default).\n";
     std::cout << "  --summary_stats             : Print summary statistics after the run.\n";
+    std::cout << "  --timing_stats               : Print timing statistics after the run.\n";
     std::cout << "  --debug                     : Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD]).\n";
     std::cout << "  --help                      : Print this help message.\n";
 }
@@ -98,10 +99,6 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
             print_help();
             exit(EXIT_SUCCESS);
         }
-        else if (arg == "-bound_cells")
-        {
-            vp.add_bounding_cells = true; // Add bounding cells to the Voronoi diagram.
-        }
         else if (arg == "-conv_H")
         {
             vp.convex_hull = true;
@@ -110,13 +107,17 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         {
             vp.test_vor = true;
         }
-        else if (arg == "-mod_cyc")
+        else if (arg == "-non_modcyc")
         {
-            vp.mod_cyc = true; // Enable modify-cycles pass (guarded)
+            vp.mod_cyc = false; // Disable modify-cycles pass (enabled by default)
         }
         else if (arg == "--summary_stats")
         {
             vp.summary_stats = true;
+        }
+        else if (arg == "--timing_stats")
+        {
+            vp.timing_stats = true; // Enable timing statistics report
         }
         else if (arg == "--debug")
         {
@@ -160,11 +161,7 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         vp.output_filename = base_name;
 
         // Append processing details to the filename.
-        if (vp.multi_isov)
-        {
-            vp.output_filename += "_multi-isov";
-        }
-        else
+        if (!vp.multi_isov)
         {
             vp.output_filename += "_single-isov";
         }
@@ -196,9 +193,9 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
             vp.output_filename += "_conv-H";
         }
 
-        if (vp.mod_cyc)
+        if (!vp.mod_cyc)
         {
-            vp.output_filename += "_modcyc";
+            vp.output_filename += "_non-modcyc";
         }
 
         // Add file format extension.

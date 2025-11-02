@@ -31,6 +31,7 @@ struct VDC_PARAM {
     bool test_vor = false;         //!< Flag for testing the Voronoi diagram construction
     bool mod_cyc = false;          //!< Guard: run modify-cycles pass (facet rematching + cycle recompute)
     bool summary_stats = false;    //!< Guard: print summary statistics at the end of the run
+    bool timing_stats = false;     //!< Guard: print timing statistics at the end of the run
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
     double collapse_eps;           //!< Absolute collapse threshold in world units (optional).
@@ -47,14 +48,15 @@ struct VDC_PARAM {
           sep_isov_3(false),
           sep_isov_3_wide(false),
           sep_isov_3B(false),
-          multi_isov(false),
+          multi_isov(true),
           supersample(false),
           add_bounding_cells(false),
           convex_hull(false),
           supersample_r(1),
           collapse_eps(-1.0),
-          mod_cyc(false),
-          summary_stats(false)
+          mod_cyc(true),
+          summary_stats(false),
+          timing_stats(false)
     {}
 
     //! @brief Print VDC parameters for debugging
@@ -78,6 +80,7 @@ struct VDC_PARAM {
         out << "  Test vor: " << (test_vor ? "true" : "false") << "\n";
         out << "  Mod cyc: " << (mod_cyc ? "true" : "false") << "\n";
         out << "  Summary stats: " << (summary_stats ? "true" : "false") << "\n";
+        out << "  Timing stats: " << (timing_stats ? "true" : "false") << "\n";
         out << "  Supersample r: " << supersample_r << "\n";
         out << "  Collapse eps: " << collapse_eps << "\n";
     }
