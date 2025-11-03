@@ -24,6 +24,7 @@ void print_help()
     std::cout << "  -non_modcyc                 : Disable modify-cycles pass (enabled by default).\n";
     std::cout << "  --summary_stats             : Print summary statistics after the run.\n";
     std::cout << "  --timing_stats               : Print timing statistics after the run.\n";
+    std::cout << "  --check_bipolar_max         : Check and report maximum bipolar matches per facet.\n";
     std::cout << "  --debug                     : Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD]).\n";
     std::cout << "  --help                      : Print this help message.\n";
 }
@@ -118,6 +119,10 @@ void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
         else if (arg == "--timing_stats")
         {
             vp.timing_stats = true; // Enable timing statistics report
+        }
+        else if (arg == "--check_bipolar_max")
+        {
+            vp.check_bipolar_max = true; // Enable bipolar match checking
         }
         else if (arg == "--debug")
         {

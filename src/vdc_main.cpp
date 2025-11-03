@@ -191,12 +191,35 @@ int main(int argc, char *argv[])
     int interior_flips = 0, boundary_flips = 0, total_flips = 0;
     std::size_t clipped_count = 0;
     double max_clip_distance = 0.0;
+
     timer.startTimer("7. Isosurface Construction", "Total Processing");
     construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, activeCubeAccurateIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &total_flips, &clipped_count, &max_clip_distance);
     timer.stopTimer("7. Isosurface Construction");
 
-    //write_voronoiDiagram(vd2, vdc_param.output_filename);
+    write_voronoiDiagram(vd2, vdc_param.output_filename);
 
+    // Check maximum bipolar matches if requested
+    if (vdc_param.check_bipolar_max)
+    {
+        int max_bipolar_matches = 0;
+        int facet_with_max = -1;
+        for (size_t i = 0; i < vd2.global_facets.size(); ++i)
+        {
+            const auto& facet = vd2.global_facets[i];
+            int num_matches = static_cast<int>(facet.bipolar_matches.size());
+            if (num_matches > max_bipolar_matches)
+            {
+                max_bipolar_matches = num_matches;
+                facet_with_max = static_cast<int>(i);
+            }
+        }
+        std::cout << "MAX_BIPOLAR_MATCHES: " << max_bipolar_matches << std::endl;
+        if (max_bipolar_matches >= 3)
+        {
+            std::cout << "FACET_WITH_MAX_MATCHES: " << facet_with_max << std::endl;
+            vd2.global_facets[facet_with_max].Print(std::cout);
+        }
+    }
     // Handle the output mesh generation and return the appropriate status.
     timer.startTimer("8. Output Mesh", "Total Processing");
     bool retFlag;
