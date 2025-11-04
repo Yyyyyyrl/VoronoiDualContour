@@ -217,7 +217,25 @@ int main(int argc, char *argv[])
         if (max_bipolar_matches >= 3)
         {
             std::cout << "FACET_WITH_MAX_MATCHES: " << facet_with_max << std::endl;
-            vd2.global_facets[facet_with_max].Print(std::cout);
+            const auto &facet = vd2.global_facets[facet_with_max];
+            facet.Print(std::cout);
+            std::cout << "Voronoi vertices on facet " << facet_with_max << ":\n";
+            for (int vid : facet.vertices_indices)
+            {
+                if (vid < 0 || vid >= static_cast<int>(vd2.vertices.size()))
+                {
+                    std::cout << "  [" << vid << "] <invalid index>\n";
+                    continue;
+                }
+                const auto &vertex = vd2.vertices[vid];
+                std::cout << "  [" << vid << "] " << vertex.coord
+                          << "  value=" << vertex.value << std::endl;
+            }
+            std::cout << "Voronoi Edges on facet " <<  facet_with_max << ":\n";
+            for (int eid : facet.voronoi_edge_indices) {
+                const auto &edge = vd2.edges[eid];
+                std::cout << "  [" << eid << "] " << edge.vertex1 << ", " << edge.vertex2 << std::endl;
+            }
         }
     }
     // Handle the output mesh generation and return the appropriate status.
