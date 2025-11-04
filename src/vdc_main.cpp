@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
     construct_iso_surface(dt, vd2, vdc_param, iso_surface, data_grid, activeCubeCenters, activeCubeAccurateIsoCrossingPoints, bbox, &vertex_mapping, &interior_flips, &boundary_flips, &total_flips, &clipped_count, &max_clip_distance);
     timer.stopTimer("7. Isosurface Construction");
 
-    write_voronoiDiagram(vd2, vdc_param.output_filename);
+    //write_voronoiDiagram(vd2, vdc_param.output_filename);
 
     // Check maximum bipolar matches if requested
     if (vdc_param.check_bipolar_max)
