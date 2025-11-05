@@ -224,7 +224,7 @@ int find_cycle_for_bipolar_edge(const VoronoiDiagram &vd,
 // Build vf.iso_segments and fill comp[2] via single-slot lookup per side.
 void build_iso_segments_for_facet(VoronoiDiagram &vd,
                                   int vfi,
-                                  float /*isovalue*/)
+                                  float isovalue)
 {
     if (vfi < 0 || vfi >= (int)vd.global_facets.size())
         return;
