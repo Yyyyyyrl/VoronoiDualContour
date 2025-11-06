@@ -406,10 +406,10 @@ void recompute_cell_cycles_for_matches_single_cell(VoronoiDiagram &vd,
             const int globalEdgeIdx = midpoints[mpIdx].global_edge_index;
             if (globalEdgeIdx < 0)
                 continue;
-            const auto it = vd.cellEdgeLookup.find({cellIndex, globalEdgeIdx});
-            if (it == vd.cellEdgeLookup.end())
+            const int ceIdx = find_cell_edge_for_cell_and_edge(vd, cellIndex, globalEdgeIdx);
+            if (ceIdx < 0)
                 continue;
-            auto &cyclesVec = vd.cellEdges[it->second].cycleIndices;
+            auto &cyclesVec = vd.cellEdges[ceIdx].cycleIndices;
             if (std::find(cyclesVec.begin(), cyclesVec.end(), cycId) == cyclesVec.end())
                 cyclesVec.push_back(cycId);
         }

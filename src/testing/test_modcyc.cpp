@@ -27,7 +27,6 @@ static int add_cell_edge(VoronoiDiagram &vd, int cellIndex, int globalEdge)
     ce.nextCellEdge = -1;
     int idx = (int)vd.cellEdges.size();
     vd.cellEdges.push_back(ce);
-    vd.cellEdgeLookup[{cellIndex, globalEdge}] = idx;
     return idx;
 }
 
@@ -39,7 +38,6 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     vd.facets.clear();
     vd.global_facets.clear();
     vd.cellEdges.clear();
-    vd.cellEdgeLookup.clear();
     vd.segmentVertexPairToEdgeIndex.clear();
 
     // 4 vertices in a unit square (z=0)

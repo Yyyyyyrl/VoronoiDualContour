@@ -186,6 +186,21 @@ void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
  */
 void populate_cell_edge_indices(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
 
+//! @brief Resolve (cellIndex, globalEdgeIndex) to a VoronoiCellEdge index using per-facet anchors.
+/*!
+ * Finds the VoronoiCellEdge index for a given Voronoi cell and global Voronoi edge
+ * by leveraging the per-cell facet anchor (CELL_INFO::cell_edge_index) and
+ * traversing the per-edge ring via nextCellEdge. Returns -1 if not found.
+ *
+ * @param vd The Voronoi diagram.
+ * @param cellIndex The Voronoi cell index.
+ * @param globalEdgeIndex The global Voronoi edge index.
+ * @return Index into vd.cellEdges, or -1 if not found.
+ */
+int find_cell_edge_for_cell_and_edge(const VoronoiDiagram &vd,
+                                     int cellIndex,
+                                     int globalEdgeIndex);
+
 //! @brief Handles output mesh generation.
 /*!
  * Generates the final output mesh based on the Voronoi diagram and handles file output.
@@ -503,7 +518,7 @@ static void process_edge_mapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &ed
 
 //! @brief Updates edge mappings for all Voronoi edges.
 /*!
- * Processes all edges to update segmentVertexPairToEdgeIndex and cellEdgeLookup maps.
+ * Processes all edges to update segmentVertexPairToEdgeIndex map.
  *
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param bbox The bounding box for intersection.

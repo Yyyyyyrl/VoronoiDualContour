@@ -846,11 +846,10 @@ static inline bool select_isovertex_from_cell_edge(
         return false;
     }
 
-    // 1) Exact (cell,edge) lookup → walk ring to a cellEdge carrying cycles
-    auto it = vd.cellEdgeLookup.find(std::make_pair(cellIndex, globalEdgeIndex));
-    if (it != vd.cellEdgeLookup.end())
+    // 1) Resolve (cell,edge) via per-facet anchor → walk ring to a cellEdge carrying cycles
+    int ceIdx = find_cell_edge_for_cell_and_edge(vd, cellIndex, globalEdgeIndex);
+    if (ceIdx >= 0)
     {
-        int ceIdx = it->second;
         const int start = ceIdx;
 
         while (ceIdx >= 0 &&
@@ -1825,13 +1824,10 @@ static void compute_cycle_centroids(
             int globalEdgeIdx = midpoints[ptIdx].global_edge_index;
             if (globalEdgeIdx >= 0)
             {
-                std::pair<int, int> key = std::make_pair(vc.cellIndex, globalEdgeIdx);
-                auto iter_cEdge = voronoiDiagram.cellEdgeLookup.find(key);
-                if (iter_cEdge != voronoiDiagram.cellEdgeLookup.end())
+                int cEdgeIdx = find_cell_edge_for_cell_and_edge(voronoiDiagram, vc.cellIndex, globalEdgeIdx);
+                if (cEdgeIdx >= 0)
                 {
-                    int cEdgeIdx = iter_cEdge->second;
                     auto &cyclesVec = voronoiDiagram.cellEdges[cEdgeIdx].cycleIndices;
-
                     if (std::find(cyclesVec.begin(), cyclesVec.end(), cycIdx) == cyclesVec.end())
                     {
                         cyclesVec.push_back(cycIdx);

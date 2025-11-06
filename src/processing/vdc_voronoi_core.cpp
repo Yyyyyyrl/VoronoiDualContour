@@ -252,10 +252,9 @@ void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
  * including topological, geometric and combinatorial properties.
  *
  * Validation stages:
- * 1. Cell-edge lookup consistency
- * 2. Next-cell-edge pointer validity
- * 3. Cell facet relationships
- * 4. Advanced geometric checks
+ * 1. Next-cell-edge pointer validity
+ * 2. Cell facet relationships
+ * 3. Advanced geometric checks
  *
  * @throws std::runtime_error if any inconsistency is detected
  * @note This is an expensive operation (O(V+E+F) time complexity)
@@ -263,51 +262,10 @@ void Cycle::compute_centroid(const std::vector<MidpointNode> &midpoints)
 void VoronoiDiagram::check(bool check_norm) const
 {
     std::cout << "Running validity checks.\n";
-    checkCellEdgeLookup();
     checkNextCellEdgeConsistency();
     checkCellFacets();
     checkAdvanced(check_norm);
     std::cout << "VoronoiDiagram::check() passed all advanced checks.\n";
-}
-
-//! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
-/*!
- * Validates the bidirectional mapping between (cell,edge) pairs and cellEdges indices.
- * Ensures the lookup table accurately reflects the cellEdges vector contents.
- *
- * Checks performed:
- * 1. All lookup table entries point to valid cellEdges indices
- * 2. The referenced cellEdges entries match the lookup key
- *
- * @throws std::runtime_error if any mapping inconsistency is found
- * @note O(K) time complexity where K is number of cell-edge pairs
- */
-void VoronoiDiagram::checkCellEdgeLookup() const
-{
-    for (const auto &kv : cellEdgeLookup)
-    {
-        // kv.first is (ic, ie) and kv.second is the index in cellEdges.
-        int ic = kv.first.first;  // cellIndex
-        int ie = kv.first.second; // edgeIndex
-        int cellEdgeIdx = kv.second;
-
-        if (cellEdgeIdx < 0 || cellEdgeIdx >= static_cast<int>(cellEdges.size()))
-        {
-            throw std::runtime_error("cellEdgeLookup points to invalid VoronoiCellEdge index.");
-        }
-
-        const VoronoiCellEdge &ce = cellEdges[cellEdgeIdx];
-
-        if (ce.cellIndex != ic || ce.edgeIndex != ie)
-        {
-            std::cerr << "ERROR: cellEdgeLookup mismatch!\n";
-            std::cerr << "  Lookup says (cell=" << ic << ", edge=" << ie
-                      << ") => cellEdgeIdx=" << cellEdgeIdx << "\n";
-            std::cerr << "  But VoronoiCellEdge at cellEdgeIdx has (cellIndex="
-                      << ce.cellIndex << ", edgeIndex=" << ce.edgeIndex << ")\n";
-            throw std::runtime_error("Inconsistent cellEdgeLookup data.");
-        }
-    }
 }
 
 //! @brief Verifies validity of nextCellEdge pointers.

@@ -1,4 +1,5 @@
 #include "processing/vdc_voronoi.h"
+#include "processing/vdc_func.h"
 #include "core/vdc_timing.h"
 
 
@@ -54,8 +55,8 @@ namespace
 
     // After edge collapse we rebuild cell facets, but the mapping from each
     // facet boundary slot back to its VoronoiCellEdge is lost. The modify-cycles
-    // module relies on this lookup to recover per-cell cycle ids when building
-    // iso-segments. Restore the association using the fresh cellEdgeLookup map.
+    // module relies on this to recover per-cell cycle ids when building
+    // iso-segments. Restore the association using the per-facet anchor + ring.
     void rebuild_cell_facet_edge_indices(VoronoiDiagram &vd)
     {
         for (auto &cell : vd.cells)
@@ -82,9 +83,7 @@ namespace
                         if (eIt != vd.segmentVertexPairToEdgeIndex.end())
                         {
                             const int globalEdge = eIt->second;
-                            auto ceIt = vd.cellEdgeLookup.find({cellIdx, globalEdge});
-                            if (ceIt != vd.cellEdgeLookup.end())
-                                mapped = ceIt->second;
+                            mapped = find_cell_edge_for_cell_and_edge(vd, cellIdx, globalEdge);
                         }
                     }
                     cf.cell_edge_indices.push_back(mapped);
@@ -391,7 +390,7 @@ bool lines_approx_equal(const Line3 &l1, const Line3 &l2, double eps_sq = 1e-20)
 VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
                                   double D,
                                   const CGAL::Epick::Iso_cuboid_3 & /*bbox*/,
-                                  Delaunay & /*dt*/,
+                                  Delaunay & dt,
                                   std::vector<int> &out_vertex_mapping)
 {
     TimingStats& timer = TimingStats::getInstance();
@@ -659,7 +658,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     }
     timer.stopTimer("Rebuild cells and facets");
 
-    // 7) Rebuild VoronoiCellEdges and cellEdgeLookup by remapping & filtering
+    // 7) Rebuild VoronoiCellEdges by remapping & filtering
     //     collapsed edges. Also rebuild the nextCellEdge ring per edge.
     timer.startTimer("Rebuild cell edges", "5. Collapse Small Edges");
     std::vector<int> oldToNewCE;
@@ -689,7 +688,6 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
 
         const int newIdx = static_cast<int>(out.cellEdges.size());
         out.cellEdges.push_back(nce);
-        out.cellEdgeLookup[{nc, ne}] = newIdx;
         oldToNewCE[cei] = newIdx;
     }
 
@@ -720,6 +718,15 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         }
     }
     timer.stopTimer("Rebuild cell edges");
+
+    // Optionally populate per-facet anchors for the new diagram so subsequent
+    // lookups can start from anchors instead of scanning rings.
+    // Note: Some anchors may remain unset if post-collapse Voronoi vertex
+    // indices don't match precomputed Delaunay cell dual indices. This is fine;
+    // callers fall back to ring-based lookup.
+    timer.startTimer("Populate cell edge indices", "5. Collapse Small Edges");
+    populate_cell_edge_indices(out, dt);
+    timer.stopTimer("Populate cell edge indices");
 
     // 8) First ensure every facet is outward relative to its cell, then
     //    enforce edge-consistent orientations within each cell. Finally,

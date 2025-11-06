@@ -1303,7 +1303,7 @@ static void process_edge_mapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &ed
 
 //! @brief Updates edge mappings for all Voronoi edges.
 /*!
- * Processes all edges to update segmentVertexPairToEdgeIndex and cellEdgeLookup maps.
+ * Processes all edges to update segmentVertexPairToEdgeIndex map.
  *
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param bbox The bounding box for intersection.
@@ -1314,14 +1314,6 @@ static void update_edge_mapping(VoronoiDiagram &voronoiDiagram, CGAL::Epick::Iso
     {
         VoronoiEdge &edge = voronoiDiagram.edges[edgeIdx];
         process_edge_mapping(voronoiDiagram, edge, edgeIdx, bbox);
-    }
-
-    voronoiDiagram.cellEdgeLookup.clear();
-    for (int ceIdx = 0; ceIdx < static_cast<int>(voronoiDiagram.cellEdges.size()); ++ceIdx)
-    {
-        const VoronoiCellEdge &ce = voronoiDiagram.cellEdges[ceIdx];
-        std::pair<int, int> key = std::make_pair(ce.cellIndex, ce.edgeIndex);
-        voronoiDiagram.cellEdgeLookup[key] = ceIdx;
     }
 }
 
@@ -1358,6 +1350,91 @@ void construct_voronoi_cell_edges(
     timer.startTimer("Update edge mapping", "Construct cell edges");
     update_edge_mapping(voronoiDiagram, bbox);
     timer.stopTimer("Update edge mapping");
+}
+
+// Resolve (cellIndex, globalEdgeIndex) → VoronoiCellEdge index using per-facet anchor
+int find_cell_edge_for_cell_and_edge(const VoronoiDiagram &vd,
+                                     int cellIndex,
+                                     int globalEdgeIndex)
+{
+    if (cellIndex < 0 || cellIndex >= static_cast<int>(vd.cells.size()))
+        return -1;
+    if (globalEdgeIndex < 0 || globalEdgeIndex >= static_cast<int>(vd.edges.size()))
+        return -1;
+
+    const VoronoiEdge &vEdge = vd.edges[globalEdgeIndex];
+
+    // Iterate Delaunay facets dual to this Voronoi edge
+    for (const Facet &f : vEdge.delaunayFacets)
+    {
+        Cell_handle c = f.first;
+        const int opp = f.second;
+
+        // Anchor from the Delaunay cell's per-facet index
+        const int anchor = c->info().cell_edge_index[opp];
+        if (anchor < 0 || anchor >= static_cast<int>(vd.cellEdges.size()))
+            continue;
+
+        int ceIdx = anchor;
+        const int start = anchor;
+
+        // Traverse the per-edge ring to find the cellEdge with the requested cellIndex
+        for (;;)
+        {
+            const VoronoiCellEdge &ce = vd.cellEdges[ceIdx];
+            if (ce.edgeIndex != globalEdgeIndex)
+                break; // stale anchor; try next facet
+            if (ce.cellIndex == cellIndex)
+                return ceIdx;
+
+            const int nxt = ce.nextCellEdge;
+            if (nxt < 0 || nxt == start)
+                break; // end or full cycle without match
+            ceIdx = nxt;
+        }
+    }
+
+    // Fallback: build a per-diagram table from global edge → ring anchor once.
+    {
+        struct Memo {
+            const VoronoiDiagram *vd_ptr = nullptr;
+            std::vector<int> startByEdge; // size = vd.edges.size(), value = first ceIdx for that edge or -1
+        };
+        static Memo memo;
+
+        if (memo.vd_ptr != &vd || memo.startByEdge.size() != vd.edges.size())
+        {
+            memo.vd_ptr = &vd;
+            memo.startByEdge.assign(vd.edges.size(), -1);
+            for (int i = 0; i < static_cast<int>(vd.cellEdges.size()); ++i)
+            {
+                const int e = vd.cellEdges[i].edgeIndex;
+                if (e >= 0 && e < static_cast<int>(memo.startByEdge.size()) && memo.startByEdge[e] == -1)
+                    memo.startByEdge[e] = i;
+            }
+        }
+
+        int startIdx = (globalEdgeIndex >= 0 && globalEdgeIndex < (int)memo.startByEdge.size())
+                            ? memo.startByEdge[globalEdgeIndex]
+                            : -1;
+        if (startIdx >= 0)
+        {
+            int ceIdx = startIdx;
+            const int start = startIdx;
+            for (;;)
+            {
+                const VoronoiCellEdge &ce = vd.cellEdges[ceIdx];
+                if (ce.cellIndex == cellIndex)
+                    return ceIdx;
+                const int nxt = ce.nextCellEdge;
+                if (nxt < 0 || nxt == start)
+                    break;
+                ceIdx = nxt;
+            }
+        }
+    }
+
+    return -1;
 }
 
 

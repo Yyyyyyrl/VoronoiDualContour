@@ -439,11 +439,10 @@ struct VoronoiDiagram
     std::vector<VoronoiEdge> edges;         //!< List of edges in the diagram
     std::vector<VoronoiCellEdge> cellEdges; //!< List of Cell Edges in the diagram
     std::vector<VoronoiCell> cells;         //!< List of Voronoi cells in the diagram.
-    // TODO: Rename CellFacet->cell_facets ; Rename global_facets->surface_facets
+    // TODO: Rename this to cell_facets ; Rename global_facets->surface_facets
     std::vector<VoronoiCellFacet> facets;    //!< List of facets in the diagram.
     std::vector<VoronoiFacet> global_facets; //!< List of unique Voronoi facets.
 
-    std::map<std::pair<int, int>, int> cellEdgeLookup;               //!< Maps (cellIndex, edgeIndex) -> index in cellEdges
     std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
 
     // Member Functions
@@ -522,14 +521,10 @@ struct VoronoiDiagram
         out << "  Cells: " << cells.size() << " cell(s)\n";
         out << "  Cell facets: " << facets.size() << " cell facet(s)\n";
         out << "  Global facets: " << global_facets.size() << " global facet(s)\n";
-        out << "  Cell edge lookup entries: " << cellEdgeLookup.size() << "\n";
         out << "  Segment vertex pair to edge index entries: " << segmentVertexPairToEdgeIndex.size() << "\n";
     }
 
 private:
-    //! @brief Verifies that `cellEdgeLookup` matches the data in `cellEdges`.
-    void checkCellEdgeLookup() const;
-
     //! @brief Checks that each cellEdge's `nextCellEdge` points to another edge with the same `edgeIndex`.
     void checkNextCellEdgeConsistency() const;
 
@@ -958,19 +953,7 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
         os << vd.cellEdges[i];
     }
 
-    // 7. Print the two new maps
-
-    // 7a. cellEdgeLookup
-    os << "\ncellEdgeLookup ( (cellIndex, edgeIndex) -> cellEdges index ):\n";
-    for (const auto &kv : vd.cellEdgeLookup)
-    {
-        int cellIndex = kv.first.first;
-        int edgeIndex = kv.first.second;
-        int ceIdx = kv.second;
-        os << "  ( " << cellIndex << ", " << edgeIndex << " ) -> " << ceIdx << "\n";
-    }
-
-    // 7b. segmentVertexPairToEdgeIndex
+    // 7. segmentVertexPairToEdgeIndex
     os << "\nsegmentVertexPairToEdgeIndex ( (v1, v2) -> edgeIndex ):\n";
     for (const auto &kv : vd.segmentVertexPairToEdgeIndex)
     {
@@ -1066,8 +1049,8 @@ int map_global_slot_to_cell(const VoronoiFacet &vf,
 // (single-slot lookup via cf.cell_edge_indices[local_slot]; NO hashing).
 //! @brief Looks up the cycle id touched by a bipolar edge slot in a cell facet.
 /*!
- * Uses the `cellEdgeLookup` and per‑edge rings to find a cycle index within a
- * given cell that corresponds to the specified bipolar edge.
+ * Uses the per‑edge rings (via precomputed cf.cell_edge_indices) to find a
+ * cycle index within a given cell that corresponds to the specified bipolar edge.
  *
  * @param vd Voronoi diagram
  * @param cellIndex Index of the incident cell
