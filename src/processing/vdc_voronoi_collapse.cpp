@@ -56,7 +56,7 @@ namespace
     // After edge collapse we rebuild cell facets, but the mapping from each
     // facet boundary slot back to its VoronoiCellEdge is lost. The modify-cycles
     // module relies on this to recover per-cell cycle ids when building
-    // iso-segments. Restore the association using the per-facet anchor + ring.
+    // iso-segments. Restore the association using per-edge ring traversal.
     void rebuild_cell_facet_edge_indices(VoronoiDiagram &vd)
     {
         for (auto &cell : vd.cells)
@@ -718,15 +718,6 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         }
     }
     timer.stopTimer("Rebuild cell edges");
-
-    // Optionally populate per-facet anchors for the new diagram so subsequent
-    // lookups can start from anchors instead of scanning rings.
-    // Note: Some anchors may remain unset if post-collapse Voronoi vertex
-    // indices don't match precomputed Delaunay cell dual indices. This is fine;
-    // callers fall back to ring-based lookup.
-    timer.startTimer("Populate cell edge indices", "5. Collapse Small Edges");
-    populate_cell_edge_indices(out, dt);
-    timer.stopTimer("Populate cell edge indices");
 
     // 8) First ensure every facet is outward relative to its cell, then
     //    enforce edge-consistent orientations within each cell. Finally,

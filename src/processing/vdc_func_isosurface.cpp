@@ -846,7 +846,7 @@ static inline bool select_isovertex_from_cell_edge(
         return false;
     }
 
-    // 1) Resolve (cell,edge) via per-facet anchor → walk ring to a cellEdge carrying cycles
+    // 1) Resolve (cell,edge) via per-edge ring anchor → walk ring to a cellEdge carrying cycles
     int ceIdx = find_cell_edge_for_cell_and_edge(vd, cellIndex, globalEdgeIndex);
     if (ceIdx >= 0)
     {

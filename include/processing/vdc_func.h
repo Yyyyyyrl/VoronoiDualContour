@@ -174,23 +174,11 @@ void construct_voronoi_edges(
 void construct_voronoi_cell_edges(VoronoiDiagram &voronoiDiagram,
     CGAL::Epick::Iso_cuboid_3 &bbox,
     Delaunay &dt);
-
-//! @brief Populates cell_edge_index array in Delaunay cells for fast lookup.
-/*!
- * For each VoronoiCellEdge, finds the corresponding Delaunay cell and facet,
- * then stores the cellEdge index in the Delaunay cell's info structure.
- * Should be called after cellEdges are built/rebuilt (including after edge collapse).
- *
- * @param voronoiDiagram The Voronoi diagram containing cell edges.
- * @param dt The Delaunay triangulation.
- */
-void populate_cell_edge_indices(VoronoiDiagram &voronoiDiagram, Delaunay &dt);
-
-//! @brief Resolve (cellIndex, globalEdgeIndex) to a VoronoiCellEdge index using per-facet anchors.
+//! @brief Resolve (cellIndex, globalEdgeIndex) to a VoronoiCellEdge index.
 /*!
  * Finds the VoronoiCellEdge index for a given Voronoi cell and global Voronoi edge
- * by leveraging the per-cell facet anchor (CELL_INFO::cell_edge_index) and
- * traversing the per-edge ring via nextCellEdge. Returns -1 if not found.
+ * by traversing the per-edge ring via nextCellEdge (starting from a cached
+ * ring anchor per edge). Returns -1 if not found.
  *
  * @param vd The Voronoi diagram.
  * @param cellIndex The Voronoi cell index.

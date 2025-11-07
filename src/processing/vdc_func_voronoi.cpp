@@ -1157,93 +1157,6 @@ static void build_cell_edges(
     }
 }
 
-//! @brief Populates cell_edge_index array in Delaunay cells.
-/*!
- * For each VoronoiCellEdge, finds the corresponding Delaunay cell and facet,
- * then stores the cellEdge index in the Delaunay cell's info structure.
- * This enables O(1) lookup of cell edges during facet construction.
- *
- * @param voronoiDiagram The Voronoi diagram containing cell edges.
- * @param dt The Delaunay triangulation.
- */
-void populate_cell_edge_indices(
-    VoronoiDiagram &voronoiDiagram,
-    Delaunay &dt)
-{
-    // For each cellEdge, we need to find which Delaunay cell facet it corresponds to
-    for (int ceIdx = 0; ceIdx < static_cast<int>(voronoiDiagram.cellEdges.size()); ++ceIdx)
-    {
-        const VoronoiCellEdge &ce = voronoiDiagram.cellEdges[ceIdx];
-        int voronoiCellIdx = ce.cellIndex;
-        int voronoiEdgeIdx = ce.edgeIndex;
-
-        // Get the Voronoi edge
-        const VoronoiEdge &vEdge = voronoiDiagram.edges[voronoiEdgeIdx];
-
-        // Get the two Voronoi vertices of this edge
-        int vv1 = vEdge.vertex1;
-        int vv2 = vEdge.vertex2;
-
-        // Skip if either vertex is infinite
-        if (vv1 < 0 || vv2 < 0) continue;
-
-        // Voronoi vertices are dual to Delaunay cells
-        // Find the Delaunay cell for the current Voronoi cell
-        const VoronoiCell &vCell = voronoiDiagram.cells[voronoiCellIdx];
-        Vertex_handle delaunay_vertex = vCell.delaunay_vertex;
-        if (delaunay_vertex->info().is_dummy) continue;
-
-        // Find incident cells of this Delaunay vertex
-        std::vector<Cell_handle> incident_cells;
-        dt.incident_cells(delaunay_vertex, std::back_inserter(incident_cells));
-
-        // Find which incident cell has dualVoronoiVertexIndex == vv1 or vv2
-        Cell_handle dual_cell1;
-        Cell_handle dual_cell2;
-        bool found1 = false, found2 = false;
-
-        for (Cell_handle ch : incident_cells)
-        {
-            if (dt.is_infinite(ch)) continue;
-            int dualIdx = ch->info().dualVoronoiVertexIndex;
-            if (dualIdx == vv1) {
-                dual_cell1 = ch;
-                found1 = true;
-            }
-            if (dualIdx == vv2) {
-                dual_cell2 = ch;
-                found2 = true;
-            }
-        }
-
-        // If we found both dual cells, find the facet between them
-        if (found1 && found2)
-        {
-            // Check if they are neighbors
-            for (int facet_idx = 0; facet_idx < 4; ++facet_idx)
-            {
-                Cell_handle neighbor = dual_cell1->neighbor(facet_idx);
-                if (neighbor == dual_cell2)
-                {
-                    // Found the facet! Store the cellEdge index
-                    dual_cell1->info().cell_edge_index[facet_idx] = ceIdx;
-                    break;
-                }
-            }
-
-            // Also store in dual_cell2 (the reverse facet)
-            for (int facet_idx = 0; facet_idx < 4; ++facet_idx)
-            {
-                Cell_handle neighbor = dual_cell2->neighbor(facet_idx);
-                if (neighbor == dual_cell1)
-                {
-                    dual_cell2->info().cell_edge_index[facet_idx] = ceIdx;
-                    break;
-                }
-            }
-        }
-    }
-}
 
 //! @brief Links Voronoi cell edges in a circular ring.
 /*!
@@ -1339,9 +1252,7 @@ void construct_voronoi_cell_edges(
     build_cell_edges(voronoiDiagram, dt);
     timer.stopTimer("Build cell edges");
 
-    timer.startTimer("Populate cell edge indices", "Construct cell edges");
-    populate_cell_edge_indices(voronoiDiagram, dt);
-    timer.stopTimer("Populate cell edge indices");
+    // No need to populate per-cell anchors; ring traversal provides lookup.
 
     timer.startTimer("Link cell edges", "Construct cell edges");
     link_cell_edges(voronoiDiagram);
@@ -1352,7 +1263,7 @@ void construct_voronoi_cell_edges(
     timer.stopTimer("Update edge mapping");
 }
 
-// Resolve (cellIndex, globalEdgeIndex) → VoronoiCellEdge index using per-facet anchor
+// Resolve (cellIndex, globalEdgeIndex) → VoronoiCellEdge index
 int find_cell_edge_for_cell_and_edge(const VoronoiDiagram &vd,
                                      int cellIndex,
                                      int globalEdgeIndex)
@@ -1361,38 +1272,6 @@ int find_cell_edge_for_cell_and_edge(const VoronoiDiagram &vd,
         return -1;
     if (globalEdgeIndex < 0 || globalEdgeIndex >= static_cast<int>(vd.edges.size()))
         return -1;
-
-    const VoronoiEdge &vEdge = vd.edges[globalEdgeIndex];
-
-    // Iterate Delaunay facets dual to this Voronoi edge
-    for (const Facet &f : vEdge.delaunayFacets)
-    {
-        Cell_handle c = f.first;
-        const int opp = f.second;
-
-        // Anchor from the Delaunay cell's per-facet index
-        const int anchor = c->info().cell_edge_index[opp];
-        if (anchor < 0 || anchor >= static_cast<int>(vd.cellEdges.size()))
-            continue;
-
-        int ceIdx = anchor;
-        const int start = anchor;
-
-        // Traverse the per-edge ring to find the cellEdge with the requested cellIndex
-        for (;;)
-        {
-            const VoronoiCellEdge &ce = vd.cellEdges[ceIdx];
-            if (ce.edgeIndex != globalEdgeIndex)
-                break; // stale anchor; try next facet
-            if (ce.cellIndex == cellIndex)
-                return ceIdx;
-
-            const int nxt = ce.nextCellEdge;
-            if (nxt < 0 || nxt == start)
-                break; // end or full cycle without match
-            ceIdx = nxt;
-        }
-    }
 
     // Fallback: build a per-diagram table from global edge → ring anchor once.
     {

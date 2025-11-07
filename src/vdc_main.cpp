@@ -162,13 +162,7 @@ int main(int argc, char *argv[])
     validate_facet_orientations_and_normals(vd2);
     timer.stopTimer("Post-collapse facet validation");
 
-    // Repopulate cell_edge_index arrays after collapse rebuilt the cellEdges
-    if (vdc_param.multi_isov)
-    {
-        timer.startTimer("Repopulate cell edge indices", "5. Collapse Small Edges");
-        populate_cell_edge_indices(vd2, dt);
-        timer.stopTimer("Repopulate cell edge indices");
-    }
+    // Rebuilt cellEdges already have per-edge rings; no per-cell anchors needed.
     timer.stopTimer("5. Collapse Small Edges");
 
     timer.startTimer("6. Post-collapse Validation", "Total Processing");
