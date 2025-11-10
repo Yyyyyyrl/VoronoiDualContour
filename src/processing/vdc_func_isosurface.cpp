@@ -1176,11 +1176,9 @@ static void process_segment_edge_multi(
     {
         ISO_STATS.seg_bip++;
 
-        auto itEdge = voronoiDiagram.segmentVertexPairToEdgeIndex.find(std::make_pair(idx_v1, idx_v2));
-        if (itEdge == voronoiDiagram.segmentVertexPairToEdgeIndex.end())
+        int globalEdgeIndex = voronoiDiagram.findEdgeByVertices(idx_v1, idx_v2);
+        if (globalEdgeIndex == -1)
             return;
-
-        int globalEdgeIndex = itEdge->second;
         if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex)) {
             std::cerr << "[ISO] SEG bipolar edge -> globalEdge=" << globalEdgeIndex << " dualFacets=" << edge.delaunayFacets.size() << "\n";
             std::cerr << voronoiDiagram.edges[globalEdgeIndex];}
@@ -1517,12 +1515,7 @@ static void collect_midpoints(
                 auto [it, inserted] = edge_to_midpoint_index.try_emplace(edge_key, -1);
                 if (inserted)
                 {
-                    int globalEdgeIndex = -1;
-                    auto iter_glob = voronoiDiagram.segmentVertexPairToEdgeIndex.find(edge_key);
-                    if (iter_glob != voronoiDiagram.segmentVertexPairToEdgeIndex.end())
-                    {
-                        globalEdgeIndex = iter_glob->second;
-                    }
+                    int globalEdgeIndex = voronoiDiagram.findEdgeByVertices(vertex_index1, vertex_index2);
 
                     double t = (isovalue - val1) / (val2 - val1);
                     Point midpoint = p1 + (p2 - p1) * t;

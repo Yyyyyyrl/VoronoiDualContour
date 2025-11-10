@@ -77,12 +77,9 @@ namespace
                     int mapped = -1;
                     if (a >= 0 && b >= 0)
                     {
-                        const int vmin = std::min(a, b);
-                        const int vmax = std::max(a, b);
-                        auto eIt = vd.segmentVertexPairToEdgeIndex.find({vmin, vmax});
-                        if (eIt != vd.segmentVertexPairToEdgeIndex.end())
+                        const int globalEdge = vd.findEdgeByVertices(a, b);
+                        if (globalEdge >= 0)
                         {
-                            const int globalEdge = eIt->second;
                             mapped = find_cell_edge_for_cell_and_edge(vd, cellIdx, globalEdge);
                         }
                     }
@@ -541,9 +538,8 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
             out.edges[ne].delaunayFacets.clear();
             appendUniqueFacets(out.edges[ne].delaunayFacets, e.delaunayFacets);
 
-            // Maintain both the local and public lookups
+            // Maintain the local lookup
             localSegMap[key] = ne;
-            out.segmentVertexPairToEdgeIndex[key] = ne;
         }
         else if (e.type == 1)
         { // ray

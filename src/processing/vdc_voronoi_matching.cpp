@@ -8,9 +8,8 @@ static std::vector<int> collectFacetVoronoiEdges(const VoronoiDiagram &vd, const
     for (int i = 0; i < n; ++i)
     {
         int a = verts[i], b = verts[(i + 1) % n];
-        int vmin = std::min(a, b), vmax = std::max(a, b);
-        auto it = vd.segmentVertexPairToEdgeIndex.find({vmin, vmax});
-        out.push_back(it == vd.segmentVertexPairToEdgeIndex.end() ? -1 : it->second);
+        int edgeIdx = vd.findEdgeByVertices(a, b);
+        out.push_back(edgeIdx);
     }
     return out;
 }

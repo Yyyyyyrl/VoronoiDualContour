@@ -70,10 +70,7 @@ static void collect_midpoints_for_cell(
             const auto edge_key = EdgeKey(std::min(vA, vB), std::max(vA, vB));
             if (edge_to_midpoint_index.find(edge_key) == edge_to_midpoint_index.end())
             {
-                int globalEdgeIndex = -1;
-                auto it = vd.segmentVertexPairToEdgeIndex.find(edge_key);
-                if (it != vd.segmentVertexPairToEdgeIndex.end())
-                    globalEdgeIndex = it->second;
+                int globalEdgeIndex = vd.findEdgeByVertices(vA, vB);
 
                 MidpointNode node;
                 node.point = midpoint;
