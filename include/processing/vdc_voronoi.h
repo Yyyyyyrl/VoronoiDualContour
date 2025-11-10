@@ -261,6 +261,7 @@ struct VoronoiFacet
     std::array<int, 2> incident_cell_facet_indices = {-1, -1}; // cell-facet indices for C0/C1
     std::vector<IsoSegment> iso_segments;
     int conflict_retry_count = 0; // # of times attempted to resolve triangle binding conflicts for this facet.
+    int unconstrained_pair_offset = 0; // Rotating index used to explore unconstrained match permutations.
 
     //! @brief Print Voronoi facet information for debugging
     template <typename OSTREAM_TYPE>
@@ -296,6 +297,10 @@ struct VoronoiFacet
         out << "  Incident cells: [" << incident_cell_indices[0] << ", " << incident_cell_indices[1] << "]\n";
         out << "  Incident cell facets: [" << incident_cell_facet_indices[0] << ", " << incident_cell_facet_indices[1] << "]\n";
         out << "  Iso segments count: " << iso_segments.size() << "\n";
+        if (bipolar_match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
+        {
+            out << "  Unconstrained pair offset: " << unconstrained_pair_offset << "\n";
+        }
     }
 };
 

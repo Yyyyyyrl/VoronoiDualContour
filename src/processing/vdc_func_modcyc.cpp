@@ -349,6 +349,9 @@ void flip_bipolar_match_method(VoronoiFacet &vf)
     case BIPOLAR_MATCH_METHOD::SEP_NEG:
         vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS;
         break;
+    case BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH:
+        ++vf.unconstrained_pair_offset;
+        break;
     default:
         vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_NEG;
         break;
@@ -597,19 +600,25 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
                         if (facet.bipolar_match_method != BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
                         {
                             facet.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
-                            recompute_bipolar_matches_for_facet(vd, facetIdx, isovalue);
-                            build_iso_segments_for_facet(vd, facetIdx, isovalue);
-                            flippedFacets.insert(facetIdx);
-                            const auto &gfTarget = vd.global_facets[facetIdx];
-                            for (int side = 0; side < 2; ++side)
-                            {
-                                const int cidx = gfTarget.incident_cell_indices[side];
-                                if (cidx >= 0)
-                                    dirty_cells.insert(cidx);
-                            }
-                            adjusted = true;
-                            break;
+                            facet.unconstrained_pair_offset = 0;
                         }
+                        else
+                        {
+                            ++facet.unconstrained_pair_offset;
+                        }
+
+                        recompute_bipolar_matches_for_facet(vd, facetIdx, isovalue);
+                        build_iso_segments_for_facet(vd, facetIdx, isovalue);
+                        flippedFacets.insert(facetIdx);
+                        const auto &gfTarget = vd.global_facets[facetIdx];
+                        for (int side = 0; side < 2; ++side)
+                        {
+                            const int cidx = gfTarget.incident_cell_indices[side];
+                            if (cidx >= 0)
+                                dirty_cells.insert(cidx);
+                        }
+                        adjusted = true;
+                        break;
                     }
                     if (adjusted)
                     {

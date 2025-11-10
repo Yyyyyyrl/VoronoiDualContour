@@ -1,4 +1,5 @@
 #include "processing/vdc_voronoi.h"
+#include <functional>
 
 static std::vector<int> collectFacetVoronoiEdges(const VoronoiDiagram &vd, const std::vector<int> &verts)
 {
@@ -86,10 +87,82 @@ void VoronoiDiagram::create_global_facets()
 
 // --- helper: classify and pair facet bipolar edges -------------------------
 
+static bool build_unconstrained_matching(VoronoiFacet &vf,
+                                         const std::vector<int> &edgeType,
+                                         std::vector<std::pair<int, int>> &outPairs)
+{
+    const int nB = static_cast<int>(vf.bipolar_edge_indices.size());
+    if (nB < 2 || (nB % 2) != 0)
+        return false;
+
+    std::vector<int> slotSigns;
+    slotSigns.reserve(nB);
+    for (int slot : vf.bipolar_edge_indices)
+    {
+        int s = 0;
+        if (slot >= 0 && slot < static_cast<int>(edgeType.size()))
+            s = edgeType[slot];
+        slotSigns.push_back(s);
+    }
+
+    std::vector<char> used(nB, 0);
+    std::vector<std::pair<int, int>> current;
+    current.reserve(nB / 2);
+    std::vector<std::vector<std::pair<int, int>>> matchings;
+
+    std::function<void()> dfs = [&]()
+    {
+        int first = -1;
+        for (int i = 0; i < nB; ++i)
+        {
+            if (!used[i])
+            {
+                first = i;
+                break;
+            }
+        }
+        if (first == -1)
+        {
+            matchings.push_back(current);
+            return;
+        }
+
+        used[first] = 1;
+        for (int j = first + 1; j < nB; ++j)
+        {
+            if (used[j])
+                continue;
+            const int signFirst = slotSigns[first];
+            const int signSecond = slotSigns[j];
+            if (signFirst != 0 && signSecond != 0 && signFirst == signSecond)
+                continue; // require opposite polarity when both are known
+
+            used[j] = 1;
+            current.emplace_back(vf.bipolar_edge_indices[first], vf.bipolar_edge_indices[j]);
+            dfs();
+            current.pop_back();
+            used[j] = 0;
+        }
+        used[first] = 0;
+    };
+
+    dfs();
+    if (matchings.empty())
+        return false;
+
+    const size_t count = matchings.size();
+    size_t selection = static_cast<size_t>(vf.unconstrained_pair_offset);
+    selection %= count;
+    vf.unconstrained_pair_offset = static_cast<int>(selection);
+    outPairs = matchings[selection];
+    return true;
+}
+
 // Pairs bipolar edges inside a VoronoiFacet according to the method:
 //  - SEP_NEG: start from first (+,−) edge, then pair (start,next), (next2,next3), ...
 //  - SEP_POS: start from first (−,+) edge, then pair likewise
-//  - UNCONSTRAINED_MATCH: pair consecutive in the bipolar list
+//  - UNCONSTRAINED_MATCH: explore all perfect matchings (respecting polarity) and
+//                          pick one based on the facet's rolling offset.
 //
 // Output:
 //  - vf.bipolar_edge_indices: indices k (edges) around the facet boundary that are bipolar
@@ -193,6 +266,24 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
             std::cerr << be << " ";
         }
         std::cerr << "\n";
+    }
+
+    if (vf.bipolar_match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
+    {
+        if ((nB % 2) == 0 && build_unconstrained_matching(vf, edgeType, vf.bipolar_matches))
+        {
+            if (debug)
+            {
+                std::cerr << "[ISO-MATCH] gf=" << vf.index << " method=" << matchMethodToString(vf.bipolar_match_method)
+                          << " nBip=" << nB << " pairs=" << vf.bipolar_matches.size() << "\n";
+                std::cerr << "[ISO-MATCH] gf=" << vf.index << " matches:";
+                for (auto &pr : vf.bipolar_matches)
+                    std::cerr << " (" << pr.first << "," << pr.second << ")";
+                std::cerr << "\n";
+            }
+            return;
+        }
+        // fall back to sequential pairing below if enumeration failed.
     }
 
     const int want = (vf.bipolar_match_method == BIPOLAR_MATCH_METHOD::SEP_POS) ? +1 : -1;

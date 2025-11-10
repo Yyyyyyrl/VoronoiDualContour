@@ -414,7 +414,20 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
                 }
                 if (facet.bipolar_match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
                 {
-                    continue;
+                    ++facet.unconstrained_pair_offset;
+                    facet.conflict_retry_count = 0;
+                    adjusted = true;
+                    resolvedForEdge = true;
+                    if (modcycDebug)
+                    {
+                        std::cerr << "    [MODCYC] facet " << vfi << " advanced UNCONSTRAINED offset to "
+                                  << facet.unconstrained_pair_offset << "\n";
+                    }
+                    if (outTweakedFacets && queuedFacets.insert(facetIndex).second)
+                    {
+                        outTweakedFacets->push_back(facetIndex);
+                    }
+                    break;
                 }
 
                 BIPOLAR_MATCH_METHOD nextMethod = facet.bipolar_match_method;
@@ -435,6 +448,7 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
                     if (nextMethod == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
                     {
                         facet.conflict_retry_count = 0;
+                        facet.unconstrained_pair_offset = 0;
                     }
                     else
                     {
@@ -479,16 +493,27 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
                     continue;
 
                 if (facet.bipolar_match_method == BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
-                    continue;
-
-                facet.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
-                facet.conflict_retry_count = 0;
+                {
+                    ++facet.unconstrained_pair_offset;
+                    facet.conflict_retry_count = 0;
+                    if (modcycDebug)
+                    {
+                        std::cerr << "    [MODCYC] fallback facet " << vfi << " advanced UNCONSTRAINED offset to "
+                                  << facet.unconstrained_pair_offset << "\n";
+                    }
+                }
+                else
+                {
+                    facet.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
+                    facet.conflict_retry_count = 0;
+                    facet.unconstrained_pair_offset = 0;
+                    if (modcycDebug)
+                    {
+                        std::cerr << "    [MODCYC] fallback facet " << vfi << " forced to UNCONSTRAINED_MATCH\n";
+                    }
+                }
                 adjusted = true;
                 resolvedForEdge = true;
-                if (modcycDebug)
-                {
-                    std::cerr << "    [MODCYC] fallback facet " << vfi << " forced to UNCONSTRAINED_MATCH\n";
-                }
                 if (outTweakedFacets && queuedFacets.insert(static_cast<int>(vfi)).second)
                 {
                     outTweakedFacets->push_back(static_cast<int>(vfi));
