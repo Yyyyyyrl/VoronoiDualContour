@@ -45,7 +45,7 @@ int VoronoiDiagram::AddVertex(const Point &p, float value)
  * - Type 2: Line edge (infinite both ways)
  *
  * Data structures:
- * - Maintains segmentVertexPairToEdgeIndex map for O(1) duplicate checking
+ * - Uses vertex incident edge lists for efficient duplicate checking
  * - Edge list stores all edges sequentially
  *
  * @param v1 Index of first vertex (must be valid, >= 0)
@@ -60,11 +60,14 @@ int VoronoiDiagram::AddSegmentEdge(int v1, int v2, const Segment3 &seg)
     int minV = std::min(v1, v2);
     int maxV = std::max(v1, v2);
 
-    // Check if edge already exists
-    auto it = segmentVertexPairToEdgeIndex.find({minV, maxV});
-    if (it != segmentVertexPairToEdgeIndex.end())
-    {
-        return it->second; // Return existing edge index
+    // Check if edge already exists by searching through incident edges of minV
+    for (int edgeIdx : vertices[minV].incidentEdgeIndices) {
+        const VoronoiEdge& e = edges[edgeIdx];
+        if (e.type == 0 &&
+            ((e.vertex1 == minV && e.vertex2 == maxV) ||
+             (e.vertex1 == maxV && e.vertex2 == minV))) {
+            return edgeIdx; // Return existing edge index
+        }
     }
 
     // Create new edge
@@ -73,10 +76,11 @@ int VoronoiDiagram::AddSegmentEdge(int v1, int v2, const Segment3 &seg)
     edge.vertex2 = v2;
     edge.type = 0; // Type 0 = segment
 
-    // Add to edge list and update mapping
+    // Add to edge list and update incident edges for both vertices
     int edgeIdx = edges.size();
     edges.push_back(edge);
-    segmentVertexPairToEdgeIndex[{minV, maxV}] = edgeIdx;
+    vertices[minV].incidentEdgeIndices.push_back(edgeIdx);
+    vertices[maxV].incidentEdgeIndices.push_back(edgeIdx);
 
     return edgeIdx;
 }
@@ -147,6 +151,44 @@ int VoronoiDiagram::AddLineEdge(const Line3 &line)
     edges.push_back(edge);
 
     return edgeIdx;
+}
+
+//! @brief Finds a segment edge by its vertex pair.
+/*!
+ * Efficiently finds a segment edge (type 0) connecting two vertices by
+ * searching through the incident edges of the vertex with fewer edges.
+ * This provides O(k) lookup where k is the average number of incident edges
+ * (typically 4-8), which is faster than O(log E) hashmap lookup.
+ *
+ * @param v1 Index of the first vertex
+ * @param v2 Index of the second vertex
+ * @return Index of the edge if found, -1 otherwise
+ */
+int VoronoiDiagram::findEdgeByVertices(int v1, int v2) const
+{
+    // Validate vertex indices
+    if (v1 < 0 || v1 >= static_cast<int>(vertices.size()) ||
+        v2 < 0 || v2 >= static_cast<int>(vertices.size())) {
+        return -1;
+    }
+
+    // Search through the vertex with fewer incident edges for better performance
+    const VoronoiVertex& searchVertex =
+        (vertices[v1].incidentEdgeIndices.size() <= vertices[v2].incidentEdgeIndices.size())
+        ? vertices[v1] : vertices[v2];
+
+    // Linear search through incident edges (typically very few edges per vertex)
+    for (int edgeIdx : searchVertex.incidentEdgeIndices) {
+        const VoronoiEdge& e = edges[edgeIdx];
+        // Check if this is a segment edge connecting v1 and v2
+        if (e.type == 0 &&
+            ((e.vertex1 == v1 && e.vertex2 == v2) ||
+             (e.vertex1 == v2 && e.vertex2 == v1))) {
+            return edgeIdx;
+        }
+    }
+
+    return -1; // Edge not found
 }
 
 //! @brief Adds a facet to the Voronoi diagram.
