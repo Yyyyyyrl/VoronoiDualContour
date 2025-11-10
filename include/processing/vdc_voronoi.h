@@ -21,6 +21,7 @@ struct VoronoiVertex
     int index;                    //!< The index of the vertex in the Voronoi diagram
     float value;                  //!< The scalar value of the vertex, used for isosurface extraction
     std::vector<int> cellIndices; //!< Indices of Voronoi cells that contain this vertex.
+    std::vector<int> incidentEdgeIndices; //!< Indices of edges incident to this vertex (for fast edge lookup).
 
     //! @brief Constructor to initialize a Voronoi vertex.
     /*!
@@ -443,8 +444,6 @@ struct VoronoiDiagram
     std::vector<VoronoiCellFacet> facets;    //!< List of facets in the diagram.
     std::vector<VoronoiFacet> global_facets; //!< List of unique Voronoi facets.
 
-    std::map<std::pair<int, int>, int> segmentVertexPairToEdgeIndex; //!< a map from a pair of Voronoi vertex indices (v_1, v_2) (in ascending order) to the edgeIndex in voronoiDiagram
-
     // Member Functions
 
     void compute_bipolar_matches(float isovalue);
@@ -484,6 +483,17 @@ struct VoronoiDiagram
      */
     int AddLineEdge(const Line3 &line);
 
+    //! @brief Finds a segment edge by its vertex pair.
+    /*!
+     * Searches for a segment edge (type 0) connecting two vertices by looking through
+     * the incident edges of the vertex with fewer incident edges.
+     *
+     * @param v1 Index of the first vertex
+     * @param v2 Index of the second vertex
+     * @return Index of the edge if found, -1 otherwise
+     */
+    int findEdgeByVertices(int v1, int v2) const;
+
     //! @brief Adds a facet to the Voronoi diagram.
     /*!
      * @param vertices_indices Indices of vertices forming the facet
@@ -521,7 +531,6 @@ struct VoronoiDiagram
         out << "  Cells: " << cells.size() << " cell(s)\n";
         out << "  Cell facets: " << facets.size() << " cell facet(s)\n";
         out << "  Global facets: " << global_facets.size() << " global facet(s)\n";
-        out << "  Segment vertex pair to edge index entries: " << segmentVertexPairToEdgeIndex.size() << "\n";
     }
 
 private:
@@ -951,16 +960,6 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
     {
         os << "Index " << i << ":\n";
         os << vd.cellEdges[i];
-    }
-
-    // 7. segmentVertexPairToEdgeIndex
-    os << "\nsegmentVertexPairToEdgeIndex ( (v1, v2) -> edgeIndex ):\n";
-    for (const auto &kv : vd.segmentVertexPairToEdgeIndex)
-    {
-        int v1 = kv.first.first;
-        int v2 = kv.first.second;
-        int edgeIndex = kv.second;
-        os << "  ( " << v1 << ", " << v2 << " ) -> " << edgeIndex << "\n";
     }
 
     return os;
