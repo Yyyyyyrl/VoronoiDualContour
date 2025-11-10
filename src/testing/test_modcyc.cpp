@@ -38,7 +38,6 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     vd.facets.clear();
     vd.global_facets.clear();
     vd.cellEdges.clear();
-    vd.segmentVertexPairToEdgeIndex.clear();
 
     // 4 vertices in a unit square (z=0)
     int v0 = add_vertex(vd, Point(0, 0, 0), -1.0f);
@@ -64,7 +63,7 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     vd.global_facets.push_back(gf);
     vfi = 0;
 
-    // segmentVertexPairToEdgeIndex populated by AddSegmentEdge
+    // Vertex incident edges populated by AddSegmentEdge
 
     // Two cells that share this facet
     VoronoiCell c0(nullptr); c0.cellIndex = 0;
@@ -160,7 +159,7 @@ static void build_hex_case(VoronoiDiagram &vd, float isovalue, int &vfi_hex)
     vd.global_facets.push_back(gf);
     vfi_hex = gf.index;
 
-    // segmentVertexPairToEdgeIndex populated by AddSegmentEdge
+    // Vertex incident edges populated by AddSegmentEdge
 
     // Ensure cell 1 exists from quad case; add cell 2
     int c1 = (int)vd.cells.size() > 1 ? 1 : (int)vd.cells.size()-1;

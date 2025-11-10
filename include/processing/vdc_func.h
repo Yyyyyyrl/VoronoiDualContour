@@ -494,8 +494,7 @@ static void link_cell_edges(VoronoiDiagram &voronoiDiagram);
 
 //! @brief Processes edge mapping for a single Voronoi edge.
 /*!
- * Updates the segmentVertexPairToEdgeIndex map for segments, rays, and lines
- * after intersecting with the bounding box.
+ * Updates the vertex incident edge lists for segments after intersecting with the bounding box.
  *
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param edge The VoronoiEdge representing the edge.
@@ -506,7 +505,7 @@ static void process_edge_mapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &ed
 
 //! @brief Updates edge mappings for all Voronoi edges.
 /*!
- * Processes all edges to update segmentVertexPairToEdgeIndex map.
+ * Processes all edges to update vertex incident edge lists.
  *
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param bbox The bounding box for intersection.
