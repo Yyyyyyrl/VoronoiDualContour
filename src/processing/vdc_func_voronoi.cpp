@@ -921,7 +921,9 @@ void construct_voronoi_edges(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
                     vEdge.delaunayFacets.push_back(facet);
                     voronoiDiagram.edges.push_back(vEdge);
                     segmentMap[{v1, v2}] = edgeIdx;
-                    voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
+                    // Populate incident edges for both vertices
+                    voronoiDiagram.vertices[v1].incidentEdgeIndices.push_back(edgeIdx);
+                    voronoiDiagram.vertices[v2].incidentEdgeIndices.push_back(edgeIdx);
 
                     // Store the edge index in both Delaunay cells sharing this facet
                     int facet1_index = facet.second;
@@ -1190,8 +1192,7 @@ static void link_cell_edges(
 
 //! @brief Processes edge mapping for a single Voronoi edge.
 /*!
- * Updates the segmentVertexPairToEdgeIndex map for segments, rays, and lines
- * after intersecting with the bounding box.
+ * Updates the vertex incident edge lists for segments after intersecting with the bounding box.
  *
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param edgeObj The CGAL object representing the edge.
@@ -1206,9 +1207,15 @@ static void process_edge_mapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &ed
         int idx2 = edge.vertex2;
         if (idx1 != -1 && idx2 != -1)
         {
-            int v1 = std::min(idx1, idx2);
-            int v2 = std::max(idx1, idx2);
-            voronoiDiagram.segmentVertexPairToEdgeIndex[{v1, v2}] = edgeIdx;
+            // Update incident edges for both vertices if not already present
+            auto& incidentEdges1 = voronoiDiagram.vertices[idx1].incidentEdgeIndices;
+            if (std::find(incidentEdges1.begin(), incidentEdges1.end(), edgeIdx) == incidentEdges1.end()) {
+                incidentEdges1.push_back(edgeIdx);
+            }
+            auto& incidentEdges2 = voronoiDiagram.vertices[idx2].incidentEdgeIndices;
+            if (std::find(incidentEdges2.begin(), incidentEdges2.end(), edgeIdx) == incidentEdges2.end()) {
+                incidentEdges2.push_back(edgeIdx);
+            }
         }
     }
     // Rays and lines are skipped; no mapping for infinite edges
@@ -1216,7 +1223,7 @@ static void process_edge_mapping(VoronoiDiagram &voronoiDiagram, VoronoiEdge &ed
 
 //! @brief Updates edge mappings for all Voronoi edges.
 /*!
- * Processes all edges to update segmentVertexPairToEdgeIndex map.
+ * Processes all edges to update vertex incident edge lists.
  *
  * @param voronoiDiagram The Voronoi diagram to update.
  * @param bbox The bounding box for intersection.
