@@ -48,17 +48,17 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     // Global facet boundary as quad
     VoronoiFacet gf;
     gf.index = 0;
-    gf.vertices_indices = {v0, v1, v2, v3};
+    gf.verticesIndices = {v0, v1, v2, v3};
     // Create actual segment edges in vd for each boundary slot
     auto add_seg = [&](int a, int b) {
         Segment3 seg(vd.vertices[a].coord, vd.vertices[b].coord);
         return vd.AddSegmentEdge(a, b, seg);
     };
-    gf.voronoi_edge_indices.clear();
-    gf.voronoi_edge_indices.push_back(add_seg(v0, v1));
-    gf.voronoi_edge_indices.push_back(add_seg(v1, v2));
-    gf.voronoi_edge_indices.push_back(add_seg(v2, v3));
-    gf.voronoi_edge_indices.push_back(add_seg(v3, v0));
+    gf.voronoiEdgeIndices.clear();
+    gf.voronoiEdgeIndices.push_back(add_seg(v0, v1));
+    gf.voronoiEdgeIndices.push_back(add_seg(v1, v2));
+    gf.voronoiEdgeIndices.push_back(add_seg(v2, v3));
+    gf.voronoiEdgeIndices.push_back(add_seg(v3, v0));
     gf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // initial
     vd.surface_facets.push_back(gf);
     vfi = 0;
@@ -72,12 +72,12 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     vd.cells.push_back(c1);
 
     // Two cell facets referencing the same global facet with opposite orientation
-    VoronoiCellFacet cf0; cf0.vertices_indices = {v0, v1, v2, v3}; cf0.voronoi_facet_index = vfi; cf0.orientation = 1;
-    VoronoiCellFacet cf1; cf1.vertices_indices = {v0, v3, v2, v1}; cf1.voronoi_facet_index = vfi; cf1.orientation = -1;
+    VoronoiCellFacet cf0; cf0.verticesIndices = {v0, v1, v2, v3}; cf0.voronoi_facet_index = vfi; cf0.orientation = 1;
+    VoronoiCellFacet cf1; cf1.verticesIndices = {v0, v3, v2, v1}; cf1.voronoi_facet_index = vfi; cf1.orientation = -1;
     int cfi0 = (int)vd.cell_facets.size(); vd.cell_facets.push_back(cf0);
     int cfi1 = (int)vd.cell_facets.size(); vd.cell_facets.push_back(cf1);
-    vd.cells[0].facet_indices.push_back(cfi0);
-    vd.cells[1].facet_indices.push_back(cfi1);
+    vd.cells[0].facetIndices.push_back(cfi0);
+    vd.cells[1].facetIndices.push_back(cfi1);
 
     // Wire incident cells back to global facet
     vd.surface_facets[vfi].incident_cell_indices = {0, 1};
@@ -88,14 +88,14 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     // Cell 0
     std::vector<int> ceIdx0(4);
     for (int k = 0; k < 4; ++k)
-        ceIdx0[k] = add_cell_edge(vd, 0, vd.surface_facets[vfi].voronoi_edge_indices[k]);
-    vd.cell_facets[cfi0].cell_edge_indices = ceIdx0;
+        ceIdx0[k] = add_cell_edge(vd, 0, vd.surface_facets[vfi].voronoiEdgeIndices[k]);
+    vd.cell_facets[cfi0].cellEdgeIndices = ceIdx0;
 
     // Cell 1: same edges
     std::vector<int> ceIdx1(4);
     for (int k = 0; k < 4; ++k)
-        ceIdx1[k] = add_cell_edge(vd, 1, vd.surface_facets[vfi].voronoi_edge_indices[k]);
-    vd.cell_facets[cfi1].cell_edge_indices = ceIdx1;
+        ceIdx1[k] = add_cell_edge(vd, 1, vd.surface_facets[vfi].voronoiEdgeIndices[k]);
+    vd.cell_facets[cfi1].cellEdgeIndices = ceIdx1;
 
     // Seed initial per-cell cycles so build_iso_segments can classify comps before we run the pass
     // Force slots 0 and 2 to map to cycle 0 in both cells (so pairs anchored at 0 and 2 collide)
@@ -142,19 +142,19 @@ static void build_hex_case(VoronoiDiagram &vd, float isovalue, int &vfi_hex)
 
     VoronoiFacet gf;
     gf.index = (int)vd.surface_facets.size();
-    gf.vertices_indices = {h0, h1, h2, h3, h4, h5};
+    gf.verticesIndices = {h0, h1, h2, h3, h4, h5};
     // Create actual segment edges
     auto add_seg = [&](int a, int b) {
         Segment3 seg(vd.vertices[a].coord, vd.vertices[b].coord);
         return vd.AddSegmentEdge(a, b, seg);
     };
-    gf.voronoi_edge_indices.clear();
-    gf.voronoi_edge_indices.push_back(add_seg(h0, h1));
-    gf.voronoi_edge_indices.push_back(add_seg(h1, h2));
-    gf.voronoi_edge_indices.push_back(add_seg(h2, h3));
-    gf.voronoi_edge_indices.push_back(add_seg(h3, h4));
-    gf.voronoi_edge_indices.push_back(add_seg(h4, h5));
-    gf.voronoi_edge_indices.push_back(add_seg(h5, h0));
+    gf.voronoiEdgeIndices.clear();
+    gf.voronoiEdgeIndices.push_back(add_seg(h0, h1));
+    gf.voronoiEdgeIndices.push_back(add_seg(h1, h2));
+    gf.voronoiEdgeIndices.push_back(add_seg(h2, h3));
+    gf.voronoiEdgeIndices.push_back(add_seg(h3, h4));
+    gf.voronoiEdgeIndices.push_back(add_seg(h4, h5));
+    gf.voronoiEdgeIndices.push_back(add_seg(h5, h0));
     gf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS;
     vd.surface_facets.push_back(gf);
     vfi_hex = gf.index;
@@ -167,12 +167,12 @@ static void build_hex_case(VoronoiDiagram &vd, float isovalue, int &vfi_hex)
     vd.cells.push_back(c2);
 
     // Two cell facets for gf: one in cell 1, one in cell 2 (opposite orientation)
-    VoronoiCellFacet cf1; cf1.vertices_indices = {h0, h1, h2, h3, h4, h5}; cf1.voronoi_facet_index = vfi_hex; cf1.orientation = 1;
-    VoronoiCellFacet cf2; cf2.vertices_indices = {h0, h5, h4, h3, h2, h1}; cf2.voronoi_facet_index = vfi_hex; cf2.orientation = -1;
+    VoronoiCellFacet cf1; cf1.verticesIndices = {h0, h1, h2, h3, h4, h5}; cf1.voronoi_facet_index = vfi_hex; cf1.orientation = 1;
+    VoronoiCellFacet cf2; cf2.verticesIndices = {h0, h5, h4, h3, h2, h1}; cf2.voronoi_facet_index = vfi_hex; cf2.orientation = -1;
     int cfi1 = (int)vd.cell_facets.size(); vd.cell_facets.push_back(cf1);
     int cfi2 = (int)vd.cell_facets.size(); vd.cell_facets.push_back(cf2);
-    vd.cells[c1].facet_indices.push_back(cfi1);
-    vd.cells[c2.cellIndex].facet_indices.push_back(cfi2);
+    vd.cells[c1].facetIndices.push_back(cfi1);
+    vd.cells[c2.cellIndex].facetIndices.push_back(cfi2);
 
     // Wire incident cells to global facet
     vd.surface_facets[vfi_hex].incident_cell_indices = {c1, c2.cellIndex};
@@ -181,11 +181,11 @@ static void build_hex_case(VoronoiDiagram &vd, float isovalue, int &vfi_hex)
     // Create cellEdges and wire into cell_facet slots
     std::vector<int> ceIdx1(6), ceIdx2(6);
     for (int k = 0; k < 6; ++k)
-        ceIdx1[k] = add_cell_edge(vd, c1, vd.surface_facets[vfi_hex].voronoi_edge_indices[k]);
+        ceIdx1[k] = add_cell_edge(vd, c1, vd.surface_facets[vfi_hex].voronoiEdgeIndices[k]);
     for (int k = 0; k < 6; ++k)
-        ceIdx2[k] = add_cell_edge(vd, c2.cellIndex, vd.surface_facets[vfi_hex].voronoi_edge_indices[k]);
-    vd.cell_facets[cfi1].cell_edge_indices = ceIdx1;
-    vd.cell_facets[cfi2].cell_edge_indices = ceIdx2;
+        ceIdx2[k] = add_cell_edge(vd, c2.cellIndex, vd.surface_facets[vfi_hex].voronoiEdgeIndices[k]);
+    vd.cell_facets[cfi1].cellEdgeIndices = ceIdx1;
+    vd.cell_facets[cfi2].cellEdgeIndices = ceIdx2;
 
     // Seed cycles: even slots → cycle 0, odd slots → cycle 1 (in both cells)
     for (int k = 0; k < 6; ++k)
@@ -205,9 +205,9 @@ static void write_case_json(const std::string &path,
                             const std::map<int, std::vector<std::pair<int,int>>> &matches_before)
 {
     auto slot_midpoint = [&](const VoronoiFacet &gf, int slot) -> Point {
-        const int m = (int)gf.vertices_indices.size();
-        const int a = gf.vertices_indices[slot];
-        const int b = gf.vertices_indices[(slot + 1) % m];
+        const int m = (int)gf.verticesIndices.size();
+        const int a = gf.verticesIndices[slot];
+        const int b = gf.verticesIndices[(slot + 1) % m];
         const auto &pa = vd.vertices[a].coord;
         const auto &pb = vd.vertices[b].coord;
         const float va = vd.vertices[a].value;
@@ -233,9 +233,9 @@ static void write_case_json(const std::string &path,
 
             auto ensure_node_for_slot = [&](const VoronoiFacet &gf, int slot) -> int
             {
-                const int m = (int)gf.vertices_indices.size();
-                int a = gf.vertices_indices[slot];
-                int b = gf.vertices_indices[(slot + 1) % m];
+                const int m = (int)gf.verticesIndices.size();
+                int a = gf.verticesIndices[slot];
+                int b = gf.verticesIndices[(slot + 1) % m];
                 if (a > b) std::swap(a,b);
                 EdgeKey key(a,b);
                 auto it = nodeIndex.find(key);
@@ -256,7 +256,7 @@ static void write_case_json(const std::string &path,
             };
 
             // Create nodes for all bipolar edges and connect pairs per facet matches
-            for (int cfIndex : cell.facet_indices)
+            for (int cfIndex : cell.facetIndices)
             {
                 if (cfIndex < 0 || cfIndex >= (int)vd.cell_facets.size()) continue;
                 int vfi = vd.cell_facets[cfIndex].voronoi_facet_index;
@@ -264,7 +264,7 @@ static void write_case_json(const std::string &path,
                 const VoronoiFacet &gf = vd.surface_facets[vfi];
 
                 // ensure nodes for all slots that are bipolar
-                const int m = (int)gf.vertices_indices.size();
+                const int m = (int)gf.verticesIndices.size();
                 for (int s = 0; s < m; ++s) { (void)ensure_node_for_slot(gf, s); }
 
                 // pick matches from map (fallback to current gf matches if absent)
@@ -355,10 +355,10 @@ static void write_case_json(const std::string &path,
     {
         const auto &gf = vd.surface_facets[fi];
         os << "    {\"vfi\": " << gf.index << ", \"verts\": [";
-        for (size_t k = 0; k < gf.vertices_indices.size(); ++k)
+        for (size_t k = 0; k < gf.verticesIndices.size(); ++k)
         {
-            os << gf.vertices_indices[k];
-            if (k + 1 < gf.vertices_indices.size()) os << ",";
+            os << gf.verticesIndices[k];
+            if (k + 1 < gf.verticesIndices.size()) os << ",";
         }
         os << "], ";
 
@@ -423,8 +423,8 @@ static void write_case_json(const std::string &path,
     {
         const auto &gf = vd.surface_facets[fi];
         // Gather facet points
-        std::vector<Point> P; P.reserve(gf.vertices_indices.size());
-        for (int idx : gf.vertices_indices) P.push_back(vd.vertices[idx].coord);
+        std::vector<Point> P; P.reserve(gf.verticesIndices.size());
+        for (int idx : gf.verticesIndices) P.push_back(vd.vertices[idx].coord);
         // Compute normal from first triangle
         if (P.size() < 3) continue;
         Vector3 n = CGAL::cross_product(P[1] - P[0], P[2] - P[0]);
