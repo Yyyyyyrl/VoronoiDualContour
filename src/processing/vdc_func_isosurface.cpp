@@ -1502,15 +1502,15 @@ static void collect_midpoints(
 {
     if (ISO_DBG_ENABLED && iso_dbg_cell_ok(vc.cellIndex))
     {
-        std::cerr << "[ISO] cell " << vc.cellIndex << " collecting midpoints; facets=" << vc.facet_indices.size() << "\n";
+        std::cerr << "[ISO] cell " << vc.cellIndex << " collecting midpoints; facets=" << vc.facetIndices.size() << "\n";
     }
 
-    facet_midpoint_indices.reserve(facet_midpoint_indices.size() + vc.facet_indices.size());
-    for (size_t i = 0; i < vc.facet_indices.size(); ++i)
+    facet_midpoint_indices.reserve(facet_midpoint_indices.size() + vc.facetIndices.size());
+    for (size_t i = 0; i < vc.facetIndices.size(); ++i)
     {
-        int facet_index = vc.facet_indices[i];
+        int facet_index = vc.facetIndices[i];
         VoronoiCellFacet &facet = voronoiDiagram.cell_facets[facet_index];
-        size_t num_vertices = facet.vertices_indices.size();
+        size_t num_vertices = facet.verticesIndices.size();
 
         std::vector<int> current_facet_midpoints;
         current_facet_midpoints.reserve(num_vertices);
@@ -1520,13 +1520,13 @@ static void collect_midpoints(
             size_t idx1 = j;
             size_t idx2 = (j + 1) % num_vertices;
 
-            float val1 = voronoiDiagram.vertices[facet.vertices_indices[idx1]].value;
-            float val2 = voronoiDiagram.vertices[facet.vertices_indices[idx2]].value;
+            float val1 = voronoiDiagram.vertices[facet.verticesIndices[idx1]].value;
+            float val2 = voronoiDiagram.vertices[facet.verticesIndices[idx2]].value;
 
             if (is_bipolar(val1, val2, isovalue))
             {
-                int vertex_index1 = facet.vertices_indices[idx1];
-                int vertex_index2 = facet.vertices_indices[idx2];
+                int vertex_index1 = facet.verticesIndices[idx1];
+                int vertex_index2 = facet.verticesIndices[idx2];
 
                 Point p1 = voronoiDiagram.vertices[vertex_index1].coord;
                 Point p2 = voronoiDiagram.vertices[vertex_index2].coord;
@@ -1570,9 +1570,9 @@ static void collect_midpoints(
 static inline std::pair<int, int>
 facet_slot_edge_key(const VoronoiFacet &gf, int slot)
 {
-    int m = (int)gf.vertices_indices.size();
-    int a = gf.vertices_indices[slot];
-    int b = gf.vertices_indices[(slot + 1) % m];
+    int m = (int)gf.verticesIndices.size();
+    int a = gf.verticesIndices[slot];
+    int b = gf.verticesIndices[(slot + 1) % m];
     return (a < b) ? std::make_pair(a, b) : std::make_pair(b, a);
 }
 
@@ -1587,7 +1587,7 @@ static void connect_midpoints_via_global_matches(
     {
         std::cerr << "[ISO] cell " << vc.cellIndex << " connect via global matches\n";
     }
-    for (int cf : vc.facet_indices)
+    for (int cf : vc.facetIndices)
     {
         if (cf < 0 || cf >= (int)vd.cell_facets.size())
             continue;
@@ -1832,7 +1832,7 @@ static void compute_cycle_centroids(
         {
             // Multiple cycles: clip centroid to sphere around accurate iso-crossing
             cycle.isovertex = clip_isovertex_to_circumscribed_sphere(
-                cycle.isovertex, vc.delaunay_vertex->point(), cube_side_length);
+                cycle.isovertex, vc.delaunayVertex->point(), cube_side_length);
         }
 
         for (int ptIdx : single_cycle)
@@ -1888,11 +1888,11 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
     for (auto &vc : voronoiDiagram.cells)
     {
         size_t approxEdges = 0;
-        for (int facet_index : vc.facet_indices)
+        for (int facet_index : vc.facetIndices)
         {
             if (facet_index >= 0 && facet_index < static_cast<int>(voronoiDiagram.cell_facets.size()))
             {
-                approxEdges += voronoiDiagram.cell_facets[facet_index].vertices_indices.size();
+                approxEdges += voronoiDiagram.cell_facets[facet_index].verticesIndices.size();
             }
         }
 
@@ -1903,7 +1903,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         edge_to_midpoint_index.reserve(approxEdges);
 
         std::vector<std::vector<int>> facet_midpoint_indices;
-        facet_midpoint_indices.reserve(vc.facet_indices.size());
+        facet_midpoint_indices.reserve(vc.facetIndices.size());
 
         collect_midpoints(vc, voronoiDiagram, isovalue, midpoints, edge_to_midpoint_index, facet_midpoint_indices);
         // connect_midpoints(facet_midpoint_indices, midpoints);
@@ -1930,9 +1930,9 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
 
         // Get accurate iso-crossing for this cell if available
         const Point *accurate_crossing = nullptr;
-        if (accurateIsoCrossings != nullptr && vc.delaunay_vertex != nullptr && !vc.delaunay_vertex->info().is_dummy)
+        if (accurateIsoCrossings != nullptr && vc.delaunayVertex != nullptr && !vc.delaunayVertex->info().is_dummy)
         {
-            int vertex_index = vc.delaunay_vertex->info().index;
+            int vertex_index = vc.delaunayVertex->info().index;
             if (vertex_index >= 0 && static_cast<size_t>(vertex_index) < accurateIsoCrossings->size())
             {
                 accurate_crossing = &(*accurateIsoCrossings)[vertex_index];
@@ -1944,7 +1944,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
 }
 
 // ！@brief Wrap up function for constructing iso surface
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping, int *out_interior_flips, int *out_boundary_flips, int *out_total_flips, std::size_t *out_clipped_count, double *out_max_clip_distance)
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping, int *out_interior_flips, int *out_boundary_flips, int *out_total_flips, std::size_t *out_clipped_count, double *out_max_clip_distance)
 {
     ISO_DBG_LOAD_ENV();
     if (ISO_DBG_ENABLED)
