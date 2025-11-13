@@ -27,7 +27,7 @@ std::string objectToString(const Object &obj)
 }
 
 //! Checks if a CGAL::Object is degenerate.
-bool isDegenerate(const Object &obj)
+bool is_degenerate(const Object &obj)
 {
     Segment3 seg;
     if (CGAL::assign(seg, obj))
@@ -117,12 +117,12 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
 }
 
 //! Checks if a scalar value is positive or zero.
-bool isPositive(double value, float isovalue)
+bool is_positive(double value, float isovalue)
 {
     return value >= isovalue; // Compare to global isovalue.
 }
 
-bool readPointsFromFile(const std::string &filename, std::vector<Point> &points)
+bool read_points_from_file(const std::string &filename, std::vector<Point> &points)
 {
     std::ifstream file(filename);
     if (!file)
