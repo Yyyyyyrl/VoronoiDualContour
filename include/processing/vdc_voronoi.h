@@ -170,8 +170,8 @@ struct MidpointNode
  */
 struct VoronoiCellFacet
 {
-    std::vector<int> vertices_indices;
-    std::vector<int> cell_edge_indices; // ordered edges (indices into VoronoiDiagram.cellEdges)
+    std::vector<int> verticesIndices;
+    std::vector<int> cellEdgeIndices; // ordered edges (indices into VoronoiDiagram.cellEdges)
 
     int mirror_facet_index = -1;  //!< Index of the mirror cell-facet in the adjacent cell.
     int facet_index = -1;         //!< Index of this cell-facet in facets (for compatibility).
@@ -183,9 +183,9 @@ struct VoronoiCellFacet
     template <typename OSTREAM_TYPE>
     void PrintVertices(OSTREAM_TYPE & out) const {
         out << "  Vertex indices: [";
-        for (size_t i = 0; i < vertices_indices.size(); ++i) {
-            out << vertices_indices[i];
-            if (i + 1 < vertices_indices.size()) out << ", ";
+        for (size_t i = 0; i < verticesIndices.size(); ++i) {
+            out << verticesIndices[i];
+            if (i + 1 < verticesIndices.size()) out << ", ";
         }
         out << "]\n";
     }
@@ -194,9 +194,9 @@ struct VoronoiCellFacet
     template <typename OSTREAM_TYPE>
     void PrintCellEdgeIndices(OSTREAM_TYPE & out) const {
         out << "  Cell edge indices: [";
-        for (size_t i = 0; i < cell_edge_indices.size(); ++i) {
-            out << cell_edge_indices[i];
-            if (i + 1 < cell_edge_indices.size()) out << ", ";
+        for (size_t i = 0; i < cellEdgeIndices.size(); ++i) {
+            out << cellEdgeIndices[i];
+            if (i + 1 < cellEdgeIndices.size()) out << ", ";
         }
         out << "]\n";
     }
@@ -247,8 +247,8 @@ struct IsoSegment
 //! @brief Represents a facet in the Voronoi diagram (unique, shared by cells).
 struct VoronoiFacet
 {
-    std::vector<int> vertices_indices;     //!< Ordered indices of vertices forming this facet.
-    std::vector<int> voronoi_edge_indices; //!< ordered edges along boundary; k -> edge(v[k], v[k+1])
+    std::vector<int> verticesIndices;      //!< Ordered indices of vertices forming this facet.
+    std::vector<int> voronoiEdgeIndices;   //!< ordered edges along boundary; k -> edge(v[k], v[k+1])
     int index = -1;                        //!< Index of the facet in voronoi_facets.
     int primary_cell_facet_index = -1;     //!< Index in facets of the primary cell-facet.
 
@@ -270,15 +270,15 @@ struct VoronoiFacet
         out << "  Index: " << index << "\n";
         out << "  Primary cell facet index: " << primary_cell_facet_index << "\n";
         out << "  Vertex indices: [";
-        for (size_t i = 0; i < vertices_indices.size(); ++i) {
-            out << vertices_indices[i];
-            if (i + 1 < vertices_indices.size()) out << ", ";
+        for (size_t i = 0; i < verticesIndices.size(); ++i) {
+            out << verticesIndices[i];
+            if (i + 1 < verticesIndices.size()) out << ", ";
         }
         out << "]\n";
         out << "  Voronoi edge indices: [";
-        for (size_t i = 0; i < voronoi_edge_indices.size(); ++i) {
-            out << voronoi_edge_indices[i];
-            if (i + 1 < voronoi_edge_indices.size()) out << ", ";
+        for (size_t i = 0; i < voronoiEdgeIndices.size(); ++i) {
+            out << voronoiEdgeIndices[i];
+            if (i + 1 < voronoiEdgeIndices.size()) out << ", ";
         }
         out << "]\n";
         out << "  Bipolar match method: " << static_cast<int>(bipolar_match_method) << "\n";
@@ -355,10 +355,10 @@ struct Cycle
  */
 struct VoronoiCell
 {
-    Vertex_handle delaunay_vertex;     //!< Handle to the corresponding Delaunay vertex.
+    Vertex_handle delaunayVertex;      //!< Handle to the corresponding Delaunay vertex.
     int cellIndex;                     //!< Index of this cell in the Voronoi diagram.
-    std::vector<int> vertices_indices; //!< Indices of Voronoi vertices forming this cell.
-    std::vector<int> facet_indices;    //!< Indices of Voronoi facets belonging to this cell.
+    std::vector<int> verticesIndices;  //!< Indices of Voronoi vertices forming this cell.
+    std::vector<int> facetIndices;     //!< Indices of Voronoi facets belonging to this cell.
     CGAL::Polyhedron_3<K> polyhedron;  //!< Geometric representation of the cell as a polyhedron.
     std::vector<Cycle> cycles;         //!< Cycles (loops) within this cell.
     int isoVertexStartIndex;           //!< Starting index of isosurface vertices associated with this cell.
@@ -369,24 +369,24 @@ struct VoronoiCell
      * @param vh Handle to the corresponding Delaunay vertex.
      */
     VoronoiCell(Vertex_handle vh)
-        : delaunay_vertex(vh), isoVertexStartIndex(-1), numIsoVertices(0) {}
+        : delaunayVertex(vh), isoVertexStartIndex(-1), numIsoVertices(0) {}
 
     //! @brief Print Voronoi cell information for debugging
     template <typename OSTREAM_TYPE>
     void Print(OSTREAM_TYPE & out) const {
         out << "VoronoiCell:\n";
         out << "  Cell index: " << cellIndex << "\n";
-        out << "  Delaunay vertex: " << delaunay_vertex->point() << "\n";
+        out << "  Delaunay vertex: " << delaunayVertex->point() << "\n";
         out << "  Vertices indices: [";
-        for (size_t i = 0; i < vertices_indices.size(); ++i) {
-            out << vertices_indices[i];
-            if (i + 1 < vertices_indices.size()) out << ", ";
+        for (size_t i = 0; i < verticesIndices.size(); ++i) {
+            out << verticesIndices[i];
+            if (i + 1 < verticesIndices.size()) out << ", ";
         }
         out << "]\n";
         out << "  Facet indices: [";
-        for (size_t i = 0; i < facet_indices.size(); ++i) {
-            out << facet_indices[i];
-            if (i + 1 < facet_indices.size()) out << ", ";
+        for (size_t i = 0; i < facetIndices.size(); ++i) {
+            out << facetIndices[i];
+            if (i + 1 < facetIndices.size()) out << ", ";
         }
         out << "]\n";
         out << "  IsoVertex start index: " << isoVertexStartIndex << "\n";
@@ -792,15 +792,15 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiCell &vc)
 {
     os << "VoronoiCell:\n";
     os << "  Cell index: " << vc.cellIndex << "\n";
-    os << "  Delaunay vertex: " << vc.delaunay_vertex->point() << "\n";
+    os << "  Delaunay vertex: " << vc.delaunayVertex->point() << "\n";
 
     os << "  Voronoi Vertices indices: ";
-    for (const int idx : vc.vertices_indices)
+    for (const int idx : vc.verticesIndices)
         os << idx << " ";
     os << "\n";
 
     os << "  Facet indices: ";
-    for (const int idx : vc.facet_indices)
+    for (const int idx : vc.facetIndices)
         os << idx << " ";
     os << "\n";
 
@@ -831,14 +831,14 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiFacet &vf)
     os << "  Bipolar match method: " << matchMethodToString(vf.bipolar_match_method) << "\n";
 
     os << "  Vertices indices: ";
-    for (const int idx : vf.vertices_indices)
+    for (const int idx : vf.verticesIndices)
     {
         os << idx << " ";
     }
     os << "\n";
 
     os << "  Edges: ";
-    for (const auto &edge : vf.voronoi_edge_indices)
+    for (const auto &edge : vf.voronoiEdgeIndices)
     {
         os << "(" << edge << ")";
     }
@@ -1048,10 +1048,10 @@ int map_global_slot_to_cell(const VoronoiFacet &vf,
                             int slot_global);
 
 // Return the cycle id for the bipolar edge at given local slot in cell facet cf
-// (single-slot lookup via cf.cell_edge_indices[local_slot]; NO hashing).
+// (single-slot lookup via cf.cellEdgeIndices[local_slot]; NO hashing).
 //! @brief Looks up the cycle id touched by a bipolar edge slot in a cell facet.
 /*!
- * Uses the per‑edge rings (via precomputed cf.cell_edge_indices) to find a
+ * Uses the per‑edge rings (via precomputed cf.cellEdgeIndices) to find a
  * cycle index within a given cell that corresponds to the specified bipolar edge.
  *
  * @param vd Voronoi diagram
