@@ -25,11 +25,11 @@ bool is_bipolar(float val1, float val2, float isovalue = 0);
 //! @brief Checks if a CGAL::Object is degenerate.
 /*!
  * A segment is degenerate if its start and end points are the same.
- * 
+ *
  * @param obj The CGAL::Object to check.
  * @return `true` if the object is degenerate, otherwise `false`.
  */
-bool isDegenerate(const Object &obj);
+bool is_degenerate(const Object &obj);
 
 //! @brief Checks if a Delaunay cell is degenerate.
 /*!
@@ -40,23 +40,23 @@ bool isDegenerate(const Object &obj);
  */
 bool is_degenerate(Delaunay::Cell_handle cell);
 
-//! @brief Checks if a value is positive or zero.
+//! @brief Checks if a value is positive relative to an isovalue.
 /*!
  * @param value The scalar value to check.
- * @param isovalue The isovalue
- * @return `true` if the value is positive or zero, otherwise `false`.
+ * @param isovalue The isovalue threshold for comparison.
+ * @return `true` if the value is greater than or equal to the isovalue, otherwise `false`.
  */
-bool isPositive(double value, float isovalue);
+bool is_positive(double value, float isovalue);
 
 /* General Helper Functions */
 
 //! @brief Computes the centroid of a set of points.
 /*!
  * This function calculates the geometric centroid of a set of points.
- * 
+ *
  * @param points Vector of points to compute the centroid for.
- * @param supersample Indicates if supersampling is applied (optional).
- * @param ratio Supersampling ratio (optional).
+ * @param supersample Indicates if supersampling is applied (currently unused, reserved for future use).
+ * @param ratio Supersampling ratio (currently unused, reserved for future use).
  * @return The computed centroid as a Point.
  */
 Point compute_centroid(const std::vector<Point> &points, bool supersample, int ratio);
@@ -94,7 +94,7 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
 
 
 //! @brief Loads 3D points from a text file.
-/*! 
+/*!
  * Accepts simple whitespace/comma separated lines containing three numeric
  * coordinates per line. Lines that cannot be parsed are ignored.
  *
@@ -102,7 +102,7 @@ int get_orientation(const int iFacet, const Point v1, const Point v2, const floa
  * @param points Output container receiving parsed points
  * @return true on success, false if the file could not be opened
  */
-bool readPointsFromFile(const std::string &filename, std::vector<Point> &points);
+bool read_points_from_file(const std::string &filename, std::vector<Point> &points);
 
 //! @brief Writes a Delaunay triangulation and its input points for debugging.
 /*!
