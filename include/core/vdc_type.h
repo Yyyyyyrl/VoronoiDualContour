@@ -55,7 +55,7 @@ typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 /*!
  * Stores metadata for vertices in the Delaunay triangulation.
  */
-struct VERTEX_INFO
+struct VertexInfo
 {
     bool is_dummy;        //!< Flag indicating if this is a dummy vertex added for bounding
     int voronoiCellIndex; //!< Index of the Voronoi cell dual to this vertex
@@ -64,7 +64,7 @@ struct VERTEX_INFO
     //! @brief Print vertex info for debugging
     template <typename OSTREAM_TYPE>
     void Print(OSTREAM_TYPE & out) const {
-        out << "VERTEX_INFO:\n";
+        out << "VertexInfo:\n";
         out << "  Index: " << index << "\n";
         out << "  Is dummy: " << (is_dummy ? "true" : "false") << "\n";
         out << "  Voronoi cell index: " << voronoiCellIndex << "\n";
@@ -77,15 +77,15 @@ struct VERTEX_INFO
  * references to the dual Voronoi edge and the corresponding Voronoi cell edges
  * for quick lookup during Voronoi facet construction.
  */
-struct DELAUNAY_FACET_INFO
+struct DelaunayFacetInfo
 {
     int dualEdgeIndex;           //!< Index of the Voronoi edge dual to this Delaunay facet
     int dualCellEdgeIndex[3];    //!< Indices of Voronoi cell edges for the 3 vertices of this facet
                                  //!< dualCellEdgeIndex[k] is the index of the cell edge dual to this facet
                                  //!< and in the Voronoi cell around the k'th vertex of the facet
 
-    //! @brief Constructor to initialize DELAUNAY_FACET_INFO with default values
-    DELAUNAY_FACET_INFO() : dualEdgeIndex(-1)
+    //! @brief Constructor to initialize DelaunayFacetInfo with default values
+    DelaunayFacetInfo() : dualEdgeIndex(-1)
     {
         dualCellEdgeIndex[0] = -1;
         dualCellEdgeIndex[1] = -1;
@@ -105,7 +105,7 @@ struct DELAUNAY_FACET_INFO
     //! @brief Print Delaunay facet info for debugging
     template <typename OSTREAM_TYPE>
     void Print(OSTREAM_TYPE & out) const {
-        out << "DELAUNAY_FACET_INFO:\n";
+        out << "DelaunayFacetInfo:\n";
         out << "  Dual edge index: " << dualEdgeIndex << "\n";
         out << "  Dual cell edge indices: ["
             << dualCellEdgeIndex[0] << ", "
@@ -120,14 +120,14 @@ struct DELAUNAY_FACET_INFO
  * Each Delaunay cell (tetrahedron) has 4 facets indexed 0-3, where facet i
  * is opposite to vertex i. Each facet is dual to a Voronoi edge.
  */
-struct CELL_INFO
+struct CellInfo
 {
-    int dualVoronoiVertexIndex;        //!< Index of the Voronoi vertex dual to this cell
-    int index;                         //!< Unique index of this cell in the triangulation
-    DELAUNAY_FACET_INFO facet_info[4]; //!< Information for each of the 4 facets of this cell
+    int dualVoronoiVertexIndex;     //!< Index of the Voronoi vertex dual to this cell
+    int index;                      //!< Unique index of this cell in the triangulation
+    DelaunayFacetInfo facet_info[4]; //!< Information for each of the 4 facets of this cell
 
-    //! @brief Constructor to initialize CELL_INFO with default values
-    CELL_INFO() : dualVoronoiVertexIndex(-1), index(-1) {}
+    //! @brief Constructor to initialize CellInfo with default values
+    CellInfo() : dualVoronoiVertexIndex(-1), index(-1) {}
 
     //! @brief Return the index (0, 1, 2, or 3) of the k'th vertex of facet facet_index
     /*!
@@ -146,7 +146,7 @@ struct CELL_INFO
     //! @brief Print cell info for debugging
     template <typename OSTREAM_TYPE>
     void Print(OSTREAM_TYPE & out) const {
-        out << "CELL_INFO:\n";
+        out << "CellInfo:\n";
         out << "  Index: " << index << "\n";
         out << "  Dual Voronoi vertex index: " << dualVoronoiVertexIndex << "\n";
         out << "  Facet info count: 4\n";
@@ -162,13 +162,13 @@ enum class BIPOLAR_MATCH_METHOD {
 };
 
 //! @brief Vertex base for triangulations with additional information.
-typedef CGAL::Triangulation_vertex_base_with_info_3<VERTEX_INFO, K> Vb;
+typedef CGAL::Triangulation_vertex_base_with_info_3<VertexInfo, K> Vb;
 
 //! @brief Cell base for Delaunay triangulations.
 typedef CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K> Cb2;
 
 //! @brief Cell base for Delaunay triangulations with additional information.
-typedef CGAL::Triangulation_cell_base_with_info_3<CELL_INFO, K, Cb2> Cb;
+typedef CGAL::Triangulation_cell_base_with_info_3<CellInfo, K, Cb2> Cb;
 
 //! @brief Data structure for triangulations.
 /*!
