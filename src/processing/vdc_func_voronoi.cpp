@@ -91,12 +91,12 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
         }
 
         // Copy unique indices to vector
-        vc.vertices_indices.assign(unique_vertex_indices_set.begin(), unique_vertex_indices_set.end());
+        vc.verticesIndices.assign(unique_vertex_indices_set.begin(), unique_vertex_indices_set.end());
 
         // Build vertex_points and vector for lookup (allow duplicates by using first idx for matching points)
         std::vector<Point> vertex_points;
         std::vector<std::pair<Point, int>> point_index_pairs;
-        for (int idx : vc.vertices_indices)
+        for (int idx : vc.verticesIndices)
         {
             Point p = voronoiDiagram.vertices[idx].coord;
             vertex_points.push_back(p);
@@ -135,7 +135,7 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
                 {
                     if (PointApproxEqual()(pair.first, p))
                     {
-                        vf.vertices_indices.push_back(pair.second);
+                        vf.verticesIndices.push_back(pair.second);
                         found = true;
                         break;
                     }
@@ -148,12 +148,12 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
             } while (h != facet_it->facet_begin());
 
             // Skip degenerate facets
-            if (vf.vertices_indices.size() < 3)
+            if (vf.verticesIndices.size() < 3)
                 continue;
 
             int facet_index = voronoiDiagram.cell_facets.size();
             voronoiDiagram.cell_facets.push_back(vf);
-            vc.facet_indices.push_back(facet_index);
+            vc.facetIndices.push_back(facet_index);
         }
 
         voronoiDiagram.cells.push_back(vc);
@@ -320,7 +320,7 @@ static VoronoiCellFacet build_facet_from_edge(
     }
 
     VoronoiCellFacet facet;
-    facet.vertices_indices = std::move(facetVertices);
+    facet.verticesIndices = std::move(facetVertices);
 
     int facetIndex = voronoiDiagram.cell_facets.size();
     voronoiDiagram.cell_facets.push_back(facet);
@@ -331,9 +331,9 @@ static VoronoiCellFacet build_facet_from_edge(
     edge_to_facets[edge_key].push_back(facetIndex);
 
     //Single-pass iteration using stored facet_info indices
-    facet.cell_edge_indices.clear();
-    const int n = (int)facet.vertices_indices.size();
-    facet.cell_edge_indices.reserve(n);
+    facet.cellEdgeIndices.clear();
+    const int n = (int)facet.verticesIndices.size();
+    facet.cellEdgeIndices.reserve(n);
 
     // Build parallel arrays of Voronoi vertices and their corresponding Delaunay facets
     // in a single pass through the facet circulator
@@ -364,7 +364,7 @@ static VoronoiCellFacet build_facet_from_edge(
     // using the stored dualCellEdgeIndex in facet_info (accessed via get_dual_cell_edge_index)
     for (int i = 0; i < n; ++i)
     {
-        const int a = facet.vertices_indices[i];
+        const int a = facet.verticesIndices[i];
 
         // Find the Delaunay facet corresponding to Voronoi vertex 'a'
         bool found = false;
@@ -375,7 +375,7 @@ static VoronoiCellFacet build_facet_from_edge(
                 const Facet &delFacet = delaunayFacets[j];
                 // Get the cell edge index directly from stored facet_info
                 const int dual_cell_edge_index = get_dual_cell_edge_index(delFacet, v1, v2);
-                facet.cell_edge_indices.push_back(dual_cell_edge_index);
+                facet.cellEdgeIndices.push_back(dual_cell_edge_index);
                 found = true;
                 break;
             }
@@ -390,7 +390,7 @@ static VoronoiCellFacet build_facet_from_edge(
                           << " not found in incident facets for edge ("
                           << v1->info().index << ", " << v2->info().index << ")\n";
             }
-            facet.cell_edge_indices.push_back(-1);
+            facet.cellEdgeIndices.push_back(-1);
         }
     }
     return facet;
@@ -439,19 +439,19 @@ static void process_incident_edges(
         }
 
         // Build facet only if edge has 3+ finite cells
-        VoronoiCellFacet facet = build_facet_from_edge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facet_indices, edge_to_facets, vc.cellIndex);
-        if (facet.vertices_indices.empty() && debug)
+        VoronoiCellFacet facet = build_facet_from_edge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facetIndices, edge_to_facets, vc.cellIndex);
+        if (facet.verticesIndices.empty() && debug)
         {
             std::cout << "[WARNING] Facet construction failed for edge with " << finite_cell_count << " finite cells\n";
             continue;
         }
 
         // Verify facet validity
-        if (facet.vertices_indices.size() < 3)
+        if (facet.verticesIndices.size() < 3)
         {
             // Enhanced error logging for debugging degenerate facets
             std::cout << "[ERROR] Degenerate Voronoi facet detected:\n";
-            std::cout << "  - Voronoi facet vertices count: " << facet.vertices_indices.size() << "\n";
+            std::cout << "  - Voronoi facet vertices count: " << facet.verticesIndices.size() << "\n";
             std::cout << "  - Finite incident Delaunay cells around edge: " << finite_cell_count << "\n";
 
             // Extract edge endpoints
@@ -513,9 +513,9 @@ static void process_incident_edges(
         }
 
         int facetIndex = voronoiDiagram.cell_facets.size() - 1; // Assuming facet was just added
-        if (std::find(vc.facet_indices.begin(), vc.facet_indices.end(), facetIndex) == vc.facet_indices.end())
+        if (std::find(vc.facetIndices.begin(), vc.facetIndices.end(), facetIndex) == vc.facetIndices.end())
         {
-            vc.facet_indices.push_back(facetIndex);
+            vc.facetIndices.push_back(facetIndex);
         }
     }
 }
@@ -534,7 +534,7 @@ namespace
         std::vector<int> facetToCell(vd.cell_facets.size(), -1);
         for (size_t cellIdx = 0; cellIdx < vd.cells.size(); ++cellIdx)
         {
-            for (int fi : vd.cells[cellIdx].facet_indices)
+            for (int fi : vd.cells[cellIdx].facetIndices)
             {
                 if (fi >= 0 && fi < static_cast<int>(facetToCell.size()))
                     facetToCell[fi] = static_cast<int>(cellIdx);
@@ -547,16 +547,16 @@ namespace
     void propagate_facets_within_cell(size_t cellIdx, VoronoiDiagram &vd)
     {
         auto &cell = vd.cells[cellIdx];
-        if (cell.facet_indices.empty())
+        if (cell.facetIndices.empty())
             return;
 
-        const size_t num_facets = cell.facet_indices.size();
+        const size_t num_facets = cell.facetIndices.size();
         std::vector<std::map<size_t, std::pair<int, int>>> adjacency(num_facets);
 
         for (size_t i = 0; i < num_facets; ++i)
         {
-            const int f1 = cell.facet_indices[i];
-                const auto &verts1 = vd.cell_facets[f1].vertices_indices;
+            const int f1 = cell.facetIndices[i];
+                const auto &verts1 = vd.cell_facets[f1].verticesIndices;
             std::map<std::pair<int, int>, size_t> edges1;
             for (size_t j = 0; j < verts1.size(); ++j)
             {
@@ -567,8 +567,8 @@ namespace
 
             for (size_t k = i + 1; k < num_facets; ++k)
             {
-                const int f2 = cell.facet_indices[k];
-                const auto &verts2 = vd.cell_facets[f2].vertices_indices;
+                const int f2 = cell.facetIndices[k];
+                const auto &verts2 = vd.cell_facets[f2].verticesIndices;
                 std::pair<int, int> shared = {-1, -1};
                 int shared_count = 0;
 
@@ -603,8 +603,8 @@ namespace
             const size_t curr = q.front();
             q.pop();
 
-            const int currFacetIdx = cell.facet_indices[curr];
-            auto &currVerts = vd.cell_facets[currFacetIdx].vertices_indices;
+            const int currFacetIdx = cell.facetIndices[curr];
+            auto &currVerts = vd.cell_facets[currFacetIdx].verticesIndices;
 
             for (const auto &entry : adjacency[curr])
             {
@@ -616,8 +616,8 @@ namespace
                 q.push(next);
 
                 const std::pair<int, int> shared = entry.second;
-                const int nextFacetIdx = cell.facet_indices[next];
-                auto &nextVerts = vd.cell_facets[nextFacetIdx].vertices_indices;
+                const int nextFacetIdx = cell.facetIndices[next];
+                auto &nextVerts = vd.cell_facets[nextFacetIdx].verticesIndices;
 
                 auto has_direction = [&](const std::vector<int> &verts) {
                     for (size_t j = 0; j < verts.size(); ++j)
@@ -643,7 +643,7 @@ namespace
     bool audit_cell_edge_orientation(size_t cellIdx, const VoronoiDiagram &vd)
     {
         const auto &cell = vd.cells[cellIdx];
-        if (cell.facet_indices.empty())
+        if (cell.facetIndices.empty())
             return true;
 
         struct EdgeInfo
@@ -654,9 +654,9 @@ namespace
 
         std::map<std::pair<int, int>, EdgeInfo> usage;
 
-        for (int fi : cell.facet_indices)
+        for (int fi : cell.facetIndices)
         {
-            const auto &verts = vd.cell_facets[fi].vertices_indices;
+            const auto &verts = vd.cell_facets[fi].verticesIndices;
             const size_t n = verts.size();
             if (n < 2)
                 continue;
@@ -697,9 +697,9 @@ namespace
     void flip_cell(VoronoiDiagram &vd, int cellIdx)
     {
         auto &cell = vd.cells[cellIdx];
-        for (int fi : cell.facet_indices)
+        for (int fi : cell.facetIndices)
         {
-            auto &verts = vd.cell_facets[fi].vertices_indices;
+            auto &verts = vd.cell_facets[fi].verticesIndices;
             std::reverse(verts.begin(), verts.end());
         }
     }
@@ -708,9 +708,9 @@ namespace
     void orient_cell_outward(VoronoiDiagram &vd, int cellIdx)
     {
         auto &cell = vd.cells[cellIdx];
-        for (int fi : cell.facet_indices)
+        for (int fi : cell.facetIndices)
         {
-            const auto &verts = vd.cell_facets[fi].vertices_indices;
+            const auto &verts = vd.cell_facets[fi].verticesIndices;
             const size_t n = verts.size();
             if (n < 3)
                 continue;
@@ -735,7 +735,7 @@ namespace
             if (normal.squared_length() <= 1e-12)
                 continue;
 
-            const Vector3 v = cell.delaunay_vertex->point() - centroid;
+            const Vector3 v = cell.delaunayVertex->point() - centroid;
             if (CGAL::scalar_product(normal, v) > 0)
                 flip_cell(vd, cellIdx);
             return;
@@ -750,7 +750,7 @@ namespace
 
         for (size_t root = 0; root < vd.cells.size(); ++root)
         {
-            if (vd.cells[root].facet_indices.empty())
+            if (vd.cells[root].facetIndices.empty())
                 continue;
             if (cellMark[root] != 0)
                 continue;
@@ -764,7 +764,7 @@ namespace
                 const int curr = pending.front();
                 pending.pop();
 
-                for (int fi : vd.cells[curr].facet_indices)
+                for (int fi : vd.cells[curr].facetIndices)
                 {
                     const int mirror = vd.cell_facets[fi].mirror_facet_index;
                     if (mirror < 0 || mirror >= static_cast<int>(vd.cell_facets.size()))
@@ -775,8 +775,8 @@ namespace
                         continue;
 
                     bool opposite = vd.haveOppositeOrientation(
-                        vd.cell_facets[fi].vertices_indices,
-                        vd.cell_facets[mirror].vertices_indices);
+                        vd.cell_facets[fi].verticesIndices,
+                        vd.cell_facets[mirror].verticesIndices);
 
                     if (cellMark[neighbor] == 0)
                     {
@@ -784,8 +784,8 @@ namespace
                         {
                             flip_cell(vd, neighbor);
                             opposite = vd.haveOppositeOrientation(
-                                vd.cell_facets[fi].vertices_indices,
-                                vd.cell_facets[mirror].vertices_indices);
+                                vd.cell_facets[fi].verticesIndices,
+                                vd.cell_facets[mirror].verticesIndices);
                             if (!opposite)
                             {
                                 throw std::runtime_error(
@@ -841,12 +841,12 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
             continue;
 
         VoronoiCell vc = create_voronoi_cell(v, cellIndex);
-        collcet_cell_vertices(dt, v, voronoiDiagram, vc.vertices_indices);
+        collcet_cell_vertices(dt, v, voronoiDiagram, vc.verticesIndices);
         process_incident_edges(dt, v, voronoiDiagram, vc, edge_to_facets);
 
-        if (vc.facet_indices.size() < 4)
+        if (vc.facetIndices.size() < 4)
         {
-            std::cout << "[WARNING] Cell " << cellIndex << " has only " << vc.facet_indices.size() << " facets, skipping\n";
+            std::cout << "[WARNING] Cell " << cellIndex << " has only " << vc.facetIndices.size() << " facets, skipping\n";
         }
         else
         {
@@ -866,8 +866,8 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
             voronoiDiagram.cell_facets[f1].mirror_facet_index = f2;
             voronoiDiagram.cell_facets[f2].mirror_facet_index = f1;
 
-            auto &A = voronoiDiagram.cell_facets[f1].vertices_indices;
-            auto &B = voronoiDiagram.cell_facets[f2].vertices_indices;
+            auto &A = voronoiDiagram.cell_facets[f1].verticesIndices;
+            auto &B = voronoiDiagram.cell_facets[f2].verticesIndices;
         }
         else if (dfacets.size() == 1)
         {
@@ -1325,7 +1325,7 @@ int find_cell_edge_for_cell_and_edge(const VoronoiDiagram &vd,
 
 
 //! @brief Wrap up function of constructing voronoi diagram
-void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, UnifiedGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
+void construct_voronoi_diagram(VoronoiDiagram &vd, VdcParam &vdc_param, UnifiedGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt)
 {
     TimingStats& timer = TimingStats::getInstance();
 
