@@ -12,14 +12,14 @@
  * @param filename The output file path.
  * @param iso_surface The isosurface container providing vertices and triangles.
  */
-void writeOFFSingle(const std::string &filename, const IsoSurface &iso_surface);
+void write_off_single(const std::string &filename, const IsoSurface &iso_surface);
 
 //! @brief Writes an isosurface mesh in PLY format (single-isovalue case).
 /*!
  * @param filename The output file path.
  * @param iso_surface The isosurface container providing vertices and triangles.
  */
-void writePLYSingle(const std::string &filename, const IsoSurface &iso_surface);
+void write_ply_single(const std::string &filename, const IsoSurface &iso_surface);
 
 //! @brief Writes an isosurface mesh in OFF format (multi-isovalue case).
 /*!
@@ -27,8 +27,8 @@ void writePLYSingle(const std::string &filename, const IsoSurface &iso_surface);
  * @param voronoiDiagram The Voronoi diagram containing isosurface data.
  * @param iso_surface The isosurface container providing vertices and triangles.
  */
-void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram,
-                   const IsoSurface &iso_surface);
+void write_off_multi(const std::string &filename, const VoronoiDiagram &voronoiDiagram,
+                     const IsoSurface &iso_surface);
 
 //! @brief Writes an isosurface mesh in PLY format (multi-isovalue case).
 /*!
@@ -36,8 +36,8 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
  * @param voronoiDiagram The Voronoi diagram containing isosurface data.
  * @param iso_surface The isosurface container providing vertices and triangles.
  */
-void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram,
-                   const IsoSurface &iso_surface);
+void write_ply_multi(const std::string &filename, const VoronoiDiagram &voronoiDiagram,
+                     const IsoSurface &iso_surface);
 
 //! @brief Exports Voronoi diagram data to a CSV file.
 /*!
