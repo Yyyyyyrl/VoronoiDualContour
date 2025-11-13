@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
     timer.startTimer("Total Processing");
 
     VoronoiDiagram vd; // Initialize an empty Voronoi diagram.
-    VDC_PARAM vdc_param;
+    VdcParam vdc_param;
     IsoSurface iso_surface;
     Delaunay dt;
     Delaunay dt_test;
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 
     // Create grid facets from the active cubes for further processing.
     timer.startTimer("Create grid facets", "2. Data Pre-processing");
-    std::vector<std::vector<GRID_FACETS>> grid_facets = create_grid_facets(activeCubes);
+    std::vector<std::vector<GridFacets>> grid_facets = create_grid_facets(activeCubes);
     timer.stopTimer("Create grid facets");
     timer.stopTimer("2. Data Pre-processing");
 
@@ -129,7 +129,6 @@ int main(int argc, char *argv[])
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
     timer.stopTimer("3. Delaunay Triangulation Construction");
 
-    //std::cout << dt << std::endl;
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)
     {
@@ -169,7 +168,6 @@ int main(int argc, char *argv[])
     vd2.check(true);
     timer.stopTimer("6. Post-collapse Validation");
 
-    //std::cout << dt <<std::endl;
     if (indicator)
     {
         std::cout << "[INFO] Constructing Iso Surface..." << std::endl;
@@ -214,7 +212,7 @@ int main(int argc, char *argv[])
             const auto &facet = vd2.surface_facets[facet_with_max];
             facet.Print(std::cout);
             std::cout << "Voronoi vertices on facet " << facet_with_max << ":\n";
-            for (int vid : facet.vertices_indices)
+            for (int vid : facet.verticesIndices)
             {
                 if (vid < 0 || vid >= static_cast<int>(vd2.vertices.size()))
                 {
@@ -226,7 +224,7 @@ int main(int argc, char *argv[])
                           << "  value=" << vertex.value << std::endl;
             }
             std::cout << "Voronoi Edges on facet " <<  facet_with_max << ":\n";
-            for (int eid : facet.voronoi_edge_indices) {
+            for (int eid : facet.voronoiEdgeIndices) {
                 const auto &edge = vd2.edges[eid];
                 std::cout << "  [" << eid << "] " << edge.vertex1 << ", " << edge.vertex2 << std::endl;
             }
