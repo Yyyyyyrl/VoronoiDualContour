@@ -1,7 +1,7 @@
 #include "vdc_io.h"
 
 //! Writes a single-isovalue isosurface mesh in OFF format.
-void writeOFFSingle(const std::string &filename, const IsoSurface &iso_surface)
+void write_off_single(const std::string &filename, const IsoSurface &iso_surface)
 {
     const auto &vertices = iso_surface.isosurfaceVertices;
     const auto &triangles = iso_surface.isosurfaceTrianglesSingle;
@@ -34,7 +34,7 @@ void writeOFFSingle(const std::string &filename, const IsoSurface &iso_surface)
 }
 
 //! Writes a multi-isovalue isosurface mesh in OFF format.
-void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const IsoSurface &iso_surface)
+void write_off_multi(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const IsoSurface &iso_surface)
 {
     (void)voronoiDiagram;
     const auto &scale = iso_surface.vertex_scale;
@@ -69,7 +69,7 @@ void writeOFFMulti(const std::string &filename, const VoronoiDiagram &voronoiDia
 }
 
 //! Writes a single-isovalue isosurface mesh in PLY format.
-void writePLYSingle(const std::string &filename, const IsoSurface &iso_surface)
+void write_ply_single(const std::string &filename, const IsoSurface &iso_surface)
 {
     const auto &vertices = iso_surface.isosurfaceVertices;
     const auto &triangles = iso_surface.isosurfaceTrianglesSingle;
@@ -109,7 +109,7 @@ void writePLYSingle(const std::string &filename, const IsoSurface &iso_surface)
 }
 
 //! Writes a multi-isovalue isosurface mesh in PLY format.
-void writePLYMulti(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const IsoSurface &iso_surface)
+void write_ply_multi(const std::string &filename, const VoronoiDiagram &voronoiDiagram, const IsoSurface &iso_surface)
 {
     (void)voronoiDiagram;
     const auto &scale = iso_surface.vertex_scale;
