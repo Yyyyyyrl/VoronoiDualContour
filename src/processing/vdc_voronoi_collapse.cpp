@@ -62,18 +62,18 @@ namespace
         for (auto &cell : vd.cells)
         {
             const int cellIdx = cell.cellIndex;
-            for (int cfIdx : cell.facet_indices)
+            for (int cfIdx : cell.facetIndices)
             {
                 if (cfIdx < 0 || cfIdx >= static_cast<int>(vd.cell_facets.size()))
                     continue;
                 auto &cf = vd.cell_facets[cfIdx];
-                const int n = static_cast<int>(cf.vertices_indices.size());
-                cf.cell_edge_indices.clear();
-                cf.cell_edge_indices.reserve(n);
+                const int n = static_cast<int>(cf.verticesIndices.size());
+                cf.cellEdgeIndices.clear();
+                cf.cellEdgeIndices.reserve(n);
                 for (int i = 0; i < n; ++i)
                 {
-                    const int a = cf.vertices_indices[i];
-                    const int b = cf.vertices_indices[(i + 1) % n];
+                    const int a = cf.verticesIndices[i];
+                    const int b = cf.verticesIndices[(i + 1) % n];
                     int mapped = -1;
                     if (a >= 0 && b >= 0)
                     {
@@ -83,7 +83,7 @@ namespace
                             mapped = find_cell_edge_for_cell_and_edge(vd, cellIdx, globalEdge);
                         }
                     }
-                    cf.cell_edge_indices.push_back(mapped);
+                    cf.cellEdgeIndices.push_back(mapped);
                 }
             }
         }
@@ -97,17 +97,17 @@ namespace
     {
         for (auto &cell : vd.cells)
         {
-            if (cell.facet_indices.empty())
+            if (cell.facetIndices.empty())
                 continue;
 
             // Build adjacency among facets that share exactly one edge
-            const size_t numF = cell.facet_indices.size();
+            const size_t numF = cell.facetIndices.size();
             std::vector<std::map<size_t, std::pair<int, int>>> adj(numF);
 
             for (size_t i = 0; i < numF; ++i)
             {
-                const int f1 = cell.facet_indices[i];
-                const auto &verts1 = vd.cell_facets[f1].vertices_indices;
+                const int f1 = cell.facetIndices[i];
+                const auto &verts1 = vd.cell_facets[f1].verticesIndices;
                 std::map<std::pair<int, int>, size_t> epos1;
                 for (size_t j = 0; j < verts1.size(); ++j)
                 {
@@ -115,8 +115,8 @@ namespace
                 }
                 for (size_t k = i + 1; k < numF; ++k)
                 {
-                    const int f2 = cell.facet_indices[k];
-                    const auto &verts2 = vd.cell_facets[f2].vertices_indices;
+                    const int f2 = cell.facetIndices[k];
+                    const auto &verts2 = vd.cell_facets[f2].verticesIndices;
                     std::pair<int, int> shared = {-1, -1};
                     int cnt = 0;
                     for (size_t j = 0; j < verts2.size(); ++j)
@@ -140,7 +140,7 @@ namespace
             // BFS across (possibly multiple) components to ensure opposite directions,
             // and make each component outward by flipping that component if needed.
             std::vector<bool> vis(numF, false);
-            const Point site = cell.delaunay_vertex->point();
+            const Point site = cell.delaunayVertex->point();
             for (size_t seed = 0; seed < numF; ++seed)
             {
                 if (vis[seed])
@@ -155,8 +155,8 @@ namespace
                     size_t cur = q.front();
                     q.pop();
                     comp.push_back(cur);
-                    const int fcur = cell.facet_indices[cur];
-                    auto &Vcur = vd.cell_facets[fcur].vertices_indices;
+                    const int fcur = cell.facetIndices[cur];
+                    auto &Vcur = vd.cell_facets[fcur].verticesIndices;
                     for (const auto &kv : adj[cur])
                     {
                         const size_t nb = kv.first;
@@ -167,8 +167,8 @@ namespace
                         }
 
                         const auto shared = kv.second; // undirected edge
-                        const int fnb = cell.facet_indices[nb];
-                        auto &Vnb = vd.cell_facets[fnb].vertices_indices;
+                        const int fnb = cell.facetIndices[nb];
+                        auto &Vnb = vd.cell_facets[fnb].verticesIndices;
 
                         // Determine traversal direction in current facet along shared edge
                         bool cur_uv = false;
@@ -208,8 +208,8 @@ namespace
                 bool flippedComp = false;
                 for (size_t idx : comp)
                 {
-                    const int fi = cell.facet_indices[idx];
-                    const auto &V = vd.cell_facets[fi].vertices_indices;
+                    const int fi = cell.facetIndices[idx];
+                    const auto &V = vd.cell_facets[fi].verticesIndices;
                     if (V.size() < 3)
                         continue;
                     // centroid
@@ -240,8 +240,8 @@ namespace
                         // flip all facets in this component
                         for (size_t id2 : comp)
                         {
-                            const int fj = cell.facet_indices[id2];
-                            auto &W = vd.cell_facets[fj].vertices_indices;
+                            const int fj = cell.facetIndices[id2];
+                            auto &W = vd.cell_facets[fj].verticesIndices;
                             std::reverse(W.begin(), W.end());
                         }
                     }
@@ -260,12 +260,12 @@ namespace
     {
         for (auto &cell : vd.cells)
         {
-            const Point site = cell.delaunay_vertex->point();
-            for (int fi : cell.facet_indices)
+            const Point site = cell.delaunayVertex->point();
+            for (int fi : cell.facetIndices)
             {
                 if (fi < 0 || fi >= static_cast<int>(vd.cell_facets.size()))
                     continue;
-                auto &V = vd.cell_facets[fi].vertices_indices;
+                auto &V = vd.cell_facets[fi].verticesIndices;
                 if (V.size() < 3)
                     continue;
 
@@ -580,13 +580,13 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     for (int ci = 0; ci < nC; ++ci)
     {
         const auto &oldCell = input_vd.cells[ci];
-        const int nc = out.AddCell(oldCell.delaunay_vertex);
+        const int nc = out.AddCell(oldCell.delaunayVertex);
         oldToNewCell[ci] = nc;
 
         // Remap the cell’s vertex list ( preserves the order of vertices and also do deduplicate )
         std::vector<int> mappedVerts;
-        mappedVerts.reserve(oldCell.vertices_indices.size());
-        for (int ov : oldCell.vertices_indices)
+        mappedVerts.reserve(oldCell.verticesIndices.size());
+        for (int ov : oldCell.verticesIndices)
         {
             if (ov < 0)
                 continue;
@@ -595,7 +595,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
                 mappedVerts.push_back(nv);
         }
         mappedVerts = dedupKeepFirst(mappedVerts);
-        out.cells[nc].vertices_indices = std::move(mappedVerts);
+        out.cells[nc].verticesIndices = std::move(mappedVerts);
 
         // Copy scalar/iso bookkeeping (if any)
         out.cells[nc].isoVertexStartIndex = oldCell.isoVertexStartIndex;
@@ -607,8 +607,8 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     {
         const auto &oldFacet = input_vd.cell_facets[fi];
         std::vector<int> mappedFacetVerts;
-        mappedFacetVerts.reserve(oldFacet.vertices_indices.size());
-        for (int ov : oldFacet.vertices_indices)
+        mappedFacetVerts.reserve(oldFacet.verticesIndices.size());
+        for (int ov : oldFacet.verticesIndices)
         {
             if (ov < 0)
                 continue; // defensive
@@ -641,15 +641,15 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     {
         const auto &oldCell = input_vd.cells[ci];
         auto &newCell = out.cells[oldToNewCell[ci]];
-        newCell.facet_indices.clear();
-        newCell.facet_indices.reserve(oldCell.facet_indices.size());
-        for (int of : oldCell.facet_indices)
+        newCell.facetIndices.clear();
+        newCell.facetIndices.reserve(oldCell.facetIndices.size());
+        for (int of : oldCell.facetIndices)
         {
             if (of < 0 || of >= nF)
                 continue;
             const int nf = oldToNewFacet[of];
             if (nf >= 0)
-                newCell.facet_indices.push_back(nf);
+                newCell.facetIndices.push_back(nf);
         }
     }
     timer.stopTimer("Rebuild cells and facets");
