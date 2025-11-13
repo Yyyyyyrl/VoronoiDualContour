@@ -22,7 +22,7 @@ void VoronoiDiagram::create_global_facets()
 
     for (size_t fi = 0; fi < cell_facets.size(); ++fi)
     {
-        const auto &F = cell_facets[fi].vertices_indices;
+        const auto &F = cell_facets[fi].verticesIndices;
         auto key = getFacetHashKey(F);
         keyToCellFacets[key].push_back(static_cast<int>(fi));
     }
@@ -48,14 +48,14 @@ void VoronoiDiagram::create_global_facets()
 
         // Choose a primary representative facet from this group
         const int primary = fvec[0];
-        vf.vertices_indices = cell_facets[primary].vertices_indices;
+        vf.verticesIndices = cell_facets[primary].verticesIndices;
 
         // Boundary Voronoi edges for this polygon (k -> edge(v[k], v[k+1]))
-        vf.voronoi_edge_indices = collectFacetVoronoiEdges(*this, vf.vertices_indices);
-        if (vf.voronoi_edge_indices.size() != vf.vertices_indices.size())
+        vf.voronoiEdgeIndices = collectFacetVoronoiEdges(*this, vf.verticesIndices);
+        if (vf.voronoiEdgeIndices.size() != vf.verticesIndices.size())
         {
             // Defensive: keep sizes consistent; mark missing with -1
-            vf.voronoi_edge_indices.resize(vf.vertices_indices.size(), -1);
+            vf.voronoiEdgeIndices.resize(vf.verticesIndices.size(), -1);
         }
 
         vf.primary_cell_facet_index = primary;
@@ -71,8 +71,8 @@ void VoronoiDiagram::create_global_facets()
         {
             const int secondary = fvec[1];
             const bool opposite =
-                haveOppositeOrientation(cell_facets[primary].vertices_indices,
-                                        cell_facets[secondary].vertices_indices);
+                haveOppositeOrientation(cell_facets[primary].verticesIndices,
+                                        cell_facets[secondary].verticesIndices);
             if (!opposite)
             {
                 throw std::runtime_error(
@@ -174,7 +174,7 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
     vf.bipolar_edge_indices.clear();
     vf.bipolar_matches.clear();
 
-    const int m = (int)vf.vertices_indices.size();
+    const int m = (int)vf.verticesIndices.size();
     if (m < 2)
         return;
 
@@ -183,13 +183,13 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
     std::vector<int> edgeType(m, 0);
     for (int k = 0; k < m; ++k)
     {
-        int i0 = vf.vertices_indices[k];
-        int i1 = vf.vertices_indices[(k + 1) % m];
+        int i0 = vf.verticesIndices[k];
+        int i1 = vf.verticesIndices[(k + 1) % m];
 
         // skip if not a finite segment edge in global map
-        if (k < (int)vf.voronoi_edge_indices.size())
+        if (k < (int)vf.voronoiEdgeIndices.size())
         {
-            int ei = vf.voronoi_edge_indices[k];
+            int ei = vf.voronoiEdgeIndices[k];
             if (ei < 0 || ei >= (int)vd.edges.size() || vd.edges[ei].type != 0)
                 continue;
         }
@@ -231,7 +231,7 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
     {
         std::cerr << "[warn] facet " << vf.index << " has odd # bipolar edges at iso =" << isovalue << " \n";
         std::cerr << " voronoi edges in facet: \n";
-        for (int ei : vf.voronoi_edge_indices)
+        for (int ei : vf.voronoiEdgeIndices)
         {
             if (ei < 0 || ei >= static_cast<int>(vd.edges.size()))
             {
@@ -363,7 +363,7 @@ void VoronoiDiagram::compute_bipolar_matches(float isovalue)
 std::vector<int> VoronoiDiagram::get_vertices_for_facet(int cell_facet_index) const
 {
     int vfi = cell_facets[cell_facet_index].voronoi_facet_index;
-    std::vector<int> vert = surface_facets[vfi].vertices_indices;
+    std::vector<int> vert = surface_facets[vfi].verticesIndices;
     if (cell_facets[cell_facet_index].orientation == -1)
     {
         std::reverse(vert.begin(), vert.end());
