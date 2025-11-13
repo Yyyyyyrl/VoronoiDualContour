@@ -2,7 +2,7 @@
 #include "core/vdc_timing.h"
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
-std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet,
+std::vector<Point> add_dummy_from_facet(const GridFacets &facet,
                                         const UnifiedGrid &data_grid,
                                         double supersample_multiplier)
 {
@@ -75,13 +75,13 @@ std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet,
  * @param grid The grid containing data.
  * @param grid_facets The grid facets for dummy point generation.
  * @param activeCubeCenters The list of cube centers of active cubes.
- * @param vdc_param The VDC_PARAM instance containing user input options.
+ * @param vdc_param The VdcParam instance containing user input options.
  * @param delaunay_points Output vector for all points (original + dummy).
  */
 static int collect_delaunay_points(UnifiedGrid &grid,
-                                   const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+                                   const std::vector<std::vector<GridFacets>> &grid_facets,
                                    const std::vector<Point> &activeCubeCenters,
-                                   VDC_PARAM &vdc_param,
+                                   VdcParam &vdc_param,
                                    std::vector<Point> &delaunay_points)
 {
     delaunay_points = activeCubeCenters;
@@ -112,7 +112,7 @@ static int collect_delaunay_points(UnifiedGrid &grid,
  * @param dt The Delaunay triangulation to insert points into.
  * @param delaunay_points The points to insert.
  * @param activeCubeCenters The list of center points of active cubes.
- * @param vdc_param The VDC_PARAM instance containing user input options.
+ * @param vdc_param The VdcParam instance containing user input options.
  */
 static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
                                                               const Point &p,
@@ -135,10 +135,10 @@ static Vertex_handle insert_point_into_delaunay_triangulation(Delaunay &dt,
  * @param dt The Delaunay triangulation instance.
  * @param grid The grid containing scalar values.
  * @param grid_facets The grid facets to use in constructing the triangulation.
- * @param vdc_param The VDC_PARAM instance holding user input options.
+ * @param vdc_param The VdcParam instance holding user input options.
  * @param activeCubeCenters The list of cube centers of active cubes.
  */
-void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters)
+void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GridFacets>> &grid_facets, VdcParam &vdc_param, std::vector<Point> &activeCubeCenters)
 {
     TimingStats& timer = TimingStats::getInstance();
 
