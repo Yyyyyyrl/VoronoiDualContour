@@ -380,9 +380,9 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
             (void)triIdx;
         }
 
-        for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+        for (size_t vfi = 0; vfi < vd.surface_facets.size(); ++vfi)
         {
-            auto &vf = vd.global_facets[vfi];
+            auto &vf = vd.surface_facets[vfi];
             if (vf.iso_segments.empty())
                 continue;
 
@@ -403,7 +403,7 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
                     continue;
 
                 const int facetIndex = static_cast<int>(vfi);
-                auto &facet = vd.global_facets[facetIndex];
+                auto &facet = vd.surface_facets[facetIndex];
                 const int retryCount = ++facet.conflict_retry_count;
 
                 if (modcycDebug)
@@ -480,9 +480,9 @@ static bool adjust_conflicting_facets(VoronoiDiagram &vd,
                 std::cerr << "  [MODCYC] fallback escalating edge {" << vA << "," << vB << "} (cells "
                           << ccA.first << "," << ccB.first << ")\n";
             }
-            for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+            for (size_t vfi = 0; vfi < vd.surface_facets.size(); ++vfi)
             {
-                auto &facet = vd.global_facets[vfi];
+                auto &facet = vd.surface_facets[vfi];
                 const auto cells = facet.incident_cell_indices;
                 if (cells[0] < 0 || cells[1] < 0)
                     continue;
@@ -1509,7 +1509,7 @@ static void collect_midpoints(
     for (size_t i = 0; i < vc.facet_indices.size(); ++i)
     {
         int facet_index = vc.facet_indices[i];
-        VoronoiCellFacet &facet = voronoiDiagram.facets[facet_index];
+        VoronoiCellFacet &facet = voronoiDiagram.cell_facets[facet_index];
         size_t num_vertices = facet.vertices_indices.size();
 
         std::vector<int> current_facet_midpoints;
@@ -1589,15 +1589,15 @@ static void connect_midpoints_via_global_matches(
     }
     for (int cf : vc.facet_indices)
     {
-        if (cf < 0 || cf >= (int)vd.facets.size())
+        if (cf < 0 || cf >= (int)vd.cell_facets.size())
             continue;
 
-        const auto &cellFacet = vd.facets[cf];
+        const auto &cellFacet = vd.cell_facets[cf];
         int vfi = cellFacet.voronoi_facet_index;
-        if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+        if (vfi < 0 || vfi >= (int)vd.surface_facets.size())
             continue;
 
-        const auto &gf = vd.global_facets[vfi];
+        const auto &gf = vd.surface_facets[vfi];
         for (const auto &pr : gf.bipolar_matches)
         {
             int sA = pr.first; // boundary slot in global facet order
@@ -1890,9 +1890,9 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
         size_t approxEdges = 0;
         for (int facet_index : vc.facet_indices)
         {
-            if (facet_index >= 0 && facet_index < static_cast<int>(voronoiDiagram.facets.size()))
+            if (facet_index >= 0 && facet_index < static_cast<int>(voronoiDiagram.cell_facets.size()))
             {
-                approxEdges += voronoiDiagram.facets[facet_index].vertices_indices.size();
+                approxEdges += voronoiDiagram.cell_facets[facet_index].vertices_indices.size();
             }
         }
 
@@ -1996,7 +1996,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
                 return;
             for (int vfi : facets)
             {
-                if (vfi < 0 || vfi >= static_cast<int>(vd.global_facets.size()))
+                if (vfi < 0 || vfi >= static_cast<int>(vd.surface_facets.size()))
                     continue;
                 if (facetWorkset.insert(vfi).second)
                     facetWorklist.push_back(vfi);
@@ -2017,7 +2017,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
                     timer.stopTimer("Compute bipolar matches");
 
                     timer.startTimer("Build iso segments", "7. Isosurface Construction");
-                    for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+                    for (size_t vfi = 0; vfi < vd.surface_facets.size(); ++vfi)
                     {
                         build_iso_segments_for_facet(vd, static_cast<int>(vfi), vdc_param.isovalue);
                     }
@@ -2027,7 +2027,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_para
                 {
                     for (int vfi : facetWorklist)
                     {
-                        if (vfi < 0 || vfi >= static_cast<int>(vd.global_facets.size()))
+                        if (vfi < 0 || vfi >= static_cast<int>(vd.surface_facets.size()))
                             continue;
                         recompute_bipolar_matches_for_facet(vd, vfi, vdc_param.isovalue);
                         build_iso_segments_for_facet(vd, vfi, vdc_param.isovalue);

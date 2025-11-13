@@ -441,16 +441,14 @@ struct TupleHash
  */
 struct VoronoiDiagram
 {
-    std::vector<VoronoiVertex> vertices;    //!< List of Voronoi vertices in the diagram.
-    std::vector<VoronoiEdge> edges;         //!< List of edges in the diagram
-    std::vector<VoronoiCellEdge> cellEdges; //!< List of Cell Edges in the diagram
-    std::vector<VoronoiCell> cells;         //!< List of Voronoi cells in the diagram.
-    // TODO: Rename this to cell_facets ; Rename global_facets->surface_facets
-    std::vector<VoronoiCellFacet> facets;    //!< List of facets in the diagram.
-    std::vector<VoronoiFacet> global_facets; //!< List of unique Voronoi facets.
+    std::vector<VoronoiVertex> vertices;      //!< List of Voronoi vertices in the diagram.
+    std::vector<VoronoiEdge> edges;           //!< List of edges in the diagram
+    std::vector<VoronoiCellEdge> cellEdges;   //!< List of Cell Edges in the diagram
+    std::vector<VoronoiCell> cells;           //!< List of Voronoi cells in the diagram.
+    std::vector<VoronoiCellFacet> cell_facets; //!< List of per-cell facets in the diagram.
+    std::vector<VoronoiFacet> surface_facets;  //!< List of unique/shared Voronoi facets.
 
     // Member Functions
-
     void compute_bipolar_matches(float isovalue);
     void create_global_facets();
 
@@ -534,8 +532,8 @@ struct VoronoiDiagram
         out << "  Edges: " << edges.size() << " edge(s)\n";
         out << "  Cell edges: " << cellEdges.size() << " cell edge(s)\n";
         out << "  Cells: " << cells.size() << " cell(s)\n";
-        out << "  Cell facets: " << facets.size() << " cell facet(s)\n";
-        out << "  Global facets: " << global_facets.size() << " global facet(s)\n";
+        out << "  Cell facets: " << cell_facets.size() << " cell facet(s)\n";
+        out << "  Surface facets: " << surface_facets.size() << " surface facet(s)\n";
     }
 
 private:
@@ -937,18 +935,18 @@ OSTREAM_TYPE &operator<<(OSTREAM_TYPE &os, const VoronoiDiagram &vd)
 
     // 4. Voronoi Cell Facets (existing)
     os << "\nVoronoiCellFacets:\n";
-    for (size_t i = 0; i < vd.facets.size(); ++i)
+    for (size_t i = 0; i < vd.cell_facets.size(); ++i)
     {
         os << "Index " << i << ":\n";
-        os << vd.facets[i];
+        os << vd.cell_facets[i];
     }
 
-    // 5. Voronoi Global Facets (new addition)
+    // 5. Voronoi Surface Facets (unique/shared)
     os << "\nVoronoiGlobalFacets:\n";
-    for (size_t i = 0; i < vd.global_facets.size(); ++i)
+    for (size_t i = 0; i < vd.surface_facets.size(); ++i)
     {
         os << "Index " << i << ":\n";
-        os << vd.global_facets[i];
+        os << vd.surface_facets[i];
     }
 
     // 5. Voronoi Cells

@@ -197,9 +197,9 @@ int main(int argc, char *argv[])
     {
         int max_bipolar_matches = 0;
         int facet_with_max = -1;
-        for (size_t i = 0; i < vd2.global_facets.size(); ++i)
+        for (size_t i = 0; i < vd2.surface_facets.size(); ++i)
         {
-            const auto& facet = vd2.global_facets[i];
+            const auto& facet = vd2.surface_facets[i];
             int num_matches = static_cast<int>(facet.bipolar_matches.size());
             if (num_matches > max_bipolar_matches)
             {
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
         if (max_bipolar_matches >= 3)
         {
             std::cout << "FACET_WITH_MAX_MATCHES: " << facet_with_max << std::endl;
-            const auto &facet = vd2.global_facets[facet_with_max];
+            const auto &facet = vd2.surface_facets[facet_with_max];
             facet.Print(std::cout);
             std::cout << "Voronoi vertices on facet " << facet_with_max << ":\n";
             for (int vid : facet.vertices_indices)

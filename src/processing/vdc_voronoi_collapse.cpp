@@ -64,9 +64,9 @@ namespace
             const int cellIdx = cell.cellIndex;
             for (int cfIdx : cell.facet_indices)
             {
-                if (cfIdx < 0 || cfIdx >= static_cast<int>(vd.facets.size()))
+                if (cfIdx < 0 || cfIdx >= static_cast<int>(vd.cell_facets.size()))
                     continue;
-                auto &cf = vd.facets[cfIdx];
+                auto &cf = vd.cell_facets[cfIdx];
                 const int n = static_cast<int>(cf.vertices_indices.size());
                 cf.cell_edge_indices.clear();
                 cf.cell_edge_indices.reserve(n);
@@ -107,7 +107,7 @@ namespace
             for (size_t i = 0; i < numF; ++i)
             {
                 const int f1 = cell.facet_indices[i];
-                const auto &verts1 = vd.facets[f1].vertices_indices;
+                const auto &verts1 = vd.cell_facets[f1].vertices_indices;
                 std::map<std::pair<int, int>, size_t> epos1;
                 for (size_t j = 0; j < verts1.size(); ++j)
                 {
@@ -116,7 +116,7 @@ namespace
                 for (size_t k = i + 1; k < numF; ++k)
                 {
                     const int f2 = cell.facet_indices[k];
-                    const auto &verts2 = vd.facets[f2].vertices_indices;
+                    const auto &verts2 = vd.cell_facets[f2].vertices_indices;
                     std::pair<int, int> shared = {-1, -1};
                     int cnt = 0;
                     for (size_t j = 0; j < verts2.size(); ++j)
@@ -156,7 +156,7 @@ namespace
                     q.pop();
                     comp.push_back(cur);
                     const int fcur = cell.facet_indices[cur];
-                    auto &Vcur = vd.facets[fcur].vertices_indices;
+                    auto &Vcur = vd.cell_facets[fcur].vertices_indices;
                     for (const auto &kv : adj[cur])
                     {
                         const size_t nb = kv.first;
@@ -168,7 +168,7 @@ namespace
 
                         const auto shared = kv.second; // undirected edge
                         const int fnb = cell.facet_indices[nb];
-                        auto &Vnb = vd.facets[fnb].vertices_indices;
+                        auto &Vnb = vd.cell_facets[fnb].vertices_indices;
 
                         // Determine traversal direction in current facet along shared edge
                         bool cur_uv = false;
@@ -209,7 +209,7 @@ namespace
                 for (size_t idx : comp)
                 {
                     const int fi = cell.facet_indices[idx];
-                    const auto &V = vd.facets[fi].vertices_indices;
+                    const auto &V = vd.cell_facets[fi].vertices_indices;
                     if (V.size() < 3)
                         continue;
                     // centroid
@@ -241,7 +241,7 @@ namespace
                         for (size_t id2 : comp)
                         {
                             const int fj = cell.facet_indices[id2];
-                            auto &W = vd.facets[fj].vertices_indices;
+                            auto &W = vd.cell_facets[fj].vertices_indices;
                             std::reverse(W.begin(), W.end());
                         }
                     }
@@ -263,9 +263,9 @@ namespace
             const Point site = cell.delaunay_vertex->point();
             for (int fi : cell.facet_indices)
             {
-                if (fi < 0 || fi >= static_cast<int>(vd.facets.size()))
+                if (fi < 0 || fi >= static_cast<int>(vd.cell_facets.size()))
                     continue;
-                auto &V = vd.facets[fi].vertices_indices;
+                auto &V = vd.cell_facets[fi].vertices_indices;
                 if (V.size() < 3)
                     continue;
 
@@ -399,7 +399,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     const int nV = static_cast<int>(input_vd.vertices.size());
     const int nE = static_cast<int>(input_vd.edges.size());
     const int nC = static_cast<int>(input_vd.cells.size());
-    const int nF = static_cast<int>(input_vd.facets.size());
+    const int nF = static_cast<int>(input_vd.cell_facets.size());
 
     // 1) Decide merges: union endpoints of every segment edge shorter than D.
     timer.startTimer("Identify merges (DSU)", "5. Collapse Small Edges");
@@ -605,7 +605,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     // Then, rebuild facets in the same order so outside code can keep indices
     for (int fi = 0; fi < nF; ++fi)
     {
-        const auto &oldFacet = input_vd.facets[fi];
+        const auto &oldFacet = input_vd.cell_facets[fi];
         std::vector<int> mappedFacetVerts;
         mappedFacetVerts.reserve(oldFacet.vertices_indices.size());
         for (int ov : oldFacet.vertices_indices)
@@ -629,9 +629,9 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         oldToNewFacet[fi] = nf;
 
         // Carry auxiliary fields when present
-        out.facets[nf].orientation = input_vd.facets[fi].orientation;
-        out.facets[nf].mirror_facet_index = -1;  // will be repaired if needed elsewhere
-        out.facets[nf].voronoi_facet_index = -1; // re-created later by create_global_facets()
+        out.cell_facets[nf].orientation = input_vd.cell_facets[fi].orientation;
+        out.cell_facets[nf].mirror_facet_index = -1;  // will be repaired if needed elsewhere
+        out.cell_facets[nf].voronoi_facet_index = -1; // re-created later by create_global_facets()
         // Note: cell_edge_indices will be rebuilt by rebuild_cell_facet_edge_indices()
     }
 

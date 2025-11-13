@@ -218,8 +218,8 @@ int VoronoiDiagram::AddCellFacet(const std::vector<int> &vertices_indices)
     facet.mirror_facet_index = -1; // Initialize with no mirror facet
 
     // Add to facet list
-    int facetIdx = facets.size();
-    facets.push_back(facet);
+    int facetIdx = cell_facets.size();
+    cell_facets.push_back(facet);
 
     return facetIdx;
 }
@@ -449,13 +449,13 @@ void VoronoiDiagram::checkCellFacets() const
 
         for (int fIdx : cell.facet_indices)
         {
-            if (fIdx < 0 || fIdx >= static_cast<int>(facets.size()))
+            if (fIdx < 0 || fIdx >= static_cast<int>(cell_facets.size()))
             {
                 std::cerr << "ERROR: cell " << cIdx << " has invalid facet index " << fIdx << "\n";
                 throw std::runtime_error("Facet index out of range.");
             }
 
-            const VoronoiCellFacet &facet = facets[fIdx];
+            const VoronoiCellFacet &facet = cell_facets[fIdx];
             for (int vIdx : facet.vertices_indices)
             {
                 if (cellVertexSet.find(vIdx) == cellVertexSet.end())
@@ -576,9 +576,9 @@ bool VoronoiDiagram::haveOppositeOrientation(const std::vector<int> &f1,
  */
 void VoronoiDiagram::checkFacetVertexCount() const
 {
-    for (size_t fi = 0; fi < facets.size(); ++fi)
+    for (size_t fi = 0; fi < cell_facets.size(); ++fi)
     {
-        auto const &F = facets[fi].vertices_indices;
+        auto const &F = cell_facets[fi].vertices_indices;
         if (F.size() < 3)
             throw std::runtime_error("Facet " + std::to_string(fi) +
                                      " has fewer than 3 vertices.");
@@ -623,9 +623,9 @@ void VoronoiDiagram::checkFacetCellCount() const
 {
     std::map<std::vector<int>, std::vector<int>> keyToFacets;
 
-    for (size_t fi = 0; fi < facets.size(); ++fi)
+    for (size_t fi = 0; fi < cell_facets.size(); ++fi)
     {
-        const auto &F = facets[fi].vertices_indices;
+        const auto &F = cell_facets[fi].vertices_indices;
         auto key = getFacetHashKey(F);
         auto &bucket = keyToFacets[key];
         bucket.push_back(static_cast<int>(fi));
@@ -663,7 +663,7 @@ void VoronoiDiagram::checkEdgeFacetCount() const
         std::map<std::pair<int, int>, int> edge_count;
         for (int facet_idx : cell.facet_indices)
         {
-            const auto &vertices = facets[facet_idx].vertices_indices;
+            const auto &vertices = cell_facets[facet_idx].vertices_indices;
             for (size_t i = 0; i < vertices.size(); ++i)
             {
                 int u = vertices[i];
@@ -682,7 +682,7 @@ void VoronoiDiagram::checkEdgeFacetCount() const
                 std::vector<int> sharing_facets;
                 for (int facet_idx : cell.facet_indices)
                 {
-                    const auto &vertices = facets[facet_idx].vertices_indices;
+                    const auto &vertices = cell_facets[facet_idx].vertices_indices;
                     for (size_t i = 0; i < vertices.size(); ++i)
                     {
                         if (vertices[i] == u && vertices[(i + 1) % vertices.size()] == v)
@@ -711,10 +711,10 @@ void VoronoiDiagram::checkEdgeFacetCount() const
                         {
                             std::cerr << "[DEBUG] Sharing facets: " << sharing_facets[0] << " and " << sharing_facets[1] << "\n";
                             std::cerr << "[DEBUG] Facet " << sharing_facets[0] << " vertices: ";
-                            for (int vi : facets[sharing_facets[0]].vertices_indices)
+                            for (int vi : cell_facets[sharing_facets[0]].vertices_indices)
                                 std::cerr << vi << " ";
                             std::cerr << "\n[DEBUG] Facet " << sharing_facets[1] << " vertices: ";
-                            for (int vi : facets[sharing_facets[1]].vertices_indices)
+                            for (int vi : cell_facets[sharing_facets[1]].vertices_indices)
                                 std::cerr << vi << " ";
                             std::cerr << "\n";
                         }
@@ -754,7 +754,7 @@ void VoronoiDiagram::checkFacetNormals() const
 
         for (int fi : cell.facet_indices)
         {
-            const auto &loop = facets[fi].vertices_indices;
+            const auto &loop = cell_facets[fi].vertices_indices;
             const size_t n = loop.size();
             if (n < 2)
                 continue;
@@ -820,9 +820,9 @@ void VoronoiDiagram::checkPairedFacetOrientations() const
 {
     std::map<std::vector<int>, std::vector<int>> keyToFacets;
 
-    for (size_t fi = 0; fi < facets.size(); ++fi)
+    for (size_t fi = 0; fi < cell_facets.size(); ++fi)
     {
-        auto key = getFacetHashKey(facets[fi].vertices_indices);
+        auto key = getFacetHashKey(cell_facets[fi].vertices_indices);
         keyToFacets[key].push_back(static_cast<int>(fi));
     }
 
@@ -832,8 +832,8 @@ void VoronoiDiagram::checkPairedFacetOrientations() const
 
         if (fvec.size() == 2)
         {
-            const auto &A = facets[fvec[0]].vertices_indices;
-            const auto &B = facets[fvec[1]].vertices_indices;
+            const auto &A = cell_facets[fvec[0]].vertices_indices;
+            const auto &B = cell_facets[fvec[1]].vertices_indices;
 
             if (!haveOppositeOrientation(A, B))
             {

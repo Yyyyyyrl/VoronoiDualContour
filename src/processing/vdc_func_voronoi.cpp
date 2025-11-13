@@ -151,8 +151,8 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
             if (vf.vertices_indices.size() < 3)
                 continue;
 
-            int facet_index = voronoiDiagram.facets.size();
-            voronoiDiagram.facets.push_back(vf);
+            int facet_index = voronoiDiagram.cell_facets.size();
+            voronoiDiagram.cell_facets.push_back(vf);
             vc.facet_indices.push_back(facet_index);
         }
 
@@ -322,8 +322,8 @@ static VoronoiCellFacet build_facet_from_edge(
     VoronoiCellFacet facet;
     facet.vertices_indices = std::move(facetVertices);
 
-    int facetIndex = voronoiDiagram.facets.size();
-    voronoiDiagram.facets.push_back(facet);
+    int facetIndex = voronoiDiagram.cell_facets.size();
+    voronoiDiagram.cell_facets.push_back(facet);
     facet_indices.push_back(facetIndex);
     std::pair<int, int> edge_key = std::make_pair(
         std::min(v1->info().index, v2->info().index),
@@ -512,7 +512,7 @@ static void process_incident_edges(
             continue;
         }
 
-        int facetIndex = voronoiDiagram.facets.size() - 1; // Assuming facet was just added
+        int facetIndex = voronoiDiagram.cell_facets.size() - 1; // Assuming facet was just added
         if (std::find(vc.facet_indices.begin(), vc.facet_indices.end(), facetIndex) == vc.facet_indices.end())
         {
             vc.facet_indices.push_back(facetIndex);
@@ -531,7 +531,7 @@ namespace
     //! @brief Maps each cell facet to its owning cell index (or -1).
     std::vector<int> build_facet_to_cell_map(const VoronoiDiagram &vd)
     {
-        std::vector<int> facetToCell(vd.facets.size(), -1);
+        std::vector<int> facetToCell(vd.cell_facets.size(), -1);
         for (size_t cellIdx = 0; cellIdx < vd.cells.size(); ++cellIdx)
         {
             for (int fi : vd.cells[cellIdx].facet_indices)
@@ -556,7 +556,7 @@ namespace
         for (size_t i = 0; i < num_facets; ++i)
         {
             const int f1 = cell.facet_indices[i];
-            const auto &verts1 = vd.facets[f1].vertices_indices;
+                const auto &verts1 = vd.cell_facets[f1].vertices_indices;
             std::map<std::pair<int, int>, size_t> edges1;
             for (size_t j = 0; j < verts1.size(); ++j)
             {
@@ -568,7 +568,7 @@ namespace
             for (size_t k = i + 1; k < num_facets; ++k)
             {
                 const int f2 = cell.facet_indices[k];
-                const auto &verts2 = vd.facets[f2].vertices_indices;
+                const auto &verts2 = vd.cell_facets[f2].vertices_indices;
                 std::pair<int, int> shared = {-1, -1};
                 int shared_count = 0;
 
@@ -604,7 +604,7 @@ namespace
             q.pop();
 
             const int currFacetIdx = cell.facet_indices[curr];
-            auto &currVerts = vd.facets[currFacetIdx].vertices_indices;
+            auto &currVerts = vd.cell_facets[currFacetIdx].vertices_indices;
 
             for (const auto &entry : adjacency[curr])
             {
@@ -617,7 +617,7 @@ namespace
 
                 const std::pair<int, int> shared = entry.second;
                 const int nextFacetIdx = cell.facet_indices[next];
-                auto &nextVerts = vd.facets[nextFacetIdx].vertices_indices;
+                auto &nextVerts = vd.cell_facets[nextFacetIdx].vertices_indices;
 
                 auto has_direction = [&](const std::vector<int> &verts) {
                     for (size_t j = 0; j < verts.size(); ++j)
@@ -656,7 +656,7 @@ namespace
 
         for (int fi : cell.facet_indices)
         {
-            const auto &verts = vd.facets[fi].vertices_indices;
+            const auto &verts = vd.cell_facets[fi].vertices_indices;
             const size_t n = verts.size();
             if (n < 2)
                 continue;
@@ -699,7 +699,7 @@ namespace
         auto &cell = vd.cells[cellIdx];
         for (int fi : cell.facet_indices)
         {
-            auto &verts = vd.facets[fi].vertices_indices;
+            auto &verts = vd.cell_facets[fi].vertices_indices;
             std::reverse(verts.begin(), verts.end());
         }
     }
@@ -710,7 +710,7 @@ namespace
         auto &cell = vd.cells[cellIdx];
         for (int fi : cell.facet_indices)
         {
-            const auto &verts = vd.facets[fi].vertices_indices;
+            const auto &verts = vd.cell_facets[fi].vertices_indices;
             const size_t n = verts.size();
             if (n < 3)
                 continue;
@@ -766,8 +766,8 @@ namespace
 
                 for (int fi : vd.cells[curr].facet_indices)
                 {
-                    const int mirror = vd.facets[fi].mirror_facet_index;
-                    if (mirror < 0 || mirror >= static_cast<int>(vd.facets.size()))
+                    const int mirror = vd.cell_facets[fi].mirror_facet_index;
+                    if (mirror < 0 || mirror >= static_cast<int>(vd.cell_facets.size()))
                         continue;
 
                     const int neighbor = facetToCell[mirror];
@@ -775,8 +775,8 @@ namespace
                         continue;
 
                     bool opposite = vd.haveOppositeOrientation(
-                        vd.facets[fi].vertices_indices,
-                        vd.facets[mirror].vertices_indices);
+                        vd.cell_facets[fi].vertices_indices,
+                        vd.cell_facets[mirror].vertices_indices);
 
                     if (cellMark[neighbor] == 0)
                     {
@@ -784,8 +784,8 @@ namespace
                         {
                             flip_cell(vd, neighbor);
                             opposite = vd.haveOppositeOrientation(
-                                vd.facets[fi].vertices_indices,
-                                vd.facets[mirror].vertices_indices);
+                                vd.cell_facets[fi].vertices_indices,
+                                vd.cell_facets[mirror].vertices_indices);
                             if (!opposite)
                             {
                                 throw std::runtime_error(
@@ -863,16 +863,16 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
         {
             int f1 = dfacets[0];
             int f2 = dfacets[1];
-            voronoiDiagram.facets[f1].mirror_facet_index = f2;
-            voronoiDiagram.facets[f2].mirror_facet_index = f1;
+            voronoiDiagram.cell_facets[f1].mirror_facet_index = f2;
+            voronoiDiagram.cell_facets[f2].mirror_facet_index = f1;
 
-            auto &A = voronoiDiagram.facets[f1].vertices_indices;
-            auto &B = voronoiDiagram.facets[f2].vertices_indices;
+            auto &A = voronoiDiagram.cell_facets[f1].vertices_indices;
+            auto &B = voronoiDiagram.cell_facets[f2].vertices_indices;
         }
         else if (dfacets.size() == 1)
         {
             int f = dfacets[0];
-            voronoiDiagram.facets[f].mirror_facet_index = -1;
+            voronoiDiagram.cell_facets[f].mirror_facet_index = -1;
         }
     }
 }

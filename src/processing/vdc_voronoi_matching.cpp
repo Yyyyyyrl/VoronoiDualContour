@@ -20,9 +20,9 @@ void VoronoiDiagram::create_global_facets()
     // Group cell-facets by canonical full-vertex key (order-invariant, no collisions).
     std::map<std::vector<int>, std::vector<int>> keyToCellFacets;
 
-    for (size_t fi = 0; fi < facets.size(); ++fi)
+    for (size_t fi = 0; fi < cell_facets.size(); ++fi)
     {
-        const auto &F = facets[fi].vertices_indices;
+        const auto &F = cell_facets[fi].vertices_indices;
         auto key = getFacetHashKey(F);
         keyToCellFacets[key].push_back(static_cast<int>(fi));
     }
@@ -44,11 +44,11 @@ void VoronoiDiagram::create_global_facets()
         }
 
         VoronoiFacet vf;
-        vf.index = static_cast<int>(global_facets.size());
+        vf.index = static_cast<int>(surface_facets.size());
 
         // Choose a primary representative facet from this group
         const int primary = fvec[0];
-        vf.vertices_indices = facets[primary].vertices_indices;
+        vf.vertices_indices = cell_facets[primary].vertices_indices;
 
         // Boundary Voronoi edges for this polygon (k -> edge(v[k], v[k+1]))
         vf.voronoi_edge_indices = collectFacetVoronoiEdges(*this, vf.vertices_indices);
@@ -60,27 +60,27 @@ void VoronoiDiagram::create_global_facets()
 
         vf.primary_cell_facet_index = primary;
         vf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // default; can be changed later
-        global_facets.push_back(vf);
+        surface_facets.push_back(vf);
 
         // Wire the primary back to this global facet
-        facets[primary].voronoi_facet_index = vf.index;
-        facets[primary].orientation = 1;
+        cell_facets[primary].voronoi_facet_index = vf.index;
+        cell_facets[primary].orientation = 1;
 
         // If there is exactly one mirror, it must have opposite winding
         if (fvec.size() == 2)
         {
             const int secondary = fvec[1];
             const bool opposite =
-                haveOppositeOrientation(facets[primary].vertices_indices,
-                                        facets[secondary].vertices_indices);
+                haveOppositeOrientation(cell_facets[primary].vertices_indices,
+                                        cell_facets[secondary].vertices_indices);
             if (!opposite)
             {
                 throw std::runtime_error(
                     "Paired facets " + std::to_string(primary) + " and " +
                     std::to_string(secondary) + " do not have opposite orientations.");
             }
-            facets[secondary].voronoi_facet_index = vf.index;
-            facets[secondary].orientation = -1;
+            cell_facets[secondary].voronoi_facet_index = vf.index;
+            cell_facets[secondary].orientation = -1;
         }
     }
 }
@@ -347,14 +347,14 @@ static void match_facet_bipolar_edges(const VoronoiDiagram &vd,
 // Public wrapper: recompute matches for a single global facet using its current method.
 void recompute_bipolar_matches_for_facet(VoronoiDiagram &vd, int vfi, float isovalue)
 {
-    if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+    if (vfi < 0 || vfi >= (int)vd.surface_facets.size())
         return;
-    match_facet_bipolar_edges(vd, vd.global_facets[vfi], isovalue);
+    match_facet_bipolar_edges(vd, vd.surface_facets[vfi], isovalue);
 }
 
 void VoronoiDiagram::compute_bipolar_matches(float isovalue)
 {
-    for (auto &vf : global_facets)
+    for (auto &vf : surface_facets)
     {
         match_facet_bipolar_edges(*this, vf, isovalue);
     }
@@ -362,9 +362,9 @@ void VoronoiDiagram::compute_bipolar_matches(float isovalue)
 
 std::vector<int> VoronoiDiagram::get_vertices_for_facet(int cell_facet_index) const
 {
-    int vfi = facets[cell_facet_index].voronoi_facet_index;
-    std::vector<int> vert = global_facets[vfi].vertices_indices;
-    if (facets[cell_facet_index].orientation == -1)
+    int vfi = cell_facets[cell_facet_index].voronoi_facet_index;
+    std::vector<int> vert = surface_facets[vfi].vertices_indices;
+    if (cell_facets[cell_facet_index].orientation == -1)
     {
         std::reverse(vert.begin(), vert.end());
     }

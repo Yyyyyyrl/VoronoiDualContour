@@ -35,8 +35,8 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     vd.vertices.clear();
     vd.edges.clear();
     vd.cells.clear();
-    vd.facets.clear();
-    vd.global_facets.clear();
+    vd.cell_facets.clear();
+    vd.surface_facets.clear();
     vd.cellEdges.clear();
 
     // 4 vertices in a unit square (z=0)
@@ -60,7 +60,7 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     gf.voronoi_edge_indices.push_back(add_seg(v2, v3));
     gf.voronoi_edge_indices.push_back(add_seg(v3, v0));
     gf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS; // initial
-    vd.global_facets.push_back(gf);
+    vd.surface_facets.push_back(gf);
     vfi = 0;
 
     // Vertex incident edges populated by AddSegmentEdge
@@ -74,28 +74,28 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     // Two cell facets referencing the same global facet with opposite orientation
     VoronoiCellFacet cf0; cf0.vertices_indices = {v0, v1, v2, v3}; cf0.voronoi_facet_index = vfi; cf0.orientation = 1;
     VoronoiCellFacet cf1; cf1.vertices_indices = {v0, v3, v2, v1}; cf1.voronoi_facet_index = vfi; cf1.orientation = -1;
-    int cfi0 = (int)vd.facets.size(); vd.facets.push_back(cf0);
-    int cfi1 = (int)vd.facets.size(); vd.facets.push_back(cf1);
+    int cfi0 = (int)vd.cell_facets.size(); vd.cell_facets.push_back(cf0);
+    int cfi1 = (int)vd.cell_facets.size(); vd.cell_facets.push_back(cf1);
     vd.cells[0].facet_indices.push_back(cfi0);
     vd.cells[1].facet_indices.push_back(cfi1);
 
     // Wire incident cells back to global facet
-    vd.global_facets[vfi].incident_cell_indices = {0, 1};
-    vd.global_facets[vfi].incident_cell_facet_indices = {cfi0, cfi1};
+    vd.surface_facets[vfi].incident_cell_indices = {0, 1};
+    vd.surface_facets[vfi].incident_cell_facet_indices = {cfi0, cfi1};
 
     // Create per-cell "cellEdges" for each boundary slot and map them into cell_facet slots
     // Slots: 0:(v0,v1), 1:(v1,v2), 2:(v2,v3), 3:(v3,v0)
     // Cell 0
     std::vector<int> ceIdx0(4);
     for (int k = 0; k < 4; ++k)
-        ceIdx0[k] = add_cell_edge(vd, 0, vd.global_facets[vfi].voronoi_edge_indices[k]);
-    vd.facets[cfi0].cell_edge_indices = ceIdx0;
+        ceIdx0[k] = add_cell_edge(vd, 0, vd.surface_facets[vfi].voronoi_edge_indices[k]);
+    vd.cell_facets[cfi0].cell_edge_indices = ceIdx0;
 
     // Cell 1: same edges
     std::vector<int> ceIdx1(4);
     for (int k = 0; k < 4; ++k)
-        ceIdx1[k] = add_cell_edge(vd, 1, vd.global_facets[vfi].voronoi_edge_indices[k]);
-    vd.facets[cfi1].cell_edge_indices = ceIdx1;
+        ceIdx1[k] = add_cell_edge(vd, 1, vd.surface_facets[vfi].voronoi_edge_indices[k]);
+    vd.cell_facets[cfi1].cell_edge_indices = ceIdx1;
 
     // Seed initial per-cell cycles so build_iso_segments can classify comps before we run the pass
     // Force slots 0 and 2 to map to cycle 0 in both cells (so pairs anchored at 0 and 2 collide)
@@ -109,12 +109,12 @@ static void build_quad_case(VoronoiDiagram &vd, float isovalue, int &vfi)
     vd.cellEdges[ceIdx1[3]].cycleIndices = {1};
 
     // Initial matches: pair slots (0,1) and (2,3)
-    vd.global_facets[vfi].bipolar_matches = {{0,1},{2,3}};
+    vd.surface_facets[vfi].bipolar_matches = {{0,1},{2,3}};
 }
 
 static void print_iso_segments(const VoronoiDiagram &vd, int vfi)
 {
-    const auto &vf = vd.global_facets[vfi];
+    const auto &vf = vd.surface_facets[vfi];
     std::cout << "iso-segments for gf#" << vfi << ":\n";
     int idx = 0;
     for (auto const &g : vf.iso_segments)
@@ -141,7 +141,7 @@ static void build_hex_case(VoronoiDiagram &vd, float isovalue, int &vfi_hex)
     int h5 = addV(-0.5, 0.866, 1.0, +1.0f);
 
     VoronoiFacet gf;
-    gf.index = (int)vd.global_facets.size();
+    gf.index = (int)vd.surface_facets.size();
     gf.vertices_indices = {h0, h1, h2, h3, h4, h5};
     // Create actual segment edges
     auto add_seg = [&](int a, int b) {
@@ -156,7 +156,7 @@ static void build_hex_case(VoronoiDiagram &vd, float isovalue, int &vfi_hex)
     gf.voronoi_edge_indices.push_back(add_seg(h4, h5));
     gf.voronoi_edge_indices.push_back(add_seg(h5, h0));
     gf.bipolar_match_method = BIPOLAR_MATCH_METHOD::SEP_POS;
-    vd.global_facets.push_back(gf);
+    vd.surface_facets.push_back(gf);
     vfi_hex = gf.index;
 
     // Vertex incident edges populated by AddSegmentEdge
@@ -169,23 +169,23 @@ static void build_hex_case(VoronoiDiagram &vd, float isovalue, int &vfi_hex)
     // Two cell facets for gf: one in cell 1, one in cell 2 (opposite orientation)
     VoronoiCellFacet cf1; cf1.vertices_indices = {h0, h1, h2, h3, h4, h5}; cf1.voronoi_facet_index = vfi_hex; cf1.orientation = 1;
     VoronoiCellFacet cf2; cf2.vertices_indices = {h0, h5, h4, h3, h2, h1}; cf2.voronoi_facet_index = vfi_hex; cf2.orientation = -1;
-    int cfi1 = (int)vd.facets.size(); vd.facets.push_back(cf1);
-    int cfi2 = (int)vd.facets.size(); vd.facets.push_back(cf2);
+    int cfi1 = (int)vd.cell_facets.size(); vd.cell_facets.push_back(cf1);
+    int cfi2 = (int)vd.cell_facets.size(); vd.cell_facets.push_back(cf2);
     vd.cells[c1].facet_indices.push_back(cfi1);
     vd.cells[c2.cellIndex].facet_indices.push_back(cfi2);
 
     // Wire incident cells to global facet
-    vd.global_facets[vfi_hex].incident_cell_indices = {c1, c2.cellIndex};
-    vd.global_facets[vfi_hex].incident_cell_facet_indices = {cfi1, cfi2};
+    vd.surface_facets[vfi_hex].incident_cell_indices = {c1, c2.cellIndex};
+    vd.surface_facets[vfi_hex].incident_cell_facet_indices = {cfi1, cfi2};
 
     // Create cellEdges and wire into cell_facet slots
     std::vector<int> ceIdx1(6), ceIdx2(6);
     for (int k = 0; k < 6; ++k)
-        ceIdx1[k] = add_cell_edge(vd, c1, vd.global_facets[vfi_hex].voronoi_edge_indices[k]);
+        ceIdx1[k] = add_cell_edge(vd, c1, vd.surface_facets[vfi_hex].voronoi_edge_indices[k]);
     for (int k = 0; k < 6; ++k)
-        ceIdx2[k] = add_cell_edge(vd, c2.cellIndex, vd.global_facets[vfi_hex].voronoi_edge_indices[k]);
-    vd.facets[cfi1].cell_edge_indices = ceIdx1;
-    vd.facets[cfi2].cell_edge_indices = ceIdx2;
+        ceIdx2[k] = add_cell_edge(vd, c2.cellIndex, vd.surface_facets[vfi_hex].voronoi_edge_indices[k]);
+    vd.cell_facets[cfi1].cell_edge_indices = ceIdx1;
+    vd.cell_facets[cfi2].cell_edge_indices = ceIdx2;
 
     // Seed cycles: even slots → cycle 0, odd slots → cycle 1 (in both cells)
     for (int k = 0; k < 6; ++k)
@@ -195,7 +195,7 @@ static void build_hex_case(VoronoiDiagram &vd, float isovalue, int &vfi_hex)
     }
 
     // Initial matches: consecutive pairs (0,1), (2,3), (4,5)
-    vd.global_facets[vfi_hex].bipolar_matches = {{0,1},{2,3},{4,5}};
+    vd.surface_facets[vfi_hex].bipolar_matches = {{0,1},{2,3},{4,5}};
 }
 
 // Dump a compact JSON to visualize facet boundaries and iso-segments before/after
@@ -258,10 +258,10 @@ static void write_case_json(const std::string &path,
             // Create nodes for all bipolar edges and connect pairs per facet matches
             for (int cfIndex : cell.facet_indices)
             {
-                if (cfIndex < 0 || cfIndex >= (int)vd.facets.size()) continue;
-                int vfi = vd.facets[cfIndex].voronoi_facet_index;
-                if (vfi < 0 || vfi >= (int)vd.global_facets.size()) continue;
-                const VoronoiFacet &gf = vd.global_facets[vfi];
+                if (cfIndex < 0 || cfIndex >= (int)vd.cell_facets.size()) continue;
+                int vfi = vd.cell_facets[cfIndex].voronoi_facet_index;
+                if (vfi < 0 || vfi >= (int)vd.surface_facets.size()) continue;
+                const VoronoiFacet &gf = vd.surface_facets[vfi];
 
                 // ensure nodes for all slots that are bipolar
                 const int m = (int)gf.vertices_indices.size();
@@ -324,7 +324,7 @@ static void write_case_json(const std::string &path,
 
     // Prepare after-map from current vd state
     std::map<int, std::vector<std::pair<int,int>>> matches_after;
-    for (const auto &gf : vd.global_facets)
+    for (const auto &gf : vd.surface_facets)
         matches_after[gf.index] = gf.bipolar_matches;
 
     auto cycles_before = compute_cycles_for(matches_before);
@@ -351,9 +351,9 @@ static void write_case_json(const std::string &path,
 
     // facets with before/after iso-segments
     os << "  \"facets\": [\n";
-    for (size_t fi = 0; fi < vd.global_facets.size(); ++fi)
+    for (size_t fi = 0; fi < vd.surface_facets.size(); ++fi)
     {
-        const auto &gf = vd.global_facets[fi];
+        const auto &gf = vd.surface_facets[fi];
         os << "    {\"vfi\": " << gf.index << ", \"verts\": [";
         for (size_t k = 0; k < gf.vertices_indices.size(); ++k)
         {
@@ -412,16 +412,16 @@ static void write_case_json(const std::string &path,
             if (j + 1 < gf.bipolar_matches.size()) os << ",";
         }
         os << "]}";
-        if (fi + 1 < vd.global_facets.size()) os << ",";
+        if (fi + 1 < vd.surface_facets.size()) os << ",";
         os << "\n";
     }
     os << "  ],\n";
 
     // Build simple 3D prisms for each global facet to visualize the two incident cells
     os << "  \"facet_prisms\": [\n";
-    for (size_t fi = 0; fi < vd.global_facets.size(); ++fi)
+    for (size_t fi = 0; fi < vd.surface_facets.size(); ++fi)
     {
-        const auto &gf = vd.global_facets[fi];
+        const auto &gf = vd.surface_facets[fi];
         // Gather facet points
         std::vector<Point> P; P.reserve(gf.vertices_indices.size());
         for (int idx : gf.vertices_indices) P.push_back(vd.vertices[idx].coord);
@@ -455,7 +455,7 @@ static void write_case_json(const std::string &path,
         os << ", \"bottom\": ";
         dump_ring(Vm);
         os << "}";
-        if (fi + 1 < vd.global_facets.size()) os << ",";
+        if (fi + 1 < vd.surface_facets.size()) os << ",";
         os << "\n";
     }
     os << "  ]\n";
@@ -519,8 +519,8 @@ int main()
 
     // Capture matches before
     std::map<int, std::vector<std::pair<int,int>>> matches_before;
-    for (size_t i = 0; i < vd.global_facets.size(); ++i)
-        matches_before[(int)i] = vd.global_facets[i].bipolar_matches;
+    for (size_t i = 0; i < vd.surface_facets.size(); ++i)
+        matches_before[(int)i] = vd.surface_facets[i].bipolar_matches;
 
     // Build iso-segments from seeded cycles and check detection on both facets
     for (int id : {vfi, vfi_hex})
@@ -543,7 +543,7 @@ int main()
         build_iso_segments_for_facet(vd, id, iso);
         print_iso_segments(vd, id);
         std::cout << "Facet method after pass (gf#" << id << "): "
-                  << matchMethodToString(vd.global_facets[id].bipolar_match_method) << "\n";
+                  << matchMethodToString(vd.surface_facets[id].bipolar_match_method) << "\n";
     }
 
     // Check that per-cell cycleIndices exist for bipolar edges (not empty)

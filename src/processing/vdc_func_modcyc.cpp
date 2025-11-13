@@ -44,7 +44,7 @@ static void collect_midpoints_for_cell(
     const VoronoiCell &vc = vd.cells[cellIndex];
     for (int cfIndex : vc.facet_indices)
     {
-        const VoronoiCellFacet &facet = vd.facets[cfIndex];
+        const VoronoiCellFacet &facet = vd.cell_facets[cfIndex];
         const auto &verts = facet.vertices_indices;
         const size_t n = verts.size();
         if (n < 2)
@@ -97,11 +97,11 @@ static void connect_midpoints_via_global_matches_for_cell(
     const VoronoiCell &vc = vd.cells[cellIndex];
     for (int cfIndex : vc.facet_indices)
     {
-        const VoronoiCellFacet &cf = vd.facets[cfIndex];
+        const VoronoiCellFacet &cf = vd.cell_facets[cfIndex];
         const int vfi = cf.voronoi_facet_index;
         if (vfi < 0)
             continue;
-        const VoronoiFacet &gf = vd.global_facets[vfi];
+        const VoronoiFacet &gf = vd.surface_facets[vfi];
         for (const auto &pr : gf.bipolar_matches)
         {
             const auto ekA = facet_slot_edge_key(gf, pr.first);
@@ -194,13 +194,13 @@ int find_cycle_for_bipolar_edge(const VoronoiDiagram &vd,
                                 int cellFacetIndex,
                                 int slot_global)
 {
-    if (cellFacetIndex < 0 || cellFacetIndex >= (int)vd.facets.size())
+    if (cellFacetIndex < 0 || cellFacetIndex >= (int)vd.cell_facets.size())
         return -1;
-    const VoronoiCellFacet &cf = vd.facets[cellFacetIndex];
+    const VoronoiCellFacet &cf = vd.cell_facets[cellFacetIndex];
     const int vfi = cf.voronoi_facet_index;
     if (vfi < 0)
         return -1;
-    const VoronoiFacet &vf = vd.global_facets[vfi];
+    const VoronoiFacet &vf = vd.surface_facets[vfi];
 
     const int local_slot = map_global_slot_to_cell(vf, cf, slot_global);
     if (local_slot < 0 || local_slot >= (int)cf.cell_edge_indices.size())
@@ -223,9 +223,9 @@ void build_iso_segments_for_facet(VoronoiDiagram &vd,
                                   int vfi,
                                   float isovalue)
 {
-    if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+    if (vfi < 0 || vfi >= (int)vd.surface_facets.size())
         return;
-    VoronoiFacet &vf = vd.global_facets[vfi];
+    VoronoiFacet &vf = vd.surface_facets[vfi];
     vf.iso_segments.clear();
 
     if (vf.bipolar_matches.empty())
@@ -267,9 +267,9 @@ bool facet_has_problematic_iso_segments(const VoronoiDiagram &vd,
                                         int vfi,
                                         std::pair<int, int> *offending_pair)
 {
-    if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+    if (vfi < 0 || vfi >= (int)vd.surface_facets.size())
         return false;
-    const auto &vf = vd.global_facets[vfi];
+    const auto &vf = vd.surface_facets[vfi];
     const int n = (int)vf.iso_segments.size();
     for (int i = 0; i < n; ++i)
     {
@@ -295,9 +295,9 @@ bool boundary_facet_has_problematic_iso_segments(const VoronoiDiagram &vd,
                                                   int vfi,
                                                   std::pair<int, int> *offending_pair)
 {
-    if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+    if (vfi < 0 || vfi >= (int)vd.surface_facets.size())
         return false;
-    const auto &vf = vd.global_facets[vfi];
+    const auto &vf = vd.surface_facets[vfi];
 
     // Check if this is a boundary facet (exactly one valid incident cell)
     int validSide = -1;
@@ -423,7 +423,7 @@ void recompute_cell_cycles_for_matches_single_cell(VoronoiDiagram &vd,
 void populate_incident_cells_for_global_facets(VoronoiDiagram &vd)
 {
     // Reset arrays
-    for (auto &gf : vd.global_facets)
+    for (auto &gf : vd.surface_facets)
     {
         gf.incident_cell_indices = {-1, -1};
         gf.incident_cell_facet_indices = {-1, -1};
@@ -434,12 +434,12 @@ void populate_incident_cells_for_global_facets(VoronoiDiagram &vd)
     {
         for (int cfIndex : cell.facet_indices)
         {
-            if (cfIndex < 0 || cfIndex >= (int)vd.facets.size())
+            if (cfIndex < 0 || cfIndex >= (int)vd.cell_facets.size())
                 continue;
-            const int vfi = vd.facets[cfIndex].voronoi_facet_index;
-            if (vfi < 0 || vfi >= (int)vd.global_facets.size())
+            const int vfi = vd.cell_facets[cfIndex].voronoi_facet_index;
+            if (vfi < 0 || vfi >= (int)vd.surface_facets.size())
                 continue;
-            auto &gf = vd.global_facets[vfi];
+            auto &gf = vd.surface_facets[vfi];
             if (gf.incident_cell_indices[0] == -1)
             {
                 gf.incident_cell_indices[0] = cell.cellIndex;
@@ -475,25 +475,25 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
         return (static_cast<long long>(cellIdx) << 32) ^ static_cast<unsigned int>(compId);
     };
 
-    const int nGF = (int)vd.global_facets.size();
+    const int nGF = (int)vd.surface_facets.size();
     for (int vfi = 0; vfi < nGF; ++vfi)
     {
         build_iso_segments_for_facet(vd, vfi, isovalue);
-        if (vd.global_facets[vfi].iso_segments.empty())
+        if (vd.surface_facets[vfi].iso_segments.empty())
             continue;
 
         // Check for interior facet ambiguity (duplicate component pairs)
         if (facet_has_problematic_iso_segments(vd, vfi, nullptr))
         {
             // Flip method for this facet and recompute ONLY this facet's matches
-            flip_bipolar_match_method(vd.global_facets[vfi]);
+            flip_bipolar_match_method(vd.surface_facets[vfi]);
             recompute_bipolar_matches_for_facet(vd, vfi, isovalue);
             build_iso_segments_for_facet(vd, vfi, isovalue);
             flippedFacets.insert(vfi);
             ++interior_flips;
 
             // Mark both incident cells for cycle recomputation
-            const auto &gf = vd.global_facets[vfi];
+            const auto &gf = vd.surface_facets[vfi];
             for (int side = 0; side < 2; ++side)
             {
                 const int cidx = gf.incident_cell_indices[side];
@@ -505,14 +505,14 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
         else if (boundary_facet_has_problematic_iso_segments(vd, vfi, nullptr))
         {
             // Flip method for this facet and recompute ONLY this facet's matches
-            flip_bipolar_match_method(vd.global_facets[vfi]);
+            flip_bipolar_match_method(vd.surface_facets[vfi]);
             recompute_bipolar_matches_for_facet(vd, vfi, isovalue);
             build_iso_segments_for_facet(vd, vfi, isovalue);
             flippedFacets.insert(vfi);
             ++boundary_flips;
 
             // Mark the valid incident cell for cycle recomputation
-            const auto &gf = vd.global_facets[vfi];
+            const auto &gf = vd.surface_facets[vfi];
             for (int side = 0; side < 2; ++side)
             {
                 const int cidx = gf.incident_cell_indices[side];
@@ -530,7 +530,7 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
 
         for (int vfi = 0; vfi < nGF && !resolvedConflict; ++vfi)
         {
-            auto &vf = vd.global_facets[vfi];
+            auto &vf = vd.surface_facets[vfi];
             if (vf.iso_segments.empty())
                 continue;
 
@@ -564,12 +564,12 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
                 {
                     if (facetIdx < 0)
                         return false;
-                    auto &facet = vd.global_facets[facetIdx];
+                    auto &facet = vd.surface_facets[facetIdx];
                     flip_bipolar_match_method(facet);
                     recompute_bipolar_matches_for_facet(vd, facetIdx, isovalue);
                     build_iso_segments_for_facet(vd, facetIdx, isovalue);
                     flippedFacets.insert(facetIdx);
-                    const auto &gfTarget = vd.global_facets[facetIdx];
+                    const auto &gfTarget = vd.surface_facets[facetIdx];
                     for (int side = 0; side < 2; ++side)
                     {
                         const int cidx = gfTarget.incident_cell_indices[side];
@@ -596,7 +596,7 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
                     bool adjusted = false;
                     for (int facetIdx : {vfi, otherFacet})
                     {
-                        auto &facet = vd.global_facets[facetIdx];
+                        auto &facet = vd.surface_facets[facetIdx];
                         if (facet.bipolar_match_method != BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH)
                         {
                             facet.bipolar_match_method = BIPOLAR_MATCH_METHOD::UNCONSTRAINED_MATCH;
@@ -610,7 +610,7 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
                         recompute_bipolar_matches_for_facet(vd, facetIdx, isovalue);
                         build_iso_segments_for_facet(vd, facetIdx, isovalue);
                         flippedFacets.insert(facetIdx);
-                        const auto &gfTarget = vd.global_facets[facetIdx];
+                        const auto &gfTarget = vd.surface_facets[facetIdx];
                         for (int side = 0; side < 2; ++side)
                         {
                             const int cidx = gfTarget.incident_cell_indices[side];
@@ -647,9 +647,9 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue)
     if (std::getenv("MODCYC_DEBUG_BOUNDARY"))
     {
         std::unordered_map<long long, std::vector<int>> boundary_usage;
-        for (size_t vfi = 0; vfi < vd.global_facets.size(); ++vfi)
+        for (size_t vfi = 0; vfi < vd.surface_facets.size(); ++vfi)
         {
-            const auto &vf = vd.global_facets[vfi];
+            const auto &vf = vd.surface_facets[vfi];
             int validSide = -1;
             int validCellIdx = -1;
             for (int side = 0; side < 2; ++side)

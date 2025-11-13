@@ -25,7 +25,7 @@ SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
     stats.delaunay_cells = static_cast<std::size_t>(std::distance(dt.finite_cells_begin(), dt.finite_cells_end()));
     stats.voronoi_vertices = vd.vertices.size();
     stats.voronoi_edges = vd.edges.size();
-    stats.voronoi_facets = vd.global_facets.size();
+    stats.voronoi_facets = vd.surface_facets.size();
     stats.voronoi_cells = vd.cells.size();
     stats.collapsed_vertices_removed = collapsed_vertices_removed;
     stats.collapsed_edges_removed = collapsed_edges_removed;
@@ -84,7 +84,7 @@ SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
     std::size_t maxFacetEdges = 0;
     int minFacetIndex = -1;
     int maxFacetIndex = -1;
-    for (const auto &gf : vd.global_facets)
+    for (const auto &gf : vd.surface_facets)
     {
         const std::size_t vertCount = gf.vertices_indices.size();
         const std::size_t edgeCount = gf.voronoi_edge_indices.size();
@@ -108,9 +108,9 @@ SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
         if (methodIndex < stats.facet_match_counts.size())
             ++stats.facet_match_counts[methodIndex];
     }
-    if (!vd.global_facets.empty())
+    if (!vd.surface_facets.empty())
     {
-        const double denom = static_cast<double>(vd.global_facets.size());
+        const double denom = static_cast<double>(vd.surface_facets.size());
         stats.avg_facet_vertices = static_cast<double>(total_facet_vertices) / denom;
         stats.avg_facet_edges = static_cast<double>(total_facet_edges) / denom;
         stats.min_facet_vertices = minFacetVertices;
