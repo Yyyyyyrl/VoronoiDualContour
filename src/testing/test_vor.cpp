@@ -31,14 +31,14 @@ int main(int argc, char *argv[])
     VoronoiDiagram vd;
     std::string output_filename;
     K::Iso_cuboid_3 bbox;
-    VDC_PARAM vdc_param; // Hardcode for test
+    VdcParam vdc_param; // Hardcode for test
     vdc_param.multi_isov = true;
     vdc_param.convex_hull = true;
 
     std::vector<Point> input_points;
     UnifiedGrid data_grid;
     std::vector<Cube> activeCubes;
-    std::vector<std::vector<GRID_FACETS>> grid_facets;
+    std::vector<std::vector<GridFacets>> grid_facets;
     std::vector<Point> activeCubeCenters;
 
     bool is_nrrd = false;
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
             print_message();
             exit(EXIT_FAILURE);
         }
-        if (!readPointsFromFile(input_filename, input_points)) {
+        if (!read_points_from_file(input_filename, input_points)) {
             std::cerr << "Failed to read points from file." << std::endl;
             exit(EXIT_FAILURE);
         }
