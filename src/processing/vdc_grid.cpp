@@ -52,8 +52,8 @@ float UnifiedGrid::get_scalar_value_at_point(const Point &point) const
 }
 
 
-//! @brief Constructor for the GRID_FACETS structure.
-GRID_FACETS::GRID_FACETS(int d, int s, const int minIdx[DIM3], const int maxIdx[DIM3])
+//! @brief Constructor for the GridFacets structure.
+GridFacets::GridFacets(int d, int s, const int minIdx[DIM3], const int maxIdx[DIM3])
     : orth_dir(d), side(s)
 {
     //! Store `minIndex[]` and `maxIndex[]`, and compute `localSize[]`.
@@ -76,19 +76,19 @@ GRID_FACETS::GRID_FACETS(int d, int s, const int minIdx[DIM3], const int maxIdx[
 }
 
 //! @brief Set the flag for a particular `(coord0, coord1)` in the facet.
-void GRID_FACETS::SetFlag(int coord0, int coord1, bool flag)
+void GridFacets::SetFlag(int coord0, int coord1, bool flag)
 {
     cube_flag[index(coord0, coord1)] = flag;
 }
 
 //! @brief Get the flag for a particular `(coord0, coord1)` in the facet.
-bool GRID_FACETS::CubeFlag(int coord0, int coord1) const
+bool GridFacets::CubeFlag(int coord0, int coord1) const
 {
     return cube_flag[index(coord0, coord1)];
 }
 
 //! @brief Convert a 2D coordinate `(coord0, coord1)` to a linear index.
-int GRID_FACETS::index(int coord0, int coord1) const
+int GridFacets::index(int coord0, int coord1) const
 {
     return coord1 * axis_size[0] + coord0;
 }
@@ -531,7 +531,7 @@ float trilinear_interpolate(const Point &p, const UnifiedGrid &grid)
 
 
 //! @brief Creates grid facets for active cubes.
-std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube> &activeCubes) {
+std::vector<std::vector<GridFacets>> create_grid_facets(const std::vector<Cube> &activeCubes) {
 
     int minIdx[3];
     int maxIdx[3];
@@ -556,15 +556,15 @@ std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube>
         if (cube.k > maxIdx[2])
             maxIdx[2] = cube.k;
     }
-    std::vector<std::vector<GRID_FACETS>> grid_facets(3, std::vector<GRID_FACETS>(2,
-                                                                                  GRID_FACETS(0, 0, minIdx, maxIdx)));
+    std::vector<std::vector<GridFacets>> grid_facets(3, std::vector<GridFacets>(2,
+                                                                                  GridFacets(0, 0, minIdx, maxIdx)));
 
     // re-construct them properly with the correct (d, side):
     for (int d = 0; d < 3; d++)
     {
         for (int side = 0; side < 2; side++)
         {
-            grid_facets[d][side] = GRID_FACETS(d, side, minIdx, maxIdx);
+            grid_facets[d][side] = GridFacets(d, side, minIdx, maxIdx);
         }
     }
 
@@ -581,7 +581,7 @@ std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube>
 
             for (int side = 0; side < 2; side++)
             {
-                GRID_FACETS &f = grid_facets[d][side];
+                GridFacets &f = grid_facets[d][side];
 
                 // Convert to local indices
                 // localCoord = g - minIndex
