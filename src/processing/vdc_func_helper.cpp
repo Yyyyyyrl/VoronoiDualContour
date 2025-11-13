@@ -29,7 +29,7 @@ bool directions_equal(const Vector3 &d1, const Vector3 &d2, double epsilon)
  * @param iso_surface The isosurface to output
  * @return EXIT_SUCCESS on success, EXIT_FAILURE on error
  */
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface)
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VdcParam &vdc_param, IsoSurface &iso_surface)
 {
     retFlag = true;
 
@@ -40,11 +40,11 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
     {
         if (vdc_param.output_format == "off")
         {
-            writeOFFMulti(vdc_param.output_filename, vd, iso_surface);
+            write_off_multi(vdc_param.output_filename, vd, iso_surface);
         }
         else if (vdc_param.output_format == "ply")
         {
-            writePLYMulti(vdc_param.output_filename, vd, iso_surface);
+            write_ply_multi(vdc_param.output_filename, vd, iso_surface);
         }
         else
         {
@@ -57,11 +57,11 @@ int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, 
     {
         if (vdc_param.output_format == "off")
         {
-            writeOFFSingle(vdc_param.output_filename, iso_surface);
+            write_off_single(vdc_param.output_filename, iso_surface);
         }
         else if (vdc_param.output_format == "ply")
         {
-            writePLYSingle(vdc_param.output_filename, iso_surface);
+            write_ply_single(vdc_param.output_filename, iso_surface);
         }
         else
         {
