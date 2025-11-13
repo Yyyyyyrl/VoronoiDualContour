@@ -138,7 +138,7 @@ struct UnifiedGrid
  * along the y- and z-axes. The `axis_dir[0]` corresponds to the first axis, 
  * and `axis_dir[1]` corresponds to the second axis.
  */
-struct GRID_FACETS 
+struct GridFacets
 {
     //! @brief Orthogonal direction: 0=x, 1=y, 2=z.
     int orth_dir;
@@ -178,10 +178,10 @@ struct GRID_FACETS
      * @param minIdx Global minimum indices for the bounding box.
      * @param maxIdx Global maximum indices for the bounding box.
      */
-    GRID_FACETS(int d, int s, const int minIdx[DIM3], const int maxIdx[DIM3]);
+    GridFacets(int d, int s, const int minIdx[DIM3], const int maxIdx[DIM3]);
 
     //! @brief Default destructor (uses `std::vector<bool>` for automatic cleanup).
-    ~GRID_FACETS() = default;
+    ~GridFacets() = default;
 
     //! @brief Set the flag for a particular `(coord0, coord1)` in this facet.
     /*!
@@ -202,7 +202,7 @@ struct GRID_FACETS
     //! @brief Print grid facets information for debugging
     template <typename OSTREAM_TYPE>
     void Print(OSTREAM_TYPE & out) const {
-        out << "GRID_FACETS:\n";
+        out << "GridFacets:\n";
         out << "  Orthogonal direction: " << orth_dir << " (0=x, 1=y, 2=z)\n";
         out << "  Side: " << side << " (0=lower, 1=upper)\n";
         out << "  Axis directions: [" << axis_dir[0] << ", " << axis_dir[1] << "]\n";
@@ -322,9 +322,9 @@ float trilinear_interpolate(const Point &p, const UnifiedGrid &grid);
 //! @brief Creates grid facets for a given set of active cubes.
 /*!
  * @param activeCubes A vector of active cubes.
- * @return A 3D vector of `GRID_FACETS`, grouped by direction and side.
+ * @return A 3D vector of `GridFacets`, grouped by direction and side.
  */
-std::vector<std::vector<GRID_FACETS>> create_grid_facets(const std::vector<Cube> &activeCubes);
+std::vector<std::vector<GridFacets>> create_grid_facets(const std::vector<Cube> &activeCubes);
 
 
 
