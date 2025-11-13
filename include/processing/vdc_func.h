@@ -1,3 +1,6 @@
+//! @file vdc_func.h
+//! @brief Main processing functions for Voronoi diagram construction, Delaunay triangulation, and isosurface extraction.
+
 #ifndef VDC_FUNC_H
 #define VDC_FUNC_H
 
@@ -92,10 +95,10 @@ void compute_isosurface_vertices_single(UnifiedGrid &grid, float isovalue, IsoSu
  * @param dt The Delaunay triangulation instance.
  * @param grid The grid containing scalar values.
  * @param grid_facets The grid facets to use in constructing the triangulation.
- * @param vdc_param The VDC_PARAM instance holding user input options.
+ * @param vdc_param The VdcParam instance holding user input options.
  * @param activeCubeIsoCrossingPoints The list of iso-crossing points of active cubes.
  */
-void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GRID_FACETS>> &grid_facets, VDC_PARAM &vdc_param, std::vector<Point> &activeCubeCenters);
+void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std::vector<std::vector<GridFacets>> &grid_facets, VdcParam &vdc_param, std::vector<Point> &activeCubeCenters);
 
 //! @brief Adds dummy points from a facet for Voronoi diagram bounding.
 /*!
@@ -106,7 +109,7 @@ void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std
  * @param supersample_multiplier Scaling applied when supersampling is enabled.
  * @return A vector of points added from the facet.
  */
-std::vector<Point> add_dummy_from_facet(const GRID_FACETS &facet, const UnifiedGrid &grid, double supersample_multiplier);
+std::vector<Point> add_dummy_from_facet(const GridFacets &facet, const UnifiedGrid &grid, double supersample_multiplier);
 
 //! @brief Constructs Voronoi vertices for the given diagram.
 /*!
@@ -195,23 +198,23 @@ int find_cell_edge_for_cell_and_edge(const VoronoiDiagram &vd,
  *
  * @param retFlag Reference to a flag indicating success or failure.
  * @param vd The Voronoi diagram containing mesh data.
- * @param vdc_param The VDC_PARAM instance containing user input options.
+ * @param vdc_param The VdcParam instance containing user input options.
  * @param iso_surface The instance of IsoSurface containing the vertices and faces of the isosurface.
  * @return An integer representing the exit status.
  */
-int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface);
+int handle_output_mesh(bool &retFlag, VoronoiDiagram &vd, VdcParam &vdc_param, IsoSurface &iso_surface);
 
 //! @brief Wraps up the process of building the Voronoi diagram from the Delaunay triangulation.
 /*!
  * Orchestrates the construction of Voronoi vertices, edges, cells, and values.
  *
  * @param vd The Voronoi diagram to construct.
- * @param vdc_param The VDC_PARAM instance containing user input options.
+ * @param vdc_param The VdcParam instance containing user input options.
  * @param grid Scalar grid containing scalar values.
  * @param bbox Bounding box of the computational domain.
  * @param dt The Delaunay triangulation.
  */
-void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, UnifiedGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
+void construct_voronoi_diagram(VoronoiDiagram &vd, VdcParam &vdc_param, UnifiedGrid &grid, CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt);
 
 //! @brief Wraps up the process of building the isosurface from the Voronoi diagram/Delaunay triangulation.
 /*!
@@ -227,7 +230,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VDC_PARAM &vdc_param, Unified
  * @param bbox Bounding box for clipping infinite edges
  * @param vertex_mapping Optional mapping from old to new vertex indices after collapse (for combinatorial orientation)
  */
-void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VDC_PARAM &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping = nullptr, int *out_interior_flips = nullptr, int *out_boundary_flips = nullptr, int *out_total_flips = nullptr, std::size_t *out_clipped_count = nullptr, double *out_max_clip_distance = nullptr);
+void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping = nullptr, int *out_interior_flips = nullptr, int *out_boundary_flips = nullptr, int *out_total_flips = nullptr, std::size_t *out_clipped_count = nullptr, double *out_max_clip_distance = nullptr);
 
 
 // Helper function declarations (internal linkage)
@@ -568,13 +571,13 @@ static void process_incident_edges(Delaunay &dt, Vertex_handle delaunay_vertex, 
  * @param grid The grid containing data.
  * @param grid_facets The grid facets for dummy point generation.
  * @param activeCubeCenters The list of center points of active cubes.
- * @param vdc_param The VDC_PARAM instance containing user input options.
+ * @param vdc_param The VdcParam instance containing user input options.
  * @param delaunay_points Output vector for all points (original + dummy).
  */
 static int collect_delaunay_points(UnifiedGrid &grid,
-                                   const std::vector<std::vector<GRID_FACETS>> &grid_facets,
+                                   const std::vector<std::vector<GridFacets>> &grid_facets,
                                    const std::vector<Point> &activeCubeCenters,
-                                   VDC_PARAM &vdc_param,
+                                   VdcParam &vdc_param,
                                    std::vector<Point> &delaunay_points);
 
 
