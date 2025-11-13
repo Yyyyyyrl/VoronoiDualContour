@@ -45,8 +45,8 @@ SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
     int maxCellIndex = -1;
     for (const auto &cell : vd.cells)
     {
-        const std::size_t vertCount = cell.vertices_indices.size();
-        const std::size_t facetCount = cell.facet_indices.size();
+        const std::size_t vertCount = cell.verticesIndices.size();
+        const std::size_t facetCount = cell.facetIndices.size();
         total_cell_vertices += vertCount;
         total_cell_facets += facetCount;
 
@@ -86,8 +86,8 @@ SummaryStats collect_summary_stats(const std::vector<Cube> &activeCubes,
     int maxFacetIndex = -1;
     for (const auto &gf : vd.surface_facets)
     {
-        const std::size_t vertCount = gf.vertices_indices.size();
-        const std::size_t edgeCount = gf.voronoi_edge_indices.size();
+        const std::size_t vertCount = gf.verticesIndices.size();
+        const std::size_t edgeCount = gf.voronoiEdgeIndices.size();
         total_facet_vertices += vertCount;
         total_facet_edges += edgeCount;
 
