@@ -8,9 +8,9 @@
 // Return undirected edge key for a global facet boundary slot.
 static inline std::pair<int, int> facet_slot_edge_key(const VoronoiFacet &gf, int slot)
 {
-    const int m = (int)gf.vertices_indices.size();
-    const int a = gf.vertices_indices[slot];
-    const int b = gf.vertices_indices[(slot + 1) % m];
+    const int m = (int)gf.verticesIndices.size();
+    const int a = gf.verticesIndices[slot];
+    const int b = gf.verticesIndices[(slot + 1) % m];
     return (a < b) ? std::make_pair(a, b) : std::make_pair(b, a);
 }
 
@@ -42,10 +42,10 @@ static void collect_midpoints_for_cell(
     std::unordered_map<EdgeKey, int, PairHash> &edge_to_midpoint_index)
 {
     const VoronoiCell &vc = vd.cells[cellIndex];
-    for (int cfIndex : vc.facet_indices)
+    for (int cfIndex : vc.facetIndices)
     {
         const VoronoiCellFacet &facet = vd.cell_facets[cfIndex];
-        const auto &verts = facet.vertices_indices;
+        const auto &verts = facet.verticesIndices;
         const size_t n = verts.size();
         if (n < 2)
             continue;
@@ -95,7 +95,7 @@ static void connect_midpoints_via_global_matches_for_cell(
     std::vector<MidpointNode> &midpoints)
 {
     const VoronoiCell &vc = vd.cells[cellIndex];
-    for (int cfIndex : vc.facet_indices)
+    for (int cfIndex : vc.facetIndices)
     {
         const VoronoiCellFacet &cf = vd.cell_facets[cfIndex];
         const int vfi = cf.voronoi_facet_index;
@@ -171,13 +171,13 @@ int map_global_slot_to_cell(const VoronoiFacet &vf,
                             const VoronoiCellFacet &cf,
                             int slot_global)
 {
-    const int m = (int)vf.vertices_indices.size();
+    const int m = (int)vf.verticesIndices.size();
     if (m == 0)
         return -1;
-    const int a = vf.vertices_indices[slot_global];
-    const int b = vf.vertices_indices[(slot_global + 1) % m];
+    const int a = vf.verticesIndices[slot_global];
+    const int b = vf.verticesIndices[(slot_global + 1) % m];
     const int step = (cf.orientation == 1) ? +1 : -1;
-    const auto &C = cf.vertices_indices;
+    const auto &C = cf.verticesIndices;
     for (int i = 0; i < (int)C.size(); ++i)
     {
         const int j = (i + step + (int)C.size()) % (int)C.size();
@@ -188,7 +188,7 @@ int map_global_slot_to_cell(const VoronoiFacet &vf,
 }
 
 // Return the cycle id for the bipolar edge at given local slot in cell facet cf
-// (single-slot lookup via cf.cell_edge_indices[local_slot]; NO hashing).
+// (single-slot lookup via cf.cellEdgeIndices[local_slot]; NO hashing).
 int find_cycle_for_bipolar_edge(const VoronoiDiagram &vd,
                                 int cellIndex,
                                 int cellFacetIndex,
@@ -203,10 +203,10 @@ int find_cycle_for_bipolar_edge(const VoronoiDiagram &vd,
     const VoronoiFacet &vf = vd.surface_facets[vfi];
 
     const int local_slot = map_global_slot_to_cell(vf, cf, slot_global);
-    if (local_slot < 0 || local_slot >= (int)cf.cell_edge_indices.size())
+    if (local_slot < 0 || local_slot >= (int)cf.cellEdgeIndices.size())
         return -1;
 
-    const int ceIdx = cf.cell_edge_indices[local_slot];
+    const int ceIdx = cf.cellEdgeIndices[local_slot];
     if (ceIdx < 0 || ceIdx >= (int)vd.cellEdges.size())
         return -1;
 
@@ -237,8 +237,8 @@ void build_iso_segments_for_facet(VoronoiDiagram &vd,
             seg.global_facet_index = vfi;
             seg.slotA = pr.first;
             seg.slotB = pr.second;
-            seg.edgeA = (seg.slotA >= 0 && seg.slotA < (int)vf.voronoi_edge_indices.size()) ? vf.voronoi_edge_indices[seg.slotA] : -1;
-            seg.edgeB = (seg.slotB >= 0 && seg.slotB < (int)vf.voronoi_edge_indices.size()) ? vf.voronoi_edge_indices[seg.slotB] : -1;
+            seg.edgeA = (seg.slotA >= 0 && seg.slotA < (int)vf.voronoiEdgeIndices.size()) ? vf.voronoiEdgeIndices[seg.slotA] : -1;
+            seg.edgeB = (seg.slotB >= 0 && seg.slotB < (int)vf.voronoiEdgeIndices.size()) ? vf.voronoiEdgeIndices[seg.slotB] : -1;
 
             for (int side = 0; side < 2; ++side)
             {
@@ -432,7 +432,7 @@ void populate_incident_cells_for_global_facets(VoronoiDiagram &vd)
     // Build mapping by scanning cells and their facets
     for (const auto &cell : vd.cells)
     {
-        for (int cfIndex : cell.facet_indices)
+        for (int cfIndex : cell.facetIndices)
         {
             if (cfIndex < 0 || cfIndex >= (int)vd.cell_facets.size())
                 continue;
