@@ -12,13 +12,13 @@
  * This structure consolidates all configurable parameters for the program,
  * replacing the need for multiple global variables.
  */
-struct VDC_PARAM {
+struct VdcParam {
     std::string file_path;         //!< Path to the input raw data file (nhdr/nrrd format).
     float isovalue;                //!< The isovalue used for isosurface extraction.
     std::string output_format;     //!< The format of the output file ("off" or "ply").
     std::string output_filename;   //!< The name of the output file.
     std::string out_csv_name;      //!< The name of the CSV file for Voronoi diagram export.
-    
+
     bool out_csv;                  //!< Flag to enable exporting Voronoi diagram to CSV.
     bool sep_isov_1;               //!< Flag to enable separation method I (greedy cube-level).
     bool sep_isov_3;               //!< Flag to enable separation method III (3×3×3 subgrid-based).
@@ -38,7 +38,7 @@ struct VDC_PARAM {
     double collapse_eps;           //!< Absolute collapse threshold in world units (optional).
 
     //! @brief Constructor to initialize default parameter values.
-    VDC_PARAM()
+    VdcParam()
         : file_path(""),
           isovalue(0.0f),
           output_format("off"),
@@ -64,7 +64,7 @@ struct VDC_PARAM {
     //! @brief Print VDC parameters for debugging
     template <typename OSTREAM_TYPE>
     void Print(OSTREAM_TYPE & out) const {
-        out << "VDC_PARAM:\n";
+        out << "VdcParam:\n";
         out << "  File path: " << file_path << "\n";
         out << "  Isovalue: " << isovalue << "\n";
         out << "  Output format: " << output_format << "\n";
@@ -103,8 +103,8 @@ void print_help();
  *
  * @param argc Number of command-line arguments.
  * @param argv Array of command-line argument strings.
- * @param vp A reference to a `VDC_PARAM` object where parsed parameters are stored.
+ * @param vp A reference to a `VdcParam` object where parsed parameters are stored.
  */
-void parse_arguments(int argc, char *argv[], VDC_PARAM &vp);
+void parse_arguments(int argc, char *argv[], VdcParam &vp);
 
 #endif // VDC_COMMANDLINE_H
