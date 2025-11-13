@@ -30,7 +30,7 @@ void print_help()
 }
 
 //! Parses command-line arguments and configures program settings.
-void parse_arguments(int argc, char *argv[], VDC_PARAM &vp)
+void parse_arguments(int argc, char *argv[], VdcParam &vp)
 {
     // Print help and exit if there are insufficient arguments.
     if (argc < 3)
