@@ -4,6 +4,7 @@
 #include "processing/vdc_sep_isov.h"
 #include <algorithm>
 #include <cmath>
+#include <unordered_set>
 
 // ============================================================================
 // COMMON UTILITIES
@@ -39,7 +40,8 @@ std::vector<Cube> separate_active_cubes_I(
                   return dist_a < dist_b;
               });
 
-    std::unordered_map<int, Cube> kept;   // key: linear cell index
+    std::unordered_set<int> kept;   // key: linear cell index
+    kept.reserve(activeCubes.size());
     std::vector<Cube> out;
     out.reserve(activeCubes.size());
 
@@ -76,7 +78,7 @@ std::vector<Cube> separate_active_cubes_I(
             );
 
             const int myIdx = linear_cell_index(ci, cj, ck, grid);
-            kept.emplace(myIdx, c);
+            kept.insert(myIdx);
             out.push_back(c);
         }
     }
