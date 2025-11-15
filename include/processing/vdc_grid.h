@@ -14,6 +14,7 @@ struct Cube {
     Point cubeCenter;       //!< Cube center used for Delaunay (provides robustness).
     
     Point accurateIsoCrossing; //!< Accurate iso-crossing point (centroid of edge intersections).
+    //TODO: change grid indices to array: int indices[DIM3]; In general, 3D positions/vectors/offsets should be stored as pos[DIM3], normal[DIM3], offset[DIM3]. This allows for potential looping, easy templates, and extensions to other dimensions.
     int i, j, k;            //!< Grid indices of the cube.
     unsigned char isov_subgrid_index; //!< Subgrid index [0-26] for sep_isov_3 (3×3×3 subdivision).
 
@@ -70,22 +71,22 @@ struct UnifiedGrid
     std::vector<std::vector<std::vector<float>>> data;
 
     //! @brief Number of grid cells along the x, y, and z axes.
-    int nx, ny, nz;
+    int num_cells[DIM3];
 
     //! @brief Spacing of the grid cells along the x, y, and z axes.
-    float dx, dy, dz;
+    float spacing[DIM3];
 
     //! @brief Physical spacing of the grid cells (retained when internal spacing is rescaled).
-    float physical_dx, physical_dy, physical_dz;
+    float physical_spacing[DIM3];
 
     //! @brief Minimum and maximum coordinates of the grid.
-    float min_x, min_y, min_z, max_x, max_y, max_z;
+    float min_coord[DIM3], max_coord[DIM3];
 
     //! @brief Constructor to initialize an empty grid.
-    UnifiedGrid() : nx(0), ny(0), nz(0), dx(1.0f), dy(1.0f), dz(1.0f),
-                    physical_dx(1.0f), physical_dy(1.0f), physical_dz(1.0f),
-                    min_x(0.0f), min_y(0.0f), min_z(0.0f),
-                    max_x(0.0f), max_y(0.0f), max_z(0.0f) {}
+    UnifiedGrid() : num_cells{0, 0, 0}, spacing{1.0f, 1.0f, 1.0f},
+                    physical_spacing{1.0f, 1.0f, 1.0f},
+                    min_coord{0.0f, 0.0f, 0.0f},
+                    max_coord{0.0f, 0.0f, 0.0f} {}
 
     //! @brief Constructor to initialize a grid with specified dimensions and spacings.
     UnifiedGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z);
@@ -121,11 +122,11 @@ struct UnifiedGrid
     template <typename OSTREAM_TYPE>
     void Print(OSTREAM_TYPE & out) const {
         out << "UnifiedGrid:\n";
-        out << "  Dimensions (nx, ny, nz): (" << nx << ", " << ny << ", " << nz << ")\n";
-        out << "  Spacing (dx, dy, dz): (" << dx << ", " << dy << ", " << dz << ")\n";
-        out << "  Physical spacing: (" << physical_dx << ", " << physical_dy << ", " << physical_dz << ")\n";
-        out << "  Min coords: (" << min_x << ", " << min_y << ", " << min_z << ")\n";
-        out << "  Max coords: (" << max_x << ", " << max_y << ", " << max_z << ")\n";
+        out << "  Dimensions (nx, ny, nz): (" << num_cells[0] << ", " << num_cells[1] << ", " << num_cells[2] << ")\n";
+        out << "  Spacing (dx, dy, dz): (" << spacing[0] << ", " << spacing[1] << ", " << spacing[2] << ")\n";
+        out << "  Physical spacing: (" << physical_spacing[0] << ", " << physical_spacing[1] << ", " << physical_spacing[2] << ")\n";
+        out << "  Min coords: (" << min_coord[0] << ", " << min_coord[1] << ", " << min_coord[2] << ")\n";
+        out << "  Max coords: (" << max_coord[0] << ", " << max_coord[1] << ", " << max_coord[2] << ")\n";
         out << "  Flat data size: " << flat_data.size() << " element(s)\n";
     }
 };

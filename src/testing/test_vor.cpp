@@ -101,8 +101,8 @@ int main(int argc, char *argv[])
         grid_facets = create_grid_facets(activeCubes);
         activeCubeCenters = get_cube_centers(activeCubes);
 
-        Point p_min(data_grid.min_x, data_grid.min_y, data_grid.min_z);
-        Point p_max(data_grid.max_x, data_grid.max_y, data_grid.max_z);
+        Point p_min(data_grid.min_coord[0], data_grid.min_coord[1], data_grid.min_coord[2]);
+        Point p_max(data_grid.max_coord[0], data_grid.max_coord[1], data_grid.max_coord[2]);
         bbox = K::Iso_cuboid_3(p_min, p_max);
 
         construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);

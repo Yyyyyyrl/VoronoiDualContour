@@ -19,7 +19,7 @@ std::vector<Point> add_dummy_from_facet(const GridFacets &facet,
 
     // and localSize[] = (maxIndex[i] - minIndex[i] + 1)
     // The grid spacing in each dimension
-    double dx[3] = {data_grid.dx, data_grid.dy, data_grid.dz};
+    double dx[3] = {data_grid.spacing[0], data_grid.spacing[1], data_grid.spacing[2]};
 
     // Loop over the 2D slice
     for (int coord1 = 0; coord1 < dim1; coord1++)

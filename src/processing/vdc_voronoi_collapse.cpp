@@ -384,6 +384,7 @@ bool lines_approx_equal(const Line3 &l1, const Line3 &l2, double eps_sq = 1e-20)
  * @param bbox Bounding box of the diagram (unused)
  * @return New Voronoi diagram with small edges collapsed
  */
+//TODO: The current implementation of collapseSmallEdges() constructs a new voronoi diagram out and then returns it as an object. This causes the voronoi diagram to be copied. This is extremely time consuming and wasteful. Pass vd2 as a parameter by reference to collapseSmallEdges() and then have collapseSmallEdges() directly build vd2.
 VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
                                   double D,
                                   const CGAL::Epick::Iso_cuboid_3 & /*bbox*/,

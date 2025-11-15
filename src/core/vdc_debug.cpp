@@ -88,12 +88,12 @@ void write_dummy_points(UnifiedGrid &grid, std::vector<Point> dummy_points)
     std::ofstream ofs("dummy_points.csv");
 
     // Write grid metadata (dimensions and spacing) as the first line.
-    ofs << grid.nx << "," // Grid size along the x-axis.
-        << grid.ny << "," // Grid size along the y-axis.
-        << grid.nz << "," // Grid size along the z-axis.
-        << grid.physical_dx << "," // Grid spacing along the x-axis.
-        << grid.physical_dy << "," // Grid spacing along the y-axis.
-        << grid.physical_dz << "\n"; // Grid spacing along the z-axis.
+    ofs << grid.num_cells[0] << "," // Grid size along the x-axis.
+        << grid.num_cells[1] << "," // Grid size along the y-axis.
+        << grid.num_cells[2] << "," // Grid size along the z-axis.
+        << grid.physical_spacing[0] << "," // Grid spacing along the x-axis.
+        << grid.physical_spacing[1] << "," // Grid spacing along the y-axis.
+        << grid.physical_spacing[2] << "\n"; // Grid spacing along the z-axis.
 
     // Write the column headers for the dummy points.
     ofs << "x,y,z\n";

@@ -12,14 +12,20 @@
 
 //! @brief Consistent linear index for a cell (i,j,k) in original grid
 static inline int linear_cell_index(int i, int j, int k, const UnifiedGrid& g) {
-    return k * (g.nx - 1) * (g.ny - 1) + j * (g.nx - 1) + i;
+    const int nx = g.num_cells[0];
+    const int ny = g.num_cells[1];
+    const int xy_stride = (nx - 1) * (ny - 1);
+    return k * xy_stride + j * (nx - 1) + i;
 }
 
 //! @brief Compute minimum distance to bounding box boundary in grid space
 static inline int min_distance_to_boundary(int i, int j, int k, const UnifiedGrid& grid) {
-    int dist_i = std::min(i, (grid.nx - 2) - i);  // nx-2 is the max valid cube index in i
-    int dist_j = std::min(j, (grid.ny - 2) - j);
-    int dist_k = std::min(k, (grid.nz - 2) - k);
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nz = grid.num_cells[2];
+    int dist_i = std::min(i, (nx - 2) - i);  // nx-2 is the max valid cube index in i
+    int dist_j = std::min(j, (ny - 2) - j);
+    int dist_k = std::min(k, (nz - 2) - k);
     return std::min({dist_i, dist_j, dist_k});
 }
 
@@ -45,6 +51,16 @@ std::vector<Cube> separate_active_cubes_I(
     std::vector<Cube> out;
     out.reserve(activeCubes.size());
 
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nz = grid.num_cells[2];
+
     for (Cube c : activeCubes) {
         const int ci = c.i, cj = c.j, ck = c.k;
 
@@ -59,7 +75,7 @@ std::vector<Cube> separate_active_cubes_I(
 
                     const int ni = ci + di, nj = cj + dj, nk = ck + dk;
                     if (ni < 0 || nj < 0 || nk < 0) continue;
-                    if (ni >= grid.nx - 1 || nj >= grid.ny - 1 || nk >= grid.nz - 1) continue;
+                    if (ni >= nx - 1 || nj >= ny - 1 || nk >= nz - 1) continue;
 
                     const int nIdx = linear_cell_index(ni, nj, nk, grid);
                     if (kept.find(nIdx) != kept.end()) hasAdjKept = true;
@@ -72,9 +88,9 @@ std::vector<Cube> separate_active_cubes_I(
             c.accurateIsoCrossing = compute_iso_crossing_point_accurate(grid, ci, cj, ck, isovalue);
 
             c.cubeCenter = Point(
-                (ci + 0.5f) * grid.dx + grid.min_x,
-                (cj + 0.5f) * grid.dy + grid.min_y,
-                (ck + 0.5f) * grid.dz + grid.min_z
+                (ci + 0.5f) * dx + min_x,
+                (cj + 0.5f) * dy + min_y,
+                (ck + 0.5f) * dz + min_z
             );
 
             const int myIdx = linear_cell_index(ci, cj, ck, grid);
@@ -106,9 +122,16 @@ Point compute_iso_crossing_point_accurate(
     };
 
     // Compute cube's base position
-    float base_x = i * grid.dx + grid.min_x;
-    float base_y = j * grid.dy + grid.min_y;
-    float base_z = k * grid.dz + grid.min_z;
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+
+    float base_x = i * dx + min_x;
+    float base_y = j * dy + min_y;
+    float base_z = k * dz + min_z;
 
     // Get scalar values at all 8 cube vertices (exact grid values)
     std::array<Point, 8> vertices;
@@ -116,9 +139,9 @@ Point compute_iso_crossing_point_accurate(
     for (int v = 0; v < 8; ++v)
     {
         vertices[v] = Point(
-            base_x + cubeVertices[v][0] * grid.dx,
-            base_y + cubeVertices[v][1] * grid.dy,
-            base_z + cubeVertices[v][2] * grid.dz
+            base_x + cubeVertices[v][0] * dx,
+            base_y + cubeVertices[v][1] * dy,
+            base_z + cubeVertices[v][2] * dz
         );
         // Use exact grid values at vertices (grid points)
         scalarValues[v] = grid.get_value(
@@ -165,9 +188,9 @@ Point compute_iso_crossing_point_accurate(
     {
         // Fallback to cube center
         return Point(
-            base_x + 0.5f * grid.dx,
-            base_y + 0.5f * grid.dy,
-            base_z + 0.5f * grid.dz
+            base_x + 0.5f * dx,
+            base_y + 0.5f * dy,
+            base_z + 0.5f * dz
         );
     }
 }
@@ -193,9 +216,15 @@ unsigned char determine_subgrid_index(
     const UnifiedGrid &grid)
 {
     // Compute relative position within cube
-    float rel_x = (isoCrossingPoint.x() - (cube.i * grid.dx + grid.min_x)) / grid.dx;
-    float rel_y = (isoCrossingPoint.y() - (cube.j * grid.dy + grid.min_y)) / grid.dy;
-    float rel_z = (isoCrossingPoint.z() - (cube.k * grid.dz + grid.min_z)) / grid.dz;
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+    float rel_x = (isoCrossingPoint.x() - (cube.i * dx + min_x)) / dx;
+    float rel_y = (isoCrossingPoint.y() - (cube.j * dy + min_y)) / dy;
+    float rel_z = (isoCrossingPoint.z() - (cube.k * dz + min_z)) / dz;
 
     // Clamp to [0, 1] range (in case of floating point errors)
     rel_x = std::max(0.0f, std::min(1.0f, static_cast<float>(rel_x)));
@@ -226,7 +255,11 @@ int linear_cell_index3x(int i, int j, int k, const UnifiedGrid &grid)
 {
     // Linear index in 3× refined grid
     // Grid dimensions in 3× space: 3*(nx-1) × 3*(ny-1) × 3*(nz-1)
-    return k * (grid.nx - 1) * (grid.ny - 1) * 9 + j * (grid.nx - 1) * 3 + i;
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nx1 = nx - 1;
+    const int ny1 = ny - 1;
+    return k * nx1 * ny1 * 9 + j * nx1 * 3 + i;
 }
 
 // ============================================================================
@@ -255,6 +288,9 @@ bool does_cell_conflict_with_selected_cubes(
     }
 
     const int radius = std::max(1, clearance);
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nz = grid.num_cells[2];
 
     // Check neighbors in 3× grid within requested clearance
     for (int dk = -radius; dk <= radius; ++dk) {
@@ -271,9 +307,9 @@ bool does_cell_conflict_with_selected_cubes(
 
                 // Check bounds in 3× grid
                 if (neighbor_loc[0] < 0 || neighbor_loc[1] < 0 || neighbor_loc[2] < 0) continue;
-                if (neighbor_loc[0] >= 3 * (grid.nx - 1) ||
-                    neighbor_loc[1] >= 3 * (grid.ny - 1) ||
-                    neighbor_loc[2] >= 3 * (grid.nz - 1)) continue;
+                if (neighbor_loc[0] >= 3 * (nx - 1) ||
+                    neighbor_loc[1] >= 3 * (ny - 1) ||
+                    neighbor_loc[2] >= 3 * (nz - 1)) continue;
 
                 int neighborIndex = linear_cell_index3x(neighbor_loc[0], neighbor_loc[1], neighbor_loc[2], grid);
 
@@ -297,6 +333,13 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
     float isovalue,
     int clearance)
 {
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+
     // Compute accurate iso-crossing points and determine subgrid indices
     for (Cube &cube : activeCubes)
     {
@@ -337,9 +380,9 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
 
             // 1. Big cube center
 /*                 cube.cubeCenter = Point(
-                    (cube.i + 0.5f) * grid.dx + grid.min_x,
-                    (cube.j + 0.5f) * grid.dy + grid.min_y,
-                    (cube.k + 0.5f) * grid.dz + grid.min_z); */
+                    (cube.i + 0.5f) * dx + min_x,
+                    (cube.j + 0.5f) * dy + min_y,
+                    (cube.k + 0.5f) * dz + min_z); */
 
             // 2. Small cube center in 3x3x3 subgrid
             //    Compute the center of the small cube containing the iso-crossing point
@@ -348,9 +391,9 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
 
             // Small cube center: big cube base + (subgrid_loc + 0.5) / 3.0 * cell_size
             cube.cubeCenter = Point(
-                (cube.i + (loc[0] + 0.5f) / 3.0f) * grid.dx + grid.min_x,
-                (cube.j + (loc[1] + 0.5f) / 3.0f) * grid.dy + grid.min_y,
-                (cube.k + (loc[2] + 0.5f) / 3.0f) * grid.dz + grid.min_z);
+                (cube.i + (loc[0] + 0.5f) / 3.0f) * dx + min_x,
+                (cube.j + (loc[1] + 0.5f) / 3.0f) * dy + min_y,
+                (cube.k + (loc[2] + 0.5f) / 3.0f) * dz + min_z);
            
             selected_indices.emplace(indexA, cube);
             out.push_back(cube);
@@ -381,6 +424,13 @@ std::vector<Cube> separate_active_cubes_III_exact_binary(
     const UnifiedGrid &grid,
     float isovalue)
 {
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+
     // Compute accurate iso-crossing points and determine subgrid indices
     for (Cube &cube : activeCubes)
     {
@@ -425,9 +475,9 @@ std::vector<Cube> separate_active_cubes_III_exact_binary(
             static const float exact_offsets[3] = {0.25f, 0.5f, 0.75f};
 
             cube.cubeCenter = Point(
-                (cube.i + exact_offsets[loc[0]]) * grid.dx + grid.min_x,
-                (cube.j + exact_offsets[loc[1]]) * grid.dy + grid.min_y,
-                (cube.k + exact_offsets[loc[2]]) * grid.dz + grid.min_z);
+                (cube.i + exact_offsets[loc[0]]) * dx + min_x,
+                (cube.j + exact_offsets[loc[1]]) * dy + min_y,
+                (cube.k + exact_offsets[loc[2]]) * dz + min_z);
 
             selected_indices.emplace(indexA, cube);
             out.push_back(cube);

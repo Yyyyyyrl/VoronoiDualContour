@@ -107,8 +107,8 @@ int main(int argc, char *argv[])
     std::cout << "[INFO] Number of active cube centers: " << activeCubeCenters.size() << std::endl;
 
     // Define the bounding box of the grid.
-    Point p_min(0, 0, 0);
-    Point p_max(data_grid.max_x, data_grid.max_y, data_grid.max_z);
+    Point p_min(data_grid.min_coord[0], data_grid.min_coord[1], data_grid.min_coord[2]);
+    Point p_max(data_grid.max_coord[0], data_grid.max_coord[1], data_grid.max_coord[2]);
     K::Iso_cuboid_3 bbox(p_min, p_max);
 
     if (debug) // Print the bounding box dimensions if debugging is enabled.
@@ -117,8 +117,6 @@ int main(int argc, char *argv[])
                   << bbox.min() << ") to ("
                   << bbox.max() << ")" << std::endl;
     }
-
-    float cubeSideLength = data_grid.physical_dx; // Store the cube side length (equal to physical grid spacing).
 
     // Construct the Delaunay triangulation using the grid facets.
     if (indicator)
@@ -141,7 +139,7 @@ int main(int argc, char *argv[])
     // Collapse threshold: use CLI value if provided; otherwise scale to grid spacing (1% of min spacing)
     double collapse_eps = (vdc_param.collapse_eps > 0.0)
                               ? vdc_param.collapse_eps
-                              : std::min({data_grid.physical_dx, data_grid.physical_dy, data_grid.physical_dz}) * 0.01;
+                              : std::min({data_grid.physical_spacing[0], data_grid.physical_spacing[1], data_grid.physical_spacing[2]}) * 0.01;
     if (vdc_param.collapse_eps <= 0.0) {
         // Persist the resolved default so downstream stages and logs can see it.
         vdc_param.collapse_eps = collapse_eps;

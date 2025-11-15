@@ -7,20 +7,21 @@
 
 //! Constructor for UnifiedGrid
 UnifiedGrid::UnifiedGrid(int nx, int ny, int nz, float dx, float dy, float dz, float min_x, float min_y, float min_z)
-    : nx(nx), ny(ny), nz(nz),
-      dx(dx), dy(dy), dz(dz),
-      physical_dx(dx), physical_dy(dy), physical_dz(dz),
-      min_x(min_x), min_y(min_y), min_z(min_z)
+    : num_cells{nx, ny, nz},
+      spacing{dx, dy, dz},
+      physical_spacing{dx, dy, dz},
+      min_coord{min_x, min_y, min_z},
+      max_coord{0.0f, 0.0f, 0.0f}
 {
     update_bounds();
-    flat_data.resize(nx * ny * nz, 0.0f);
-    data.resize(nx, std::vector<std::vector<float>>(ny, std::vector<float>(nz, 0.0f)));
+    flat_data.resize(num_cells[0] * num_cells[1] * num_cells[2], 0.0f);
+    data.resize(num_cells[0], std::vector<std::vector<float>>(num_cells[1], std::vector<float>(num_cells[2], 0.0f)));
 }
 
 // Retrieve a scalar value from the grid
 float UnifiedGrid::get_value(int x, int y, int z) const
 {
-    if (x < 0 || x >= nx || y < 0 || y >= ny || z < 0 || z >= nz)
+    if (x < 0 || x >= num_cells[0] || y < 0 || y >= num_cells[1] || z < 0 || z >= num_cells[2])
         return 0.0f;
     return data[x][y][z];
 }
@@ -28,10 +29,10 @@ float UnifiedGrid::get_value(int x, int y, int z) const
 // Set a scalar value in the grid
 void UnifiedGrid::set_value(int x, int y, int z, float value)
 {
-    if (x >= 0 && x < nx && y >= 0 && y < ny && z >= 0 && z < nz)
+    if (x >= 0 && x < num_cells[0] && y >= 0 && y < num_cells[1] && z >= 0 && z < num_cells[2])
     {
         data[x][y][z] = value;
-        flat_data[z * nx * ny + y * nx + x] = value;
+        flat_data[z * num_cells[0] * num_cells[1] + y * num_cells[0] + x] = value;
     }
 }
 
@@ -39,9 +40,9 @@ void UnifiedGrid::set_value(int x, int y, int z, float value)
 // Convert point to grid index
 std::tuple<int, int, int> UnifiedGrid::point_to_grid_index(const Point &point) const
 {
-    int x = static_cast<int>((point.x() - min_x) / dx);
-    int y = static_cast<int>((point.y() - min_y) / dy);
-    int z = static_cast<int>((point.z() - min_z) / dz);
+    int x = static_cast<int>((point.x() - min_coord[0]) / spacing[0]);
+    int y = static_cast<int>((point.y() - min_coord[1]) / spacing[1]);
+    int z = static_cast<int>((point.z() - min_coord[2]) / spacing[2]);
     return {x, y, z};
 }
 
@@ -96,15 +97,21 @@ int GridFacets::index(int coord0, int coord1) const
 // Print grid metadata and data
 void UnifiedGrid::print_grid() const
 {
+    const int nx = num_cells[0];
+    const int ny = num_cells[1];
+    const int nz = num_cells[2];
+    const float dx = spacing[0];
+    const float dy = spacing[1];
+    const float dz = spacing[2];
     std::cout << "Unified Grid Information:\n";
     std::cout << "Dimensions: " << nx << "x" << ny << "x" << nz << "\n";
     std::cout << "Internal spacing (grid units): dx=" << dx << ", dy=" << dy << ", dz=" << dz << "\n";
-    std::cout << "Physical spacing: dx=" << physical_dx << ", dy=" << physical_dy << ", dz=" << physical_dz << "\n";
-    std::cout << "Bounds (grid units): [" << min_x << ", " << max_x << "] x [" << min_y << ", " << max_y << "] x [" << min_z << ", " << max_z << "]\n";
-    const float phys_max_x = min_x + (nx - 1) * physical_dx;
-    const float phys_max_y = min_y + (ny - 1) * physical_dy;
-    const float phys_max_z = min_z + (nz - 1) * physical_dz;
-    std::cout << "Bounds (physical): [" << min_x << ", " << phys_max_x << "] x [" << min_y << ", " << phys_max_y << "] x [" << min_z << ", " << phys_max_z << "]\n\n";
+    std::cout << "Physical spacing: dx=" << physical_spacing[0] << ", dy=" << physical_spacing[1] << ", dz=" << physical_spacing[2] << "\n";
+    std::cout << "Bounds (grid units): [" << min_coord[0] << ", " << max_coord[0] << "] x [" << min_coord[1] << ", " << max_coord[1] << "] x [" << min_coord[2] << ", " << max_coord[2] << "]\n";
+    const float phys_max_x = min_coord[0] + (nx - 1) * physical_spacing[0];
+    const float phys_max_y = min_coord[1] + (ny - 1) * physical_spacing[1];
+    const float phys_max_z = min_coord[2] + (nz - 1) * physical_spacing[2];
+    std::cout << "Bounds (physical): [" << min_coord[0] << ", " << phys_max_x << "] x [" << min_coord[1] << ", " << phys_max_y << "] x [" << min_coord[2] << ", " << phys_max_z << "]\n\n";
     std::cout << "Data:\n";
     for (int z = 0; z < nz; ++z)
     {
@@ -121,19 +128,23 @@ void UnifiedGrid::print_grid() const
 
 void UnifiedGrid::update_bounds()
 {
-    max_x = min_x + (nx - 1) * dx;
-    max_y = min_y + (ny - 1) * dy;
-    max_z = min_z + (nz - 1) * dz;
+    for (int d = 0; d < DIM3; ++d)
+    {
+        max_coord[d] = min_coord[d] + (num_cells[d] - 1) * spacing[d];
+    }
 }
 
 void UnifiedGrid::force_unit_spacing()
 {
-    dx = dy = dz = 1.0f;
+    spacing[0] = spacing[1] = spacing[2] = 1.0f;
     update_bounds();
 }
 
 void UnifiedGrid::zero_boundary_shell()
 {
+    const int nx = num_cells[0];
+    const int ny = num_cells[1];
+    const int nz = num_cells[2];
     if (nx <= 0 || ny <= 0 || nz <= 0)
         return;
 
@@ -178,6 +189,9 @@ void UnifiedGrid::zero_boundary_shell()
 
 bool UnifiedGrid::boundary_crosses_isovalue(float isovalue) const
 {
+    const int nx = num_cells[0];
+    const int ny = num_cells[1];
+    const int nz = num_cells[2];
     if (nx <= 0 || ny <= 0 || nz <= 0)
         return false;
 
@@ -307,16 +321,19 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
     grid.force_unit_spacing();
     timer.stopTimer("Grid initialization");
 
-    std::cout << "Grid dimensions: " << nx << "x" << ny << "x" << nz << "\n";
-    std::cout << "Physical spacing: dx=" << grid.physical_dx << ", dy=" << grid.physical_dy << ", dz=" << grid.physical_dz << "\n";
-    std::cout << "Internal spacing (grid units): dx=" << grid.dx << ", dy=" << grid.dy << ", dz=" << grid.dz << "\n";
-    const float phys_max_x = grid.min_x + (grid.nx - 1) * grid.physical_dx;
-    const float phys_max_y = grid.min_y + (grid.ny - 1) * grid.physical_dy;
-    const float phys_max_z = grid.min_z + (grid.nz - 1) * grid.physical_dz;
-    std::cout << "Bounds (grid units): [" << grid.min_x << ", " << grid.max_x << "] x ["
-              << grid.min_y << ", " << grid.max_y << "] x [" << grid.min_z << ", " << grid.max_z << "]\n";
-    std::cout << "Bounds (physical): [" << grid.min_x << ", " << phys_max_x << "] x ["
-              << grid.min_y << ", " << phys_max_y << "] x [" << grid.min_z << ", " << phys_max_z << "]\n";
+    const int grid_nx = grid.num_cells[0];
+    const int grid_ny = grid.num_cells[1];
+    const int grid_nz = grid.num_cells[2];
+    std::cout << "Grid dimensions: " << grid_nx << "x" << grid_ny << "x" << grid_nz << "\n";
+    std::cout << "Physical spacing: dx=" << grid.physical_spacing[0] << ", dy=" << grid.physical_spacing[1] << ", dz=" << grid.physical_spacing[2] << "\n";
+    std::cout << "Internal spacing (grid units): dx=" << grid.spacing[0] << ", dy=" << grid.spacing[1] << ", dz=" << grid.spacing[2] << "\n";
+    const float phys_max_x = grid.min_coord[0] + (grid_nx - 1) * grid.physical_spacing[0];
+    const float phys_max_y = grid.min_coord[1] + (grid_ny - 1) * grid.physical_spacing[1];
+    const float phys_max_z = grid.min_coord[2] + (grid_nz - 1) * grid.physical_spacing[2];
+    std::cout << "Bounds (grid units): [" << grid.min_coord[0] << ", " << grid.max_coord[0] << "] x ["
+              << grid.min_coord[1] << ", " << grid.max_coord[1] << "] x [" << grid.min_coord[2] << ", " << grid.max_coord[2] << "]\n";
+    std::cout << "Bounds (physical): [" << grid.min_coord[0] << ", " << phys_max_x << "] x ["
+              << grid.min_coord[1] << ", " << phys_max_y << "] x [" << grid.min_coord[2] << ", " << phys_max_z << "]\n";
 
     return grid;
 }
@@ -327,14 +344,17 @@ UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n)
     TimingStats& timer = TimingStats::getInstance();
     timer.startTimer("Supersample", "1. Load Data and Grid Formation");
 
-    int nx2 = grid.nx * n - (n - 1);
-    int ny2 = grid.ny * n - (n - 1);
-    int nz2 = grid.nz * n - (n - 1);
-    float dx2 = grid.physical_dx / n;
-    float dy2 = grid.physical_dy / n;
-    float dz2 = grid.physical_dz / n;
+    const int grid_nx = grid.num_cells[0];
+    const int grid_ny = grid.num_cells[1];
+    const int grid_nz = grid.num_cells[2];
+    int nx2 = grid_nx * n - (n - 1);
+    int ny2 = grid_ny * n - (n - 1);
+    int nz2 = grid_nz * n - (n - 1);
+    float dx2 = grid.physical_spacing[0] / n;
+    float dy2 = grid.physical_spacing[1] / n;
+    float dz2 = grid.physical_spacing[2] / n;
 
-    UnifiedGrid new_grid(nx2, ny2, nz2, dx2, dy2, dz2, grid.min_x, grid.min_y, grid.min_z);
+    UnifiedGrid new_grid(nx2, ny2, nz2, dx2, dy2, dz2, grid.min_coord[0], grid.min_coord[1], grid.min_coord[2]);
 
     for (int z = 0; z < nz2; ++z)
     {
@@ -342,9 +362,9 @@ UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n)
         {
             for (int x = 0; x < nx2; ++x)
             {
-                float px = grid.min_x + (static_cast<float>(x) / n) * grid.dx;
-                float py = grid.min_y + (static_cast<float>(y) / n) * grid.dy;
-                float pz = grid.min_z + (static_cast<float>(z) / n) * grid.dz;
+                float px = grid.min_coord[0] + (static_cast<float>(x) / n) * grid.spacing[0];
+                float py = grid.min_coord[1] + (static_cast<float>(y) / n) * grid.spacing[1];
+                float pz = grid.min_coord[2] + (static_cast<float>(z) / n) * grid.spacing[2];
                 float value = trilinear_interpolate(Point(px, py, pz), grid);
                 new_grid.set_value(x, y, z, value);
             }
@@ -387,19 +407,29 @@ bool is_cube_active(const UnifiedGrid &grid, int x, int y, int z, float isovalue
 // Adjust points outside grid bounds
 Point adjust_outside_bound_points(const Point &p, const UnifiedGrid &grid, const Point &v1, const Point &v2)
 {
-    float gx = (p.x() - grid.min_x) / grid.dx;
-    float gy = (p.y() - grid.min_y) / grid.dy;
-    float gz = (p.z() - grid.min_z) / grid.dz;
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nz = grid.num_cells[2];
 
-    if (gx < 0 || gx >= grid.nx || gy < 0 || gy >= grid.ny || gz < 0 || gz >= grid.nz)
+    float gx = (p.x() - min_x) / dx;
+    float gy = (p.y() - min_y) / dy;
+    float gz = (p.z() - min_z) / dz;
+
+    if (gx < 0 || gx >= nx || gy < 0 || gy >= ny || gz < 0 || gz >= nz)
     {
-        float v1_gx = (v1.x() - grid.min_x) / grid.dx;
-        float v1_gy = (v1.y() - grid.min_y) / grid.dy;
-        float v1_gz = (v1.z() - grid.min_z) / grid.dz;
+        float v1_gx = (v1.x() - min_x) / dx;
+        float v1_gy = (v1.y() - min_y) / dy;
+        float v1_gz = (v1.z() - min_z) / dz;
 
-        float v2_gx = (v2.x() - grid.min_x) / grid.dx;
-        float v2_gy = (v2.y() - grid.min_y) / grid.dy;
-        float v2_gz = (v2.z() - grid.min_z) / grid.dz;
+        float v2_gx = (v2.x() - min_x) / dx;
+        float v2_gy = (v2.y() - min_y) / dy;
+        float v2_gz = (v2.z() - min_z) / dz;
 
         float t = ((gx - v1_gx) * (v2_gx - v1_gx) + (gy - v1_gy) * (v2_gy - v1_gy) + (gz - v1_gz) * (v2_gz - v1_gz)) /
                   ((v2_gx - v1_gx) * (v2_gx - v1_gx) + (v2_gy - v1_gy) * (v2_gy - v1_gy) + (v2_gz - v1_gz) * (v2_gz - v1_gz));
@@ -410,7 +440,7 @@ Point adjust_outside_bound_points(const Point &p, const UnifiedGrid &grid, const
         float py = v1_gy + t * (v2_gy - v1_gy);
         float pz = v1_gz + t * (v2_gz - v1_gz);
 
-        return Point(px * grid.dx + grid.min_x, py * grid.dy + grid.min_y, pz * grid.dz + grid.min_z);
+        return Point(px * dx + min_x, py * dy + min_y, pz * dz + min_z);
     }
 
     return p;
@@ -425,29 +455,34 @@ Point compute_iso_crossing_point(const UnifiedGrid &grid, int i, int j, int k, f
     // Return cube center - this ensures all points are distinct and well-separated,
     // avoiding degeneracies in the Delaunay triangulation
     return Point(
-        (i + 0.5f) * grid.dx + grid.min_x,
-        (j + 0.5f) * grid.dy + grid.min_y,
-        (k + 0.5f) * grid.dz + grid.min_z
-    );
+        (i + 0.5f) * grid.spacing[0] + grid.min_coord[0],
+        (j + 0.5f) * grid.spacing[1] + grid.min_coord[1],
+        (k + 0.5f) * grid.spacing[2] + grid.min_coord[2]);
 }
 
 // Find active cubes
 void find_active_cubes(const UnifiedGrid &grid, float isovalue, std::vector<Cube> &cubes)
 {
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nz = grid.num_cells[2];
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
     cubes.clear();
-    for (int i = 0; i < grid.nx - 1; ++i)
+    for (int i = 0; i < nx - 1; ++i)
     {
-        for (int j = 0; j < grid.ny - 1; ++j)
+        for (int j = 0; j < ny - 1; ++j)
         {
-            for (int k = 0; k < grid.nz - 1; ++k)
+            for (int k = 0; k < nz - 1; ++k)
             {
                 if (is_cube_active(grid, i, j, k, isovalue))
                 {
-                    Point repVertex(i * grid.dx + grid.min_x, j * grid.dy + grid.min_y, k * grid.dz + grid.min_z);
-                    Point cubeCenter(
-                        (i + 0.5f) * grid.dx + grid.min_x,
-                        (j + 0.5f) * grid.dy + grid.min_y,
-                        (k + 0.5f) * grid.dz + grid.min_z);
+                    Point repVertex(i * dx + min_x, j * dy + min_y, k * dz + min_z);
+                    Point cubeCenter((i + 0.5f) * dx + min_x, (j + 0.5f) * dy + min_y, (k + 0.5f) * dz + min_z);
                     Cube cube(repVertex, cubeCenter, i, j, k);
                     cube.accurateIsoCrossing = compute_iso_crossing_point(grid, i, j, k, isovalue);
                     cubes.push_back(cube);
@@ -461,20 +496,30 @@ void find_active_cubes(const UnifiedGrid &grid, float isovalue, std::vector<Cube
 // Load grid points
 std::vector<Point> load_grid_points(const UnifiedGrid &grid)
 {
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nz = grid.num_cells[2];
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
     std::vector<Point> points;
-    for (int i = 0; i < grid.nx; ++i)
-        for (int j = 0; j < grid.ny; ++j)
-            for (int k = 0; k < grid.nz; ++k)
-                points.push_back(Point(i * grid.dx + grid.min_x, j * grid.dy + grid.min_y, k * grid.dz + grid.min_z));
+    points.reserve(static_cast<size_t>(nx) * ny * nz);
+    for (int i = 0; i < nx; ++i)
+        for (int j = 0; j < ny; ++j)
+            for (int k = 0; k < nz; ++k)
+                points.push_back(Point(i * dx + min_x, j * dy + min_y, k * dz + min_z));
     return points;
 }
 
 // Check if point is inside grid
 bool is_point_inside_grid(const Point &p, const UnifiedGrid &grid)
 {
-    return (p.x() >= grid.min_x && p.x() <= grid.max_x &&
-            p.y() >= grid.min_y && p.y() <= grid.max_y &&
-            p.z() >= grid.min_z && p.z() <= grid.max_z);
+    return (p.x() >= grid.min_coord[0] && p.x() <= grid.max_coord[0] &&
+            p.y() >= grid.min_coord[1] && p.y() <= grid.max_coord[1] &&
+            p.z() >= grid.min_coord[2] && p.z() <= grid.max_coord[2]);
 }
 
 // Interpolate along an edge
@@ -491,19 +536,29 @@ Point interpolate(const Point &p1, const Point &p2, float val1, float val2, floa
 // Trilinear interpolation
 float trilinear_interpolate(const Point &p, const UnifiedGrid &grid)
 {
-    float gx = (p.x() - grid.min_x) / grid.dx;
-    float gy = (p.y() - grid.min_y) / grid.dy;
-    float gz = (p.z() - grid.min_z) / grid.dz;
-    gx = std::max(0.0f, std::min(gx, (float)(grid.nx - 1)));
-    gy = std::max(0.0f, std::min(gy, (float)(grid.ny - 1)));
-    gz = std::max(0.0f, std::min(gz, (float)(grid.nz - 1)));
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nz = grid.num_cells[2];
+
+    float gx = (p.x() - min_x) / dx;
+    float gy = (p.y() - min_y) / dy;
+    float gz = (p.z() - min_z) / dz;
+    gx = std::max(0.0f, std::min(gx, static_cast<float>(nx - 1)));
+    gy = std::max(0.0f, std::min(gy, static_cast<float>(ny - 1)));
+    gz = std::max(0.0f, std::min(gz, static_cast<float>(nz - 1)));
 
     int x0 = static_cast<int>(std::floor(gx));
-    int x1 = std::min(x0 + 1, grid.nx - 1);
+    int x1 = std::min(x0 + 1, nx - 1);
     int y0 = static_cast<int>(std::floor(gy));
-    int y1 = std::min(y0 + 1, grid.ny - 1);
+    int y1 = std::min(y0 + 1, ny - 1);
     int z0 = static_cast<int>(std::floor(gz));
-    int z1 = std::min(z0 + 1, grid.nz - 1);
+    int z1 = std::min(z0 + 1, nz - 1);
 
     float xd = gx - x0;
     float yd = gy - y0;
@@ -610,27 +665,44 @@ bool is_adjacent(const Cube &cubeA, const Cube &cubeB, const UnifiedGrid &grid)
 // Calculate unique cube index
 int get_cube_index(const Point &repVertex, const UnifiedGrid &grid)
 {
-    int i = static_cast<int>((repVertex.x() - grid.min_x) / grid.dx);
-    int j = static_cast<int>((repVertex.y() - grid.min_y) / grid.dy);
-    int k = static_cast<int>((repVertex.z() - grid.min_z) / grid.dz);
-    return k * (grid.nx - 1) * (grid.ny - 1) + j * (grid.nx - 1) + i;
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    int i = static_cast<int>((repVertex.x() - min_x) / dx);
+    int j = static_cast<int>((repVertex.y() - min_y) / dy);
+    int k = static_cast<int>((repVertex.z() - min_z) / dz);
+    return k * (nx - 1) * (ny - 1) + j * (nx - 1) + i;
 }
 
 // Find neighbor indices
 std::vector<int> find_neighbor_indices(const Point &repVertex, const UnifiedGrid &grid)
 {
     std::vector<int> neighbors;
-    int i = static_cast<int>((repVertex.x() - grid.min_x) / grid.dx);
-    int j = static_cast<int>((repVertex.y() - grid.min_y) / grid.dy);
-    int k = static_cast<int>((repVertex.z() - grid.min_z) / grid.dz);
+    const float min_x = grid.min_coord[0];
+    const float min_y = grid.min_coord[1];
+    const float min_z = grid.min_coord[2];
+    const float dx = grid.spacing[0];
+    const float dy = grid.spacing[1];
+    const float dz = grid.spacing[2];
+    const int nx = grid.num_cells[0];
+    const int ny = grid.num_cells[1];
+    const int nz = grid.num_cells[2];
+    int i = static_cast<int>((repVertex.x() - min_x) / dx);
+    int j = static_cast<int>((repVertex.y() - min_y) / dy);
+    int k = static_cast<int>((repVertex.z() - min_z) / dz);
     for (int di = -1; di <= 1; ++di)
         for (int dj = -1; dj <= 1; ++dj)
             for (int dk = -1; dk <= 1; ++dk)
                 if (di != 0 || dj != 0 || dk != 0)
                 {
                     int ni = i + di, nj = j + dj, nk = k + dk;
-                    if (ni >= 0 && ni < grid.nx - 1 && nj >= 0 && nj < grid.ny - 1 && nk >= 0 && nk < grid.nz - 1)
-                        neighbors.push_back(nk * (grid.nx - 1) * (grid.ny - 1) + nj * (grid.nx - 1) + ni);
+                    if (ni >= 0 && ni < nx - 1 && nj >= 0 && nj < ny - 1 && nk >= 0 && nk < nz - 1)
+                        neighbors.push_back(nk * (nx - 1) * (ny - 1) + nj * (nx - 1) + ni);
                 }
     return neighbors;
 }

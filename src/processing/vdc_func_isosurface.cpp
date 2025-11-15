@@ -1882,7 +1882,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
 {
     ISO_DBG_LOAD_ENV();
     // Extract cube side length from grid if provided (for clipping)
-    float cube_side_length = (grid != nullptr) ? grid->physical_dx : 0.0f;
+    float cube_side_length = (grid != nullptr) ? grid->physical_spacing[0] : 0.0f;
 
     // Expect callers to keep voronoiDiagram.global_facets[vfi].bipolar_matches in sync.
     for (auto &vc : voronoiDiagram.cells)
@@ -1952,7 +1952,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
     }
     TimingStats& timer = TimingStats::getInstance();
-    iso_surface.vertex_scale = {grid.physical_dx, grid.physical_dy, grid.physical_dz};
+    iso_surface.vertex_scale = {grid.physical_spacing[0], grid.physical_spacing[1], grid.physical_spacing[2]};
     // Helper used before every new attempt of the multi-isov pipeline. Any facet flip
     // or cycle modification invalidates previously built iso vertices and triangle
     // bookkeeping, so we clear the shared buffers here to guarantee clean state.
