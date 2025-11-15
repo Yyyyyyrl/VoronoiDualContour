@@ -41,8 +41,8 @@ std::vector<Cube> separate_active_cubes_I(
     // Sort cubes by distance to boundary (ascending), prioritizing boundary cubes
     std::sort(activeCubes.begin(), activeCubes.end(),
               [&grid](const Cube& a, const Cube& b) {
-                  int dist_a = min_distance_to_boundary(a.i, a.j, a.k, grid);
-                  int dist_b = min_distance_to_boundary(b.i, b.j, b.k, grid);
+                  int dist_a = min_distance_to_boundary(a.indices[0], a.indices[1], a.indices[2], grid);
+                  int dist_b = min_distance_to_boundary(b.indices[0], b.indices[1], b.indices[2], grid);
                   return dist_a < dist_b;
               });
 
@@ -62,7 +62,7 @@ std::vector<Cube> separate_active_cubes_I(
     const int nz = grid.num_cells[2];
 
     for (Cube c : activeCubes) {
-        const int ci = c.i, cj = c.j, ck = c.k;
+        const int ci = c.indices[0], cj = c.indices[1], ck = c.indices[2];
 
         // Reject cubes that share any vertex/edge/face with an already kept cube
         // (i.e., any of the 26-neighbors in the (i,j,k) lattice).
@@ -222,9 +222,9 @@ unsigned char determine_subgrid_index(
     const float min_x = grid.min_coord[0];
     const float min_y = grid.min_coord[1];
     const float min_z = grid.min_coord[2];
-    float rel_x = (isoCrossingPoint.x() - (cube.i * dx + min_x)) / dx;
-    float rel_y = (isoCrossingPoint.y() - (cube.j * dy + min_y)) / dy;
-    float rel_z = (isoCrossingPoint.z() - (cube.k * dz + min_z)) / dz;
+    float rel_x = (isoCrossingPoint.x() - (cube.indices[0] * dx + min_x)) / dx;
+    float rel_y = (isoCrossingPoint.y() - (cube.indices[1] * dy + min_y)) / dy;
+    float rel_z = (isoCrossingPoint.z() - (cube.indices[2] * dz + min_z)) / dz;
 
     // Clamp to [0, 1] range (in case of floating point errors)
     rel_x = std::max(0.0f, std::min(1.0f, static_cast<float>(rel_x)));
@@ -278,9 +278,9 @@ bool does_cell_conflict_with_selected_cubes(
     compute_subgrid_loc(cube.isov_subgrid_index, loc);
 
     int grid3x_loc[3];
-    grid3x_loc[0] = 3 * cube.i + loc[0];
-    grid3x_loc[1] = 3 * cube.j + loc[1];
-    grid3x_loc[2] = 3 * cube.k + loc[2];
+    grid3x_loc[0] = 3 * cube.indices[0] + loc[0];
+    grid3x_loc[1] = 3 * cube.indices[1] + loc[1];
+    grid3x_loc[2] = 3 * cube.indices[2] + loc[2];
 
     int myIndexA = linear_cell_index3x(grid3x_loc[0], grid3x_loc[1], grid3x_loc[2], grid);
     if (indexA != nullptr) {
@@ -343,7 +343,7 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
     // Compute accurate iso-crossing points and determine subgrid indices
     for (Cube &cube : activeCubes)
     {
-        Point accurate_crossing = compute_iso_crossing_point_accurate(grid, cube.i, cube.j, cube.k, isovalue);
+        Point accurate_crossing = compute_iso_crossing_point_accurate(grid, cube.indices[0], cube.indices[1], cube.indices[2], isovalue);
         cube.accurateIsoCrossing = accurate_crossing;
         cube.isov_subgrid_index = determine_subgrid_index(accurate_crossing, cube, grid);
     }
@@ -351,16 +351,16 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
     // Sort by distance to boundary (same as method I)
     std::sort(activeCubes.begin(), activeCubes.end(),
               [&grid](const Cube &a, const Cube &b) {
-                  int dist_a = min_distance_to_boundary(a.i, a.j, a.k, grid);
-                  int dist_b = min_distance_to_boundary(b.i, b.j, b.k, grid);
+                  int dist_a = min_distance_to_boundary(a.indices[0], a.indices[1], a.indices[2], grid);
+                  int dist_b = min_distance_to_boundary(b.indices[0], b.indices[1], b.indices[2], grid);
                   if (dist_a == dist_b)
                   {
                       // deterministic tie-break to keep behavior stable across platforms
-                      if (a.k != b.k)
-                          return a.k < b.k;
-                      if (a.j != b.j)
-                          return a.j < b.j;
-                      return a.i < b.i;
+                      if (a.indices[2] != b.indices[2])
+                          return a.indices[2] < b.indices[2];
+                      if (a.indices[1] != b.indices[1])
+                          return a.indices[1] < b.indices[1];
+                      return a.indices[0] < b.indices[0];
                   }
                   return dist_a < dist_b;
               });
@@ -391,9 +391,9 @@ static std::vector<Cube> separate_active_cubes_III_with_clearance(
 
             // Small cube center: big cube base + (subgrid_loc + 0.5) / 3.0 * cell_size
             cube.cubeCenter = Point(
-                (cube.i + (loc[0] + 0.5f) / 3.0f) * dx + min_x,
-                (cube.j + (loc[1] + 0.5f) / 3.0f) * dy + min_y,
-                (cube.k + (loc[2] + 0.5f) / 3.0f) * dz + min_z);
+                (cube.indices[0] + (loc[0] + 0.5f) / 3.0f) * dx + min_x,
+                (cube.indices[1] + (loc[1] + 0.5f) / 3.0f) * dy + min_y,
+                (cube.indices[2] + (loc[2] + 0.5f) / 3.0f) * dz + min_z);
            
             selected_indices.emplace(indexA, cube);
             out.push_back(cube);
@@ -434,7 +434,7 @@ std::vector<Cube> separate_active_cubes_III_exact_binary(
     // Compute accurate iso-crossing points and determine subgrid indices
     for (Cube &cube : activeCubes)
     {
-        Point accurate_crossing = compute_iso_crossing_point_accurate(grid, cube.i, cube.j, cube.k, isovalue);
+        Point accurate_crossing = compute_iso_crossing_point_accurate(grid, cube.indices[0], cube.indices[1], cube.indices[2], isovalue);
         cube.accurateIsoCrossing = accurate_crossing;
         cube.isov_subgrid_index = determine_subgrid_index(accurate_crossing, cube, grid);
     }
@@ -442,14 +442,14 @@ std::vector<Cube> separate_active_cubes_III_exact_binary(
     // Sort by distance to boundary (same as method III)
     std::sort(activeCubes.begin(), activeCubes.end(),
               [&grid](const Cube &a, const Cube &b) {
-                  int dist_a = min_distance_to_boundary(a.i, a.j, a.k, grid);
-                  int dist_b = min_distance_to_boundary(b.i, b.j, b.k, grid);
+                  int dist_a = min_distance_to_boundary(a.indices[0], a.indices[1], a.indices[2], grid);
+                  int dist_b = min_distance_to_boundary(b.indices[0], b.indices[1], b.indices[2], grid);
                   if (dist_a == dist_b)
                   {
                       // Deterministic tie-break
-                      if (a.k != b.k) return a.k < b.k;
-                      if (a.j != b.j) return a.j < b.j;
-                      return a.i < b.i;
+                      if (a.indices[2] != b.indices[2]) return a.indices[2] < b.indices[2];
+                      if (a.indices[1] != b.indices[1]) return a.indices[1] < b.indices[1];
+                      return a.indices[0] < b.indices[0];
                   }
                   return dist_a < dist_b;
               });
@@ -475,9 +475,9 @@ std::vector<Cube> separate_active_cubes_III_exact_binary(
             static const float exact_offsets[3] = {0.25f, 0.5f, 0.75f};
 
             cube.cubeCenter = Point(
-                (cube.i + exact_offsets[loc[0]]) * dx + min_x,
-                (cube.j + exact_offsets[loc[1]]) * dy + min_y,
-                (cube.k + exact_offsets[loc[2]]) * dz + min_z);
+                (cube.indices[0] + exact_offsets[loc[0]]) * dx + min_x,
+                (cube.indices[1] + exact_offsets[loc[1]]) * dy + min_y,
+                (cube.indices[2] + exact_offsets[loc[2]]) * dz + min_z);
 
             selected_indices.emplace(indexA, cube);
             out.push_back(cube);

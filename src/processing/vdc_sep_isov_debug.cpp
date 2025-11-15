@@ -64,46 +64,49 @@ void check_collinear_isocrossings(const std::vector<Cube>& activeCubes,
     const int max_check = std::min(100, (int)activeCubes.size());
 
     for (int i = 0; i < max_check && i < activeCubes.size(); i++) {
-        Point p1 = compute_iso_crossing_point_accurate(grid,
-                                                       activeCubes[i].i,
-                                                       activeCubes[i].j,
-                                                       activeCubes[i].k,
-                                                       isovalue);
+        Point p1 = compute_iso_crossing_point_accurate(
+            grid,
+            activeCubes[i].indices[0],
+            activeCubes[i].indices[1],
+            activeCubes[i].indices[2],
+            isovalue);
 
         for (int j = i+1; j < max_check && j < activeCubes.size(); j++) {
-            Point p2 = compute_iso_crossing_point_accurate(grid,
-                                                           activeCubes[j].i,
-                                                           activeCubes[j].j,
-                                                           activeCubes[j].k,
-                                                           isovalue);
+            Point p2 = compute_iso_crossing_point_accurate(
+                grid,
+                activeCubes[j].indices[0],
+                activeCubes[j].indices[1],
+                activeCubes[j].indices[2],
+                isovalue);
 
             // Only check nearby cubes (within 5 grid cells)
-            int di = std::abs(activeCubes[i].i - activeCubes[j].i);
-            int dj = std::abs(activeCubes[i].j - activeCubes[j].j);
-            int dk = std::abs(activeCubes[i].k - activeCubes[j].k);
+            int di = std::abs(activeCubes[i].indices[0] - activeCubes[j].indices[0]);
+            int dj = std::abs(activeCubes[i].indices[1] - activeCubes[j].indices[1]);
+            int dk = std::abs(activeCubes[i].indices[2] - activeCubes[j].indices[2]);
 
             if (di > 5 || dj > 5 || dk > 5) continue;
 
             for (int k = j+1; k < max_check && k < activeCubes.size(); k++) {
-                Point p3 = compute_iso_crossing_point_accurate(grid,
-                                                               activeCubes[k].i,
-                                                               activeCubes[k].j,
-                                                               activeCubes[k].k,
-                                                               isovalue);
+                Point p3 = compute_iso_crossing_point_accurate(
+                    grid,
+                    activeCubes[k].indices[0],
+                    activeCubes[k].indices[1],
+                    activeCubes[k].indices[2],
+                    isovalue);
 
                 // Only check nearby cubes
-                int dik = std::abs(activeCubes[i].i - activeCubes[k].i);
-                int djk = std::abs(activeCubes[i].j - activeCubes[k].j);
-                int dkk = std::abs(activeCubes[i].k - activeCubes[k].k);
+                int dik = std::abs(activeCubes[i].indices[0] - activeCubes[k].indices[0]);
+                int djk = std::abs(activeCubes[i].indices[1] - activeCubes[k].indices[1]);
+                int dkk = std::abs(activeCubes[i].indices[2] - activeCubes[k].indices[2]);
 
                 if (dik > 5 || djk > 5 || dkk > 5) continue;
 
                 char context[256];
                 snprintf(context, sizeof(context),
                         "Nearly collinear iso-crossings from cubes (%d,%d,%d), (%d,%d,%d), (%d,%d,%d)",
-                        activeCubes[i].i, activeCubes[i].j, activeCubes[i].k,
-                        activeCubes[j].i, activeCubes[j].j, activeCubes[j].k,
-                        activeCubes[k].i, activeCubes[k].j, activeCubes[k].k);
+                        activeCubes[i].indices[0], activeCubes[i].indices[1], activeCubes[i].indices[2],
+                        activeCubes[j].indices[0], activeCubes[j].indices[1], activeCubes[j].indices[2],
+                        activeCubes[k].indices[0], activeCubes[k].indices[1], activeCubes[k].indices[2]);
 
                 check_for_thin_triangle(p1, p2, p3, angle_threshold, context);
                 count++;

@@ -89,7 +89,8 @@ int main(int argc, char *argv[])
         timer.startTimer("Compute iso-crossing points", "2. Data Pre-processing");
         for (Cube &cube : activeCubes)
         {
-            cube.accurateIsoCrossing = compute_iso_crossing_point_accurate(data_grid, cube.i, cube.j, cube.k, vdc_param.isovalue);
+            cube.accurateIsoCrossing = compute_iso_crossing_point_accurate(
+                data_grid, cube.indices[0], cube.indices[1], cube.indices[2], vdc_param.isovalue);
         }
         timer.stopTimer("Compute iso-crossing points");
     }

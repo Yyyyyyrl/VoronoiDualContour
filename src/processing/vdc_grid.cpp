@@ -596,20 +596,20 @@ std::vector<std::vector<GridFacets>> create_grid_facets(const std::vector<Cube> 
 
     for (auto &cube : activeCubes)
     {
-        if (cube.i < minIdx[0])
-            minIdx[0] = cube.i;
-        if (cube.i > maxIdx[0])
-            maxIdx[0] = cube.i;
+        if (cube.indices[0] < minIdx[0])
+            minIdx[0] = cube.indices[0];
+        if (cube.indices[0] > maxIdx[0])
+            maxIdx[0] = cube.indices[0];
 
-        if (cube.j < minIdx[1])
-            minIdx[1] = cube.j;
-        if (cube.j > maxIdx[1])
-            maxIdx[1] = cube.j;
+        if (cube.indices[1] < minIdx[1])
+            minIdx[1] = cube.indices[1];
+        if (cube.indices[1] > maxIdx[1])
+            maxIdx[1] = cube.indices[1];
 
-        if (cube.k < minIdx[2])
-            minIdx[2] = cube.k;
-        if (cube.k > maxIdx[2])
-            maxIdx[2] = cube.k;
+        if (cube.indices[2] < minIdx[2])
+            minIdx[2] = cube.indices[2];
+        if (cube.indices[2] > maxIdx[2])
+            maxIdx[2] = cube.indices[2];
     }
     std::vector<std::vector<GridFacets>> grid_facets(3, std::vector<GridFacets>(2,
                                                                                   GridFacets(0, 0, minIdx, maxIdx)));
@@ -627,7 +627,7 @@ std::vector<std::vector<GridFacets>> create_grid_facets(const std::vector<Cube> 
     for (auto &cube : activeCubes)
     {
         // Global index
-        int g[3] = {cube.i, cube.j, cube.k};
+        int g[3] = {cube.indices[0], cube.indices[1], cube.indices[2]};
 
         for (int d = 0; d < 3; d++)
         {
@@ -656,9 +656,9 @@ std::vector<std::vector<GridFacets>> create_grid_facets(const std::vector<Cube> 
 // Check if two cubes are adjacent in grid space
 bool is_adjacent(const Cube &cubeA, const Cube &cubeB, const UnifiedGrid &grid)
 {
-    int di = std::abs(cubeA.i - cubeB.i);
-    int dj = std::abs(cubeA.j - cubeB.j);
-    int dk = std::abs(cubeA.k - cubeB.k);
+    int di = std::abs(cubeA.indices[0] - cubeB.indices[0]);
+    int dj = std::abs(cubeA.indices[1] - cubeB.indices[1]);
+    int dk = std::abs(cubeA.indices[2] - cubeB.indices[2]);
     return (di <= 1 && dj <= 1 && dk <= 1) && !(di == 0 && dj == 0 && dk == 0);
 }
 
