@@ -2,6 +2,7 @@
 #include "core/vdc_debug.h"
 #include "core/vdc_timing.h"
 #include <sstream>
+#include <algorithm>
 
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
@@ -187,8 +188,7 @@ static VoronoiCell create_voronoi_cell(Vertex_handle delaunay_vertex, int cellIn
  * @param voronoiDiagram The Voronoi diagram containing vertex mappings.
  * @param vertices_indices Vector to store the collected vertex indices.
  */
-//TODO:  collcet_cell_vertices() should be named collect_cell_vertices()
-static void collcet_cell_vertices(
+static void collect_cell_vertices(
     Delaunay &dt,
     Vertex_handle delaunay_vertex,
     VoronoiDiagram &voronoiDiagram,
@@ -197,17 +197,20 @@ static void collcet_cell_vertices(
     std::vector<Cell_handle> incidentCells;
     dt.finite_incident_cells(delaunay_vertex, std::back_inserter(incidentCells));
 
-    std::set<int> uniqueVertexIndices;
+    vertices_indices.clear();
+    vertices_indices.reserve(incidentCells.size());
+
     for (Cell_handle c : incidentCells)
     {
         int vertex_index = c->info().dualVoronoiVertexIndex;
         // Only include cells where the dual Voronoi vertex is defined (>= 0)
         if (vertex_index >= 0)
         {
-            uniqueVertexIndices.insert(vertex_index);
+            vertices_indices.push_back(vertex_index);
         }
     }
-    vertices_indices.assign(uniqueVertexIndices.begin(), uniqueVertexIndices.end());
+    std::sort(vertices_indices.begin(), vertices_indices.end());
+    vertices_indices.erase(std::unique(vertices_indices.begin(), vertices_indices.end()), vertices_indices.end());
 }
 
 //! @brief Returns the index of Voronoi cell edge dual to facet and in Voronoi cell around vertex that is not vA or vB.
@@ -855,7 +858,7 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
             continue;
 
         VoronoiCell vc = create_voronoi_cell(v, cellIndex);
-        collcet_cell_vertices(dt, v, voronoiDiagram, vc.verticesIndices);
+        collect_cell_vertices(dt, v, voronoiDiagram, vc.verticesIndices);
         process_incident_edges(dt, v, voronoiDiagram, vc, edge_to_facets);
 
         if (vc.facetIndices.size() < 4)
