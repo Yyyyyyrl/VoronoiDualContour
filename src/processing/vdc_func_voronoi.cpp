@@ -187,6 +187,7 @@ static VoronoiCell create_voronoi_cell(Vertex_handle delaunay_vertex, int cellIn
  * @param voronoiDiagram The Voronoi diagram containing vertex mappings.
  * @param vertices_indices Vector to store the collected vertex indices.
  */
+//TODO:  collcet_cell_vertices() should be named collect_cell_vertices()
 static void collcet_cell_vertices(
     Delaunay &dt,
     Vertex_handle delaunay_vertex,
@@ -264,6 +265,7 @@ static inline int get_dual_cell_edge_index(
  * @param facet_indices Vector to store the facet index.
  * @return The constructed Voronoi facet, or an empty facet if invalid.
  */
+//TODO: Pass the facet data structure by reference and build it. Do not create a facet and then return it. In general, one should never return complex structures, i.e., anything other than a single value or pair of values.
 static VoronoiCellFacet build_facet_from_edge(
     Delaunay &dt,
     const Edge &ed,

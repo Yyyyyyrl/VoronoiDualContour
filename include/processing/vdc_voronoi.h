@@ -615,9 +615,9 @@ void recompute_bipolar_matches_for_facet(VoronoiDiagram &vd, int vfi, float isov
  * @param bbox Clipping box (not used during collapse but kept for symmetry)
  * @param dt Delaunay triangulation handle (not modified)
  * @param out_vertex_mapping Output parameter: maps old vertex indices to new vertex indices after collapse
- * @return A new Voronoi diagram with small edges collapsed
+ * @param vd2 Output Voronoi diagram built in-place with collapsed small edges
  */
-VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt, std::vector<int> &out_vertex_mapping);
+void collapseSmallEdges(const VoronoiDiagram &vd, double D, const CGAL::Epick::Iso_cuboid_3 &bbox, Delaunay &dt, std::vector<int> &out_vertex_mapping, VoronoiDiagram &vd2);
 
 //! @brief Represents an isosurface in the domain.
 /*!

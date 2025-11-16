@@ -153,7 +153,8 @@ int main(int argc, char *argv[])
 
     std::vector<int> vertex_mapping;  // Maps old vertex indices to new after collapse
     timer.startTimer("5. Collapse Small Edges", "Total Processing");
-    VoronoiDiagram vd2 = collapseSmallEdges(vd, collapse_eps, bbox, dt, vertex_mapping);
+    VoronoiDiagram vd2;
+    collapseSmallEdges(vd, collapse_eps, bbox, dt, vertex_mapping, vd2);
 
     // Re-validate and normalize facet orientations on the collapsed diagram
     timer.startTimer("Post-collapse facet validation", "5. Collapse Small Edges");

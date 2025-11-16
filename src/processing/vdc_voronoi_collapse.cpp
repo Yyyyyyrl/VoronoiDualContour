@@ -384,17 +384,22 @@ bool lines_approx_equal(const Line3 &l1, const Line3 &l2, double eps_sq = 1e-20)
  * @param bbox Bounding box of the diagram (unused)
  * @return New Voronoi diagram with small edges collapsed
  */
-//TODO: The current implementation of collapseSmallEdges() constructs a new voronoi diagram out and then returns it as an object. This causes the voronoi diagram to be copied. This is extremely time consuming and wasteful. Pass vd2 as a parameter by reference to collapseSmallEdges() and then have collapseSmallEdges() directly build vd2.
-VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
-                                  double D,
-                                  const CGAL::Epick::Iso_cuboid_3 & /*bbox*/,
-                                  Delaunay & dt,
-                                  std::vector<int> &out_vertex_mapping)
+void collapseSmallEdges(const VoronoiDiagram &input_vd,
+                        double D,
+                        const CGAL::Epick::Iso_cuboid_3 & /*bbox*/,
+                        Delaunay & dt,
+                        std::vector<int> &out_vertex_mapping,
+                        VoronoiDiagram &vd2)
 {
     TimingStats& timer = TimingStats::getInstance();
 
-    // 0) Set up
-    VoronoiDiagram out;      // fresh diagram — don't mutate input_vd
+    // 0) Set up (build directly into vd2 to avoid copies)
+    vd2.vertices.clear();
+    vd2.edges.clear();
+    vd2.cells.clear();
+    vd2.cell_facets.clear();
+    vd2.surface_facets.clear();
+    vd2.cellEdges.clear();
     const double D2 = D * D; // squared distances
 
     const int nV = static_cast<int>(input_vd.vertices.size());
@@ -442,7 +447,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     std::vector<int> oldToNewV(nV, -1);
     timer.stopTimer("Build merge groups");
 
-    // 4) Insert merged vertices into `out`.
+    // 4) Insert merged vertices into `vd2`.
     //    represent a merged vertex by the *representative* original
     //    vertex's coordinate/value, and union of cell membership.
     timer.startTimer("Rebuild vertices", "5. Collapse Small Edges");
@@ -469,9 +474,9 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
             std::sort(mergedCells.begin(), mergedCells.end());
         }
 
-        const int newIdx = out.AddVertex(origVV.coord, origVV.value);
+        const int newIdx = vd2.AddVertex(origVV.coord, origVV.value);
         // Preserve back-references to cells
-        out.vertices[newIdx].cellIndices = std::move(mergedCells);
+        vd2.vertices[newIdx].cellIndices = std::move(mergedCells);
 
         // Map all old vertices in the bucket to this new index
         for (int vOld : bucket)
@@ -526,18 +531,18 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
             {
                 const int existing = it->second;
                 oldToNewE[ei] = existing;
-                appendUniqueFacets(out.edges[existing].delaunayFacets, e.delaunayFacets);
+                appendUniqueFacets(vd2.edges[existing].delaunayFacets, e.delaunayFacets);
                 continue;
             }
 
             // Otherwise create it and copy facets
-            const Segment3 seg(out.vertices[aNew].coord, out.vertices[bNew].coord);
-            const int ne = out.AddSegmentEdge(aNew, bNew, seg);
+            const Segment3 seg(vd2.vertices[aNew].coord, vd2.vertices[bNew].coord);
+            const int ne = vd2.AddSegmentEdge(aNew, bNew, seg);
             oldToNewE[ei] = ne;
 
             // Preserve original edge's delaunayFacets
-            out.edges[ne].delaunayFacets.clear();
-            appendUniqueFacets(out.edges[ne].delaunayFacets, e.delaunayFacets);
+            vd2.edges[ne].delaunayFacets.clear();
+            appendUniqueFacets(vd2.edges[ne].delaunayFacets, e.delaunayFacets);
 
             // Maintain the local lookup
             localSegMap[key] = ne;
@@ -547,22 +552,22 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
             Ray3 ray;
             if (!CGAL::assign(ray, e.edgeObject))
                 ray = Ray3(e.source, e.direction);
-            const int ne = out.AddRayEdge(ray);
+            const int ne = vd2.AddRayEdge(ray);
             oldToNewE[ei] = ne;
 
             // Preserve facets for rays
-            out.edges[ne].delaunayFacets = e.delaunayFacets;
+            vd2.edges[ne].delaunayFacets = e.delaunayFacets;
         }
         else if (e.type == 2)
         { // line
             Line3 line;
             if (!CGAL::assign(line, e.edgeObject))
                 line = Line3(e.source, e.direction);
-            const int ne = out.AddLineEdge(line);
+            const int ne = vd2.AddLineEdge(line);
             oldToNewE[ei] = ne;
 
             // Preserve facets for lines
-            out.edges[ne].delaunayFacets = e.delaunayFacets;
+            vd2.edges[ne].delaunayFacets = e.delaunayFacets;
         }
         else
         {
@@ -581,7 +586,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     for (int ci = 0; ci < nC; ++ci)
     {
         const auto &oldCell = input_vd.cells[ci];
-        const int nc = out.AddCell(oldCell.delaunayVertex);
+        const int nc = vd2.AddCell(oldCell.delaunayVertex);
         oldToNewCell[ci] = nc;
 
         // Remap the cell’s vertex list ( preserves the order of vertices and also do deduplicate )
@@ -596,11 +601,11 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
                 mappedVerts.push_back(nv);
         }
         mappedVerts = dedupKeepFirst(mappedVerts);
-        out.cells[nc].verticesIndices = std::move(mappedVerts);
+        vd2.cells[nc].verticesIndices = std::move(mappedVerts);
 
         // Copy scalar/iso bookkeeping (if any)
-        out.cells[nc].isoVertexStartIndex = oldCell.isoVertexStartIndex;
-        out.cells[nc].numIsoVertices = oldCell.numIsoVertices;
+        vd2.cells[nc].isoVertexStartIndex = oldCell.isoVertexStartIndex;
+        vd2.cells[nc].numIsoVertices = oldCell.numIsoVertices;
     }
 
     // Then, rebuild facets in the same order so outside code can keep indices
@@ -626,13 +631,13 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
             continue;
         }
 
-        const int nf = out.AddCellFacet(mappedFacetVerts);
+        const int nf = vd2.AddCellFacet(mappedFacetVerts);
         oldToNewFacet[fi] = nf;
 
         // Carry auxiliary fields when present
-        out.cell_facets[nf].orientation = input_vd.cell_facets[fi].orientation;
-        out.cell_facets[nf].mirror_facet_index = -1;  // will be repaired if needed elsewhere
-        out.cell_facets[nf].voronoi_facet_index = -1; // re-created later by create_global_facets()
+        vd2.cell_facets[nf].orientation = input_vd.cell_facets[fi].orientation;
+        vd2.cell_facets[nf].mirror_facet_index = -1;  // will be repaired if needed elsewhere
+        vd2.cell_facets[nf].voronoi_facet_index = -1; // re-created later by create_global_facets()
         // Note: cell_edge_indices will be rebuilt by rebuild_cell_facet_edge_indices()
     }
 
@@ -641,7 +646,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     for (int ci = 0; ci < nC; ++ci)
     {
         const auto &oldCell = input_vd.cells[ci];
-        auto &newCell = out.cells[oldToNewCell[ci]];
+        auto &newCell = vd2.cells[oldToNewCell[ci]];
         newCell.facetIndices.clear();
         newCell.facetIndices.reserve(oldCell.facetIndices.size());
         for (int of : oldCell.facetIndices)
@@ -683,8 +688,8 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
         nce.cycleIndices.clear(); // cycles remap is optional and pipeline-specific
         nce.nextCellEdge = -1;    // will be wired in the second pass
 
-        const int newIdx = static_cast<int>(out.cellEdges.size());
-        out.cellEdges.push_back(nce);
+        const int newIdx = static_cast<int>(vd2.cellEdges.size());
+        vd2.cellEdges.push_back(nce);
         oldToNewCE[cei] = newIdx;
     }
 
@@ -693,10 +698,10 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     {
         // Group new cell-edge indices by Voronoi edge index
         std::unordered_map<int, std::vector<int>> edgeToCEs;
-        edgeToCEs.reserve(out.cellEdges.size());
-        for (int idx = 0; idx < static_cast<int>(out.cellEdges.size()); ++idx)
+        edgeToCEs.reserve(vd2.cellEdges.size());
+        for (int idx = 0; idx < static_cast<int>(vd2.cellEdges.size()); ++idx)
         {
-            edgeToCEs[out.cellEdges[idx].edgeIndex].push_back(idx);
+            edgeToCEs[vd2.cellEdges[idx].edgeIndex].push_back(idx);
         }
         for (auto &kv : edgeToCEs)
         {
@@ -709,7 +714,7 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
                 {
                     const int cur = ring[i];
                     const int nxt = ring[(i + 1) % m];
-                    out.cellEdges[cur].nextCellEdge = nxt;
+                    vd2.cellEdges[cur].nextCellEdge = nxt;
                 }
             }
         }
@@ -720,17 +725,15 @@ VoronoiDiagram collapseSmallEdges(const VoronoiDiagram &input_vd,
     //    enforce edge-consistent orientations within each cell. Finally,
     //    rebuild/refresh global facets & other derived structures.
     timer.startTimer("Fix facet orientations", "5. Collapse Small Edges");
-    force_outward_per_facet(out);
-    fix_cell_facets_orientation_and_outwardness(out);
-    rebuild_cell_facet_edge_indices(out);
+    force_outward_per_facet(vd2);
+    fix_cell_facets_orientation_and_outwardness(vd2);
+    rebuild_cell_facet_edge_indices(vd2);
     timer.stopTimer("Fix facet orientations");
 
     timer.startTimer("Create global facets", "5. Collapse Small Edges");
-    out.create_global_facets();
+    vd2.create_global_facets();
     timer.stopTimer("Create global facets");
 
     // 9) Copy the vertex index mapping to output parameter
     out_vertex_mapping = oldToNewV;
-
-    return out;
 }
