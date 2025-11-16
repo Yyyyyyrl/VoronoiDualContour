@@ -256,24 +256,28 @@ static inline int get_dual_cell_edge_index(
 //! @brief Builds a facet from an incident edge using cell circulators.
 /*!
  * Constructs a Voronoi facet by collecting vertices around an incident edge,
- * ordering them cyclically, and assigning scalar values.
+ * ordering them cyclically, and assigning scalar values. The facet is built
+ * into the provided reference and, if valid, appended to the diagram.
  *
  * @param dt The Delaunay triangulation.
  * @param ed The incident edge to process.
  * @param delaunay_vertex The Delaunay vertex associated with the cell.
  * @param voronoiDiagram The Voronoi diagram containing vertex and value data.
- * @param facet_indices Vector to store the facet index.
- * @return The constructed Voronoi facet, or an empty facet if invalid.
+ * @param facet_indices Vector to store the facet index for the owning cell.
+ * @param edge_to_facets Map from sorted Delaunay edge (by vertex indices) to diagram facet indices.
+ * @param vcIdx The Voronoi cell index (for diagnostics).
+ * @param outFacet Output facet to populate on success.
+ * @return true if a valid facet was constructed and appended; false otherwise.
  */
-//TODO: Pass the facet data structure by reference and build it. Do not create a facet and then return it. In general, one should never return complex structures, i.e., anything other than a single value or pair of values.
-static VoronoiCellFacet build_facet_from_edge(
+static bool build_facet_from_edge(
     Delaunay &dt,
     const Edge &ed,
     Vertex_handle delaunay_vertex,
     VoronoiDiagram &voronoiDiagram,
     std::vector<int> &facet_indices,
     std::map<std::pair<int, int>, std::vector<int>> &edge_to_facets,
-    int vcIdx)
+    int vcIdx,
+    VoronoiCellFacet &outFacet)
 {
     Cell_handle cell_ed = ed.first;
     int i = ed.second;
@@ -307,7 +311,9 @@ static VoronoiCellFacet build_facet_from_edge(
         {
             std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells\n";
         }
-        return VoronoiCellFacet();
+        outFacet.verticesIndices.clear();
+        outFacet.cellEdgeIndices.clear();
+        return false;
     }
 
     // Check for degenerate facet: need at least 3 unique Voronoi vertices
@@ -318,24 +324,17 @@ static VoronoiCellFacet build_facet_from_edge(
         {
             std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells (duplicate vertices)\n";
         }
-        return VoronoiCellFacet();
+        outFacet.verticesIndices.clear();
+        outFacet.cellEdgeIndices.clear();
+        return false;
     }
 
-    VoronoiCellFacet facet;
-    facet.verticesIndices = std::move(facetVertices);
+    outFacet.verticesIndices = std::move(facetVertices);
 
-    int facetIndex = voronoiDiagram.cell_facets.size();
-    voronoiDiagram.cell_facets.push_back(facet);
-    facet_indices.push_back(facetIndex);
-    std::pair<int, int> edge_key = std::make_pair(
-        std::min(v1->info().index, v2->info().index),
-        std::max(v1->info().index, v2->info().index));
-    edge_to_facets[edge_key].push_back(facetIndex);
-
-    //Single-pass iteration using stored facet_info indices
-    facet.cellEdgeIndices.clear();
-    const int n = (int)facet.verticesIndices.size();
-    facet.cellEdgeIndices.reserve(n);
+    // Single-pass iteration using stored facet_info indices
+    outFacet.cellEdgeIndices.clear();
+    const int n = (int)outFacet.verticesIndices.size();
+    outFacet.cellEdgeIndices.reserve(n);
 
     // Build parallel arrays of Voronoi vertices and their corresponding Delaunay facets
     // in a single pass through the facet circulator
@@ -366,7 +365,7 @@ static VoronoiCellFacet build_facet_from_edge(
     // using the stored dualCellEdgeIndex in facet_info (accessed via get_dual_cell_edge_index)
     for (int i = 0; i < n; ++i)
     {
-        const int a = facet.verticesIndices[i];
+        const int a = outFacet.verticesIndices[i];
 
         // Find the Delaunay facet corresponding to Voronoi vertex 'a'
         bool found = false;
@@ -377,7 +376,7 @@ static VoronoiCellFacet build_facet_from_edge(
                 const Facet &delFacet = delaunayFacets[j];
                 // Get the cell edge index directly from stored facet_info
                 const int dual_cell_edge_index = get_dual_cell_edge_index(delFacet, v1, v2);
-                facet.cellEdgeIndices.push_back(dual_cell_edge_index);
+                outFacet.cellEdgeIndices.push_back(dual_cell_edge_index);
                 found = true;
                 break;
             }
@@ -392,10 +391,19 @@ static VoronoiCellFacet build_facet_from_edge(
                           << " not found in incident facets for edge ("
                           << v1->info().index << ", " << v2->info().index << ")\n";
             }
-            facet.cellEdgeIndices.push_back(-1);
+            outFacet.cellEdgeIndices.push_back(-1);
         }
     }
-    return facet;
+    // Append to diagram only after fully building facet (avoid partial copies)
+    int facetIndex = (int)voronoiDiagram.cell_facets.size();
+    voronoiDiagram.cell_facets.push_back(outFacet);
+    facet_indices.push_back(facetIndex);
+    std::pair<int, int> edge_key = std::make_pair(
+        std::min(v1->info().index, v2->info().index),
+        std::max(v1->info().index, v2->info().index));
+    edge_to_facets[edge_key].push_back(facetIndex);
+
+    return true;
 }
 
 //! @brief Processes incident edges to build facets for a Voronoi cell.
@@ -441,10 +449,14 @@ static void process_incident_edges(
         }
 
         // Build facet only if edge has 3+ finite cells
-        VoronoiCellFacet facet = build_facet_from_edge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facetIndices, edge_to_facets, vc.cellIndex);
-        if (facet.verticesIndices.empty() && debug)
+        VoronoiCellFacet facet;
+        bool ok = build_facet_from_edge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facetIndices, edge_to_facets, vc.cellIndex, facet);
+        if (!ok)
         {
-            std::cout << "[WARNING] Facet construction failed for edge with " << finite_cell_count << " finite cells\n";
+            if (debug)
+            {
+                std::cout << "[WARNING] Facet construction failed for edge with " << finite_cell_count << " finite cells\n";
+            }
             continue;
         }
 
@@ -514,7 +526,7 @@ static void process_incident_edges(
             continue;
         }
 
-        int facetIndex = voronoiDiagram.cell_facets.size() - 1; // Assuming facet was just added
+        int facetIndex = voronoiDiagram.cell_facets.size() - 1; // facet appended in build_facet_from_edge
         if (std::find(vc.facetIndices.begin(), vc.facetIndices.end(), facetIndex) == vc.facetIndices.end())
         {
             vc.facetIndices.push_back(facetIndex);
