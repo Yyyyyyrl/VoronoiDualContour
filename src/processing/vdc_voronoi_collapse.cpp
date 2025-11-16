@@ -384,6 +384,7 @@ bool lines_approx_equal(const Line3 &l1, const Line3 &l2, double eps_sq = 1e-20)
  * @param bbox Bounding box of the diagram (unused)
  * @return New Voronoi diagram with small edges collapsed
  */
+//TODO: This step takes a significant amount of time to run on actual examples (large ones like aneurysm/engine), Determine which steps are significantly contributing to these time and try to improve the run time. Testing command ./vdc (-sep_isov_3B/sep_isov_1) --timing_stats 30.5 ../volvis/aneurysm.nhdr
 void collapseSmallEdges(const VoronoiDiagram &input_vd,
                         double D,
                         const CGAL::Epick::Iso_cuboid_3 & /*bbox*/,
