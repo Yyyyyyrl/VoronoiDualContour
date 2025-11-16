@@ -288,7 +288,7 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
     float dy = sanitize_spacing(nrrd->axis[1].spacing);
     float dz = sanitize_spacing(nrrd->axis[2].spacing);
     float min_x = 0.0f, min_y = 0.0f, min_z = 0.0f;
-    timer.stopTimer("Load NRRD file");
+    timer.stopTimer("Load NRRD file", "1. Load Data and Grid Formation");
 
     timer.startTimer("Grid initialization", "1. Load Data and Grid Formation");
     UnifiedGrid grid(nx, ny, nz, dx, dy, dz, min_x, min_y, min_z);
@@ -319,7 +319,7 @@ UnifiedGrid load_nrrd_data(const std::string &file_path)
     nrrdNuke(nrrd);
 
     grid.force_unit_spacing();
-    timer.stopTimer("Grid initialization");
+    timer.stopTimer("Grid initialization", "1. Load Data and Grid Formation");
 
     const int grid_nx = grid.num_cells[0];
     const int grid_ny = grid.num_cells[1];
@@ -372,7 +372,7 @@ UnifiedGrid supersample_grid(const UnifiedGrid &grid, int n)
     }
 
     new_grid.force_unit_spacing();
-    timer.stopTimer("Supersample");
+    timer.stopTimer("Supersample", "1. Load Data and Grid Formation");
 
     return new_grid;
 }

@@ -145,14 +145,14 @@ void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std
     timer.startTimer("Collect Delaunay points", "3. Delaunay Triangulation Construction");
     std::vector<Point> delaunay_points;
     size_t first_dummy_index = collect_delaunay_points(grid, grid_facets, activeCubeCenters, vdc_param, delaunay_points);
-    timer.stopTimer("Collect Delaunay points");
+    timer.stopTimer("Collect Delaunay points", "3. Delaunay Triangulation Construction");
 
     dt.clear();
 
     // Batch insert all points
     timer.startTimer("Insert vertices", "3. Delaunay Triangulation Construction");
     dt.insert(delaunay_points.begin(), delaunay_points.end());
-    timer.stopTimer("Insert vertices");
+    timer.stopTimer("Insert vertices", "3. Delaunay Triangulation Construction");
 
     // Create map from point to original index
     timer.startTimer("Assign vertex info", "3. Delaunay Triangulation Construction");
@@ -177,7 +177,7 @@ void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std
         vit->info().is_dummy = (original_index >= first_dummy_index);
         vit->info().voronoiCellIndex = -1; // Initialize if needed
     }
-    timer.stopTimer("Assign vertex info");
+    timer.stopTimer("Assign vertex info", "3. Delaunay Triangulation Construction");
 
     // Assign indices to cells for debugging and tracking
     timer.startTimer("Assign cell indices", "3. Delaunay Triangulation Construction");
@@ -186,5 +186,5 @@ void construct_delaunay_triangulation(Delaunay &dt, UnifiedGrid &grid, const std
     {
         cit->info().index = cellIndex++;
     }
-    timer.stopTimer("Assign cell indices");
+    timer.stopTimer("Assign cell indices", "3. Delaunay Triangulation Construction");
 }

@@ -1274,17 +1274,17 @@ void construct_voronoi_cell_edges(
     // Note: Parent timer "Construct cell edges" is started in construct_voronoi_diagram()
     timer.startTimer("Build cell edges", "Construct cell edges");
     build_cell_edges(voronoiDiagram, dt);
-    timer.stopTimer("Build cell edges");
+    timer.stopTimer("Build cell edges", "Construct cell edges");
 
     // No need to populate per-cell anchors; ring traversal provides lookup.
 
     timer.startTimer("Link cell edges", "Construct cell edges");
     link_cell_edges(voronoiDiagram);
-    timer.stopTimer("Link cell edges");
+    timer.stopTimer("Link cell edges", "Construct cell edges");
 
     timer.startTimer("Update edge mapping", "Construct cell edges");
     update_edge_mapping(voronoiDiagram, bbox);
-    timer.stopTimer("Update edge mapping");
+    timer.stopTimer("Update edge mapping", "Construct cell edges");
 }
 
 // Resolve (cellIndex, globalEdgeIndex) → VoronoiCellEdge index
@@ -1349,15 +1349,15 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VdcParam &vdc_param, UnifiedG
     std::cout << "[INFO] Start constructing Voronoi vertices and edges..." << std::endl;
     timer.startTimer("Construct Voronoi vertices", "4. Voronoi Diagram Construction");
     construct_voronoi_vertices(vd, dt);
-    timer.stopTimer("Construct Voronoi vertices");
+    timer.stopTimer("Construct Voronoi vertices", "4. Voronoi Diagram Construction");
 
     timer.startTimer("Construct Voronoi edges", "4. Voronoi Diagram Construction");
     construct_voronoi_edges(vd, dt);
-    timer.stopTimer("Construct Voronoi edges");
+    timer.stopTimer("Construct Voronoi edges", "4. Voronoi Diagram Construction");
 
     timer.startTimer("Compute vertex values", "4. Voronoi Diagram Construction");
     compute_voronoi_values(vd, grid);
-    timer.stopTimer("Compute vertex values");
+    timer.stopTimer("Compute vertex values", "4. Voronoi Diagram Construction");
 
     std::cout << "[INFO] Start constructing Voronoi Cells" << std::endl;
     if (vdc_param.multi_isov)
@@ -1366,29 +1366,29 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VdcParam &vdc_param, UnifiedG
         {
             timer.startTimer("Construct Voronoi cells", "4. Voronoi Diagram Construction");
             construct_voronoi_cells_as_convex_hull(vd, dt);
-            timer.stopTimer("Construct Voronoi cells");
+            timer.stopTimer("Construct Voronoi cells", "4. Voronoi Diagram Construction");
         }
         else
         {
             timer.startTimer("Construct Voronoi cells", "4. Voronoi Diagram Construction");
             construct_voronoi_cells_from_delaunay_triangulation(vd, dt);
-            timer.stopTimer("Construct Voronoi cells");
+            timer.stopTimer("Construct Voronoi cells", "4. Voronoi Diagram Construction");
 
             timer.startTimer("Validate facet orientations", "4. Voronoi Diagram Construction");
             validate_facet_orientations_and_normals(vd);
-            timer.stopTimer("Validate facet orientations");
+            timer.stopTimer("Validate facet orientations", "4. Voronoi Diagram Construction");
         }
 
         timer.startTimer("Construct cell edges", "4. Voronoi Diagram Construction");
         construct_voronoi_cell_edges(vd, bbox, dt);
-        timer.stopTimer("Construct cell edges");
+        timer.stopTimer("Construct cell edges", "4. Voronoi Diagram Construction");
 
         timer.startTimer("Create global facets", "4. Voronoi Diagram Construction");
         vd.create_global_facets();
-        timer.stopTimer("Create global facets");
+        timer.stopTimer("Create global facets", "4. Voronoi Diagram Construction");
     }
 
     timer.startTimer("VD initial check", "4. Voronoi Diagram Construction");
     vd.check(false);
-    timer.stopTimer("VD initial check");
+    timer.stopTimer("VD initial check", "4. Voronoi Diagram Construction");
 }

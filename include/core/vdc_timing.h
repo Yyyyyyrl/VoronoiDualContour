@@ -70,8 +70,9 @@ public:
     //! @brief Stops the timer with the given name.
     /*!
      * @param name Name of the timer to stop
+     * @param parent Name of the parent timer (empty string for top-level). Used to disambiguate identical child names under different parents.
      */
-    void stopTimer(const std::string& name);
+    void stopTimer(const std::string& name, const std::string& parent = "");
 
     //! @brief Prints the hierarchical timing report to stdout.
     void printReport() const;
@@ -86,13 +87,26 @@ private:
     TimingStats();
     ~TimingStats() = default;
 
+    struct TimerKey
+    {
+        TimerNode* parent;
+        std::string name;
+
+        bool operator<(const TimerKey& other) const
+        {
+            if (parent != other.parent) return parent < other.parent;
+            return name < other.name;
+        }
+    };
+
+    TimerNode* resolveParent(const std::string& parent);
     TimerNode* findTimer(const std::string& name);
     TimerNode* findTimerInSubtree(TimerNode* node, const std::string& name);
     void printNode(const TimerNode* node, int indent, bool is_last_child, const std::vector<bool>& ancestor_continues) const;
     std::string formatTime(double seconds) const;
 
     std::unique_ptr<TimerNode> root_;
-    std::map<std::string, TimerNode*> timer_map_;  // For fast lookup
+    std::map<TimerKey, TimerNode*> timer_map_;  // For fast lookup by parent/name pair
 };
 
 //! @brief RAII helper for automatic timer start/stop.
@@ -114,6 +128,7 @@ public:
 
 private:
     std::string name_;  //!< Name of this scoped timer
+    std::string parent_; //!< Name of the parent timer
 };
 
 #endif // VDC_TIMING_H

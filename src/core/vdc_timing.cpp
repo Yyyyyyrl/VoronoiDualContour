@@ -42,7 +42,7 @@ double TimerNode::getElapsed() const {
 // ============================================================================
 
 TimingStats::TimingStats() : root_(std::make_unique<TimerNode>("ROOT")) {
-    timer_map_["ROOT"] = root_.get();
+    timer_map_[{root_.get(), "ROOT"}] = root_.get();
 }
 
 TimingStats& TimingStats::getInstance() {
@@ -51,43 +51,41 @@ TimingStats& TimingStats::getInstance() {
 }
 
 void TimingStats::startTimer(const std::string& name, const std::string& parent) {
-    // Check if timer already exists
-    auto it = timer_map_.find(name);
+    TimerNode* parent_node = resolveParent(parent);
+    TimerKey key{parent_node, name};
+
+    // Check if timer already exists for this parent
+    auto it = timer_map_.find(key);
     if (it != timer_map_.end()) {
-        // Timer exists, just restart it
         it->second->start();
         return;
     }
 
     // Create new timer
-    TimerNode* parent_node = root_.get();
-    if (!parent.empty()) {
-        auto parent_it = timer_map_.find(parent);
-        if (parent_it != timer_map_.end()) {
-            parent_node = parent_it->second;
-        }
-    }
-
     auto new_timer = std::make_unique<TimerNode>(name, parent_node);
     TimerNode* timer_ptr = new_timer.get();
     parent_node->children.push_back(std::move(new_timer));
-    timer_map_[name] = timer_ptr;
+    timer_map_[key] = timer_ptr;
     timer_ptr->start();
 }
 
-void TimingStats::stopTimer(const std::string& name) {
-    auto it = timer_map_.find(name);
+void TimingStats::stopTimer(const std::string& name, const std::string& parent) {
+    TimerNode* parent_node = resolveParent(parent);
+    TimerKey key{parent_node, name};
+
+    auto it = timer_map_.find(key);
     if (it != timer_map_.end()) {
         it->second->stop();
+        return;
     }
+
+    // Fallback: search by name if parent-specific timer was not found
+    TimerNode* timer = findTimer(name);
+    if (timer) timer->stop();
 }
 
 TimerNode* TimingStats::findTimer(const std::string& name) {
-    auto it = timer_map_.find(name);
-    if (it != timer_map_.end()) {
-        return it->second;
-    }
-    return nullptr;
+    return findTimerInSubtree(root_.get(), name);
 }
 
 TimerNode* TimingStats::findTimerInSubtree(TimerNode* node, const std::string& name) {
@@ -194,7 +192,15 @@ void TimingStats::printReport() const {
 void TimingStats::reset() {
     timer_map_.clear();
     root_ = std::make_unique<TimerNode>("ROOT");
-    timer_map_["ROOT"] = root_.get();
+    timer_map_[{root_.get(), "ROOT"}] = root_.get();
+}
+
+TimerNode* TimingStats::resolveParent(const std::string& parent) {
+    if (parent.empty()) {
+        return root_.get();
+    }
+    TimerNode* parent_node = findTimer(parent);
+    return parent_node ? parent_node : root_.get();
 }
 
 // ============================================================================
@@ -202,10 +208,10 @@ void TimingStats::reset() {
 // ============================================================================
 
 ScopedTimer::ScopedTimer(const std::string& name, const std::string& parent)
-    : name_(name) {
-    TimingStats::getInstance().startTimer(name_, parent);
+    : name_(name), parent_(parent) {
+    TimingStats::getInstance().startTimer(name_, parent_);
 }
 
 ScopedTimer::~ScopedTimer() {
-    TimingStats::getInstance().stopTimer(name_);
+    TimingStats::getInstance().stopTimer(name_, parent_);
 }

@@ -384,7 +384,6 @@ bool lines_approx_equal(const Line3 &l1, const Line3 &l2, double eps_sq = 1e-20)
  * @param bbox Bounding box of the diagram (unused)
  * @return New Voronoi diagram with small edges collapsed
  */
-//TODO: This step takes a significant amount of time to run on actual examples (large ones like aneurysm/engine), Determine which steps are significantly contributing to these time and try to improve the run time. Testing command ./vdc (-sep_isov_3B/sep_isov_1) --timing_stats 30.5 ../volvis/aneurysm.nhdr
 void collapseSmallEdges(const VoronoiDiagram &input_vd,
                         double D,
                         const CGAL::Epick::Iso_cuboid_3 & /*bbox*/,
@@ -407,6 +406,11 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
     const int nE = static_cast<int>(input_vd.edges.size());
     const int nC = static_cast<int>(input_vd.cells.size());
     const int nF = static_cast<int>(input_vd.cell_facets.size());
+    vd2.vertices.reserve(nV);
+    vd2.edges.reserve(nE);
+    vd2.cells.reserve(nC);
+    vd2.cell_facets.reserve(nF);
+    vd2.cellEdges.reserve(input_vd.cellEdges.size());
 
     // 1) Decide merges: union endpoints of every segment edge shorter than D.
     timer.startTimer("Identify merges (DSU)", "5. Collapse Small Edges");
@@ -423,41 +427,51 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
             dsu.unite(e.vertex1, e.vertex2); // collapse this short edge
         }
     }
-    timer.stopTimer("Identify merges (DSU)");
+    timer.stopTimer("Identify merges (DSU)", "5. Collapse Small Edges");
 
     // 2) Build groups and pick a representative per merged set.
     timer.startTimer("Build merge groups", "5. Collapse Small Edges");
-    std::unordered_map<int, std::vector<int>> groups;
+    std::vector<int> rootToGroup(nV, -1);
+    std::vector<std::vector<int>> groups;
     groups.reserve(nV);
     for (int v = 0; v < nV; ++v)
-        groups[dsu.find(v)].push_back(v);
+    {
+        const int root = dsu.find(v);
+        int idx = rootToGroup[root];
+        if (idx < 0)
+        {
+            idx = static_cast<int>(groups.size());
+            rootToGroup[root] = idx;
+            groups.emplace_back();
+        }
+        groups[idx].push_back(v);
+    }
 
-    // 3) oldV -> representative oldV (root); then oldV -> newV index mapping
-    std::vector<int> oldRoot(nV);
-    for (int v = 0; v < nV; ++v)
-        oldRoot[v] = dsu.find(v);
-
+    // 3) oldV -> newV index mapping (after ordering groups by representative)
     // Determine insertion order for new vertices by ascending representative.
     // Also select a deterministic representative element within each group.
-    std::vector<int> reps;
+    std::vector<std::pair<int, int>> reps; // (representative, group index)
     reps.reserve(groups.size());
-    for (auto &kv : groups)
-        reps.push_back(chooseRepresentative(kv.second));
-    std::sort(reps.begin(), reps.end());
+    for (int gi = 0; gi < static_cast<int>(groups.size()); ++gi)
+        reps.emplace_back(chooseRepresentative(groups[gi]), gi);
+    std::sort(reps.begin(), reps.end(),
+              [](const auto &a, const auto &b)
+              { return a.first < b.first; });
 
     std::vector<int> oldToNewV(nV, -1);
-    timer.stopTimer("Build merge groups");
+    timer.stopTimer("Build merge groups", "5. Collapse Small Edges");
 
     // 4) Insert merged vertices into `vd2`.
     //    represent a merged vertex by the *representative* original
     //    vertex's coordinate/value, and union of cell membership.
     timer.startTimer("Rebuild vertices", "5. Collapse Small Edges");
-    for (int rep : reps)
+    vd2.vertices.reserve(groups.size());
+    for (const auto &rep : reps)
     {
-        const auto &bucket = groups[dsu.find(rep)];
+        const auto &bucket = groups[rep.second];
 
         // Representative: smallest original index in the bucket
-        const int chosen = chooseRepresentative(bucket);
+        const int chosen = rep.first;
         const VoronoiVertex &origVV = input_vd.vertices[chosen];
 
         // Merge cell memberships (if used elsewhere) and only keep unique set.
@@ -483,7 +497,7 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
         for (int vOld : bucket)
             oldToNewV[vOld] = newIdx;
     }
-    timer.stopTimer("Rebuild vertices");
+    timer.stopTimer("Rebuild vertices", "5. Collapse Small Edges");
 
     // 5) Rebuild edges — only keep UNcollapsed ones. Also build oldE->newE map.
     //    Preserve and MERGE edge.delaunayFacets across duplicates after collapse.
@@ -501,7 +515,16 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
     };
 
     // Local cache for segment edges keyed by normalized (vmin,vmax)
-    std::map<std::pair<int, int>, int> localSegMap;
+    struct EdgeKeyHash
+    {
+        size_t operator()(const std::pair<int, int> &p) const noexcept
+        {
+            return (static_cast<size_t>(static_cast<unsigned int>(p.first)) << 32) ^
+                   static_cast<size_t>(static_cast<unsigned int>(p.second));
+        }
+    };
+    std::unordered_map<std::pair<int, int>, int, EdgeKeyHash> localSegMap;
+    localSegMap.reserve(static_cast<size_t>(nE) * 2);
 
     for (int ei = 0; ei < nE; ++ei)
     {
@@ -575,7 +598,7 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
             oldToNewE[ei] = -1; // unknown type
         }
     }
-    timer.stopTimer("Rebuild edges");
+    timer.stopTimer("Rebuild edges", "5. Collapse Small Edges");
 
     // 6) Rebuild Cells & Facets with remapped vertex indices. Drop degenerate
     //    facets that end up with < 3 unique vertices after merging.
@@ -659,7 +682,7 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
                 newCell.facetIndices.push_back(nf);
         }
     }
-    timer.stopTimer("Rebuild cells and facets");
+    timer.stopTimer("Rebuild cells and facets", "5. Collapse Small Edges");
 
     // 7) Rebuild VoronoiCellEdges by remapping & filtering
     //     collapsed edges. Also rebuild the nextCellEdge ring per edge.
@@ -720,7 +743,7 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
             }
         }
     }
-    timer.stopTimer("Rebuild cell edges");
+    timer.stopTimer("Rebuild cell edges", "5. Collapse Small Edges");
 
     // 8) First ensure every facet is outward relative to its cell, then
     //    enforce edge-consistent orientations within each cell. Finally,
@@ -729,11 +752,11 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
     force_outward_per_facet(vd2);
     fix_cell_facets_orientation_and_outwardness(vd2);
     rebuild_cell_facet_edge_indices(vd2);
-    timer.stopTimer("Fix facet orientations");
+    timer.stopTimer("Fix facet orientations", "5. Collapse Small Edges");
 
     timer.startTimer("Create global facets", "5. Collapse Small Edges");
     vd2.create_global_facets();
-    timer.stopTimer("Create global facets");
+    timer.stopTimer("Create global facets", "5. Collapse Small Edges");
 
     // 9) Copy the vertex index mapping to output parameter
     out_vertex_mapping = oldToNewV;
