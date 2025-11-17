@@ -1,5 +1,7 @@
 #include "processing/vdc_voronoi.h"
+#include <cstdint>
 #include <functional>
+#include <unordered_map>
 
 static std::vector<int> collectFacetVoronoiEdges(const VoronoiDiagram &vd, const std::vector<int> &verts)
 {
@@ -18,13 +20,32 @@ static std::vector<int> collectFacetVoronoiEdges(const VoronoiDiagram &vd, const
 void VoronoiDiagram::create_global_facets()
 {
     // Group cell-facets by canonical full-vertex key (order-invariant, no collisions).
-    std::map<std::vector<int>, std::vector<int>> keyToCellFacets;
+    struct FacetKeyHash
+    {
+        size_t operator()(const std::vector<int> &key) const noexcept
+        {
+            size_t h = key.size();
+            for (int v : key)
+            {
+                h ^= static_cast<size_t>(static_cast<uint64_t>(v) + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2));
+            }
+            return h;
+        }
+    };
+    std::unordered_map<std::vector<int>, std::vector<int>, FacetKeyHash> keyToCellFacets;
+    keyToCellFacets.reserve(cell_facets.size() * 2 + 1);
 
     for (size_t fi = 0; fi < cell_facets.size(); ++fi)
     {
         const auto &F = cell_facets[fi].verticesIndices;
         auto key = getFacetHashKey(F);
-        keyToCellFacets[key].push_back(static_cast<int>(fi));
+        auto it = keyToCellFacets.find(key);
+        if (it == keyToCellFacets.end())
+        {
+            it = keyToCellFacets.emplace(std::move(key), std::vector<int>()).first;
+            it->second.reserve(2); // most facets shared by up to two cells
+        }
+        it->second.push_back(static_cast<int>(fi));
     }
 
     // Build unique (global) facets from the groups
