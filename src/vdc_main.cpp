@@ -2,6 +2,7 @@
 #include "core/vdc_stats.h"
 #include "core/vdc_timing.h"
 #include "processing/vdc_sep_isov.h"
+#include "processing/vdc_refinement.h"
 
 int main(int argc, char *argv[])
 {
@@ -127,6 +128,40 @@ int main(int argc, char *argv[])
     timer.startTimer("3. Delaunay Triangulation Construction", "Total Processing");
     construct_delaunay_triangulation(dt, data_grid, grid_facets, vdc_param, activeCubeCenters);
     timer.stopTimer("3. Delaunay Triangulation Construction", "Total Processing");
+
+    if (vdc_param.refine_small_angles)
+    {
+        if (indicator)
+        {
+            std::cout << "[INFO] Refining near isosurface to improve small angles..." << std::endl;
+        }
+        SurfaceRefinementParams refine_params;
+        refine_params.enable = true;
+        refine_params.max_radius_edge_ratio = vdc_param.refine_max_radius_edge_ratio;
+        refine_params.min_dihedral_deg = vdc_param.refine_min_dihedral_deg;
+        refine_params.min_surface_angle_deg = vdc_param.refine_min_surface_angle_deg;
+        refine_params.insert_resolution = vdc_param.refine_insert_resolution;
+        refine_params.snap_to_grid = vdc_param.refine_snap_to_grid;
+        refine_params.max_iterations = vdc_param.refine_max_iterations;
+        refine_params.max_new_points_per_iter = vdc_param.refine_max_new_points_per_iter;
+
+        if (vdc_param.refine_min_spacing > 0.0)
+        {
+            refine_params.min_spacing = vdc_param.refine_min_spacing;
+        }
+        else
+        {
+            double h = std::min({data_grid.physical_spacing[0],
+                                 data_grid.physical_spacing[1],
+                                 data_grid.physical_spacing[2]});
+            refine_params.min_spacing = 0.3 * h;
+        }
+
+        ActiveMask mask = build_active_mask_from_cubes(activeCubes, data_grid);
+        timer.startTimer("3b. Facet refinement", "Total Processing");
+        refine_surface_mesh_small_angles(dt, data_grid, mask, bbox, vdc_param.isovalue, refine_params);
+        timer.stopTimer("3b. Facet refinement", "Total Processing");
+    }
 
     // Construct the Voronoi diagram based on the Delaunay triangulation.
     if (indicator)

@@ -22,6 +22,15 @@ void print_help()
     std::cout << "  -single_isov                : Use single iso-vertices mode.\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  -non_modcyc                 : Disable modify-cycles pass (enabled by default).\n";
+    std::cout << "  --refine_small_angles       : Enable facet-centric refinement to improve small angles.\n";
+    std::cout << "  --refine_radius_edge {rho}  : Max radius-edge ratio before refinement (default: 2.0).\n";
+    std::cout << "  --refine_min_dihedral {deg} : Min dihedral angle (deg) before refinement (default: 10).\n";
+    std::cout << "  --refine_min_angle {deg}    : Target min surface angle (deg) for continuous placement (default: 20).\n";
+    std::cout << "  --refine_insert_res {n}     : Insertion resolution: 1=cube, 2=2x2x2, 3=3x3x3 (default: 2).\n";
+    std::cout << "  --refine_min_spacing {d}    : Min spacing to existing verts (world units; <0 auto).\n";
+    std::cout << "  --refine_max_iters {n}      : Max refinement iterations (default: 2).\n";
+    std::cout << "  --refine_max_points {n}     : Max new points per iteration (default: 2000).\n";
+    std::cout << "  --refine_continuous         : Place refinement points via iso bisection (disable snap-to-grid).\n";
     std::cout << "  --summary_stats             : Print summary statistics after the run.\n";
     std::cout << "  --timing_stats               : Print timing statistics after the run.\n";
     std::cout << "  --check_bipolar_max         : Check and report maximum bipolar matches per facet.\n";
@@ -116,6 +125,42 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         {
             vp.summary_stats = true;
         }
+        else if (arg == "--refine_small_angles")
+        {
+            vp.refine_small_angles = true;
+        }
+        else if (arg == "--refine_radius_edge" && i + 1 < argc)
+        {
+            vp.refine_max_radius_edge_ratio = std::atof(argv[++i]);
+        }
+        else if (arg == "--refine_min_dihedral" && i + 1 < argc)
+        {
+            vp.refine_min_dihedral_deg = std::atof(argv[++i]);
+        }
+        else if (arg == "--refine_min_angle" && i + 1 < argc)
+        {
+            vp.refine_min_surface_angle_deg = std::atof(argv[++i]);
+        }
+        else if (arg == "--refine_insert_res" && i + 1 < argc)
+        {
+            vp.refine_insert_resolution = std::atoi(argv[++i]);
+        }
+        else if (arg == "--refine_min_spacing" && i + 1 < argc)
+        {
+            vp.refine_min_spacing = std::atof(argv[++i]);
+        }
+        else if (arg == "--refine_max_iters" && i + 1 < argc)
+        {
+            vp.refine_max_iterations = std::atoi(argv[++i]);
+        }
+        else if (arg == "--refine_max_points" && i + 1 < argc)
+        {
+            vp.refine_max_new_points_per_iter = std::atoi(argv[++i]);
+        }
+        else if (arg == "--refine_continuous")
+        {
+            vp.refine_snap_to_grid = false;
+        }
         else if (arg == "--timing_stats")
         {
             vp.timing_stats = true; // Enable timing statistics report
@@ -201,6 +246,11 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         if (!vp.mod_cyc)
         {
             vp.output_filename += "_non-modcyc";
+        }
+
+        if (vp.refine_small_angles)
+        {
+            vp.output_filename += "_refine";
         }
 
         // Add file format extension.
