@@ -832,8 +832,14 @@ void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
 
     for (size_t cellIdx = 0; cellIdx < voronoiDiagram.cells.size(); ++cellIdx)
     {
-        propagate_facets_within_cell(cellIdx, voronoiDiagram);
-        audit_cell_edge_orientation(cellIdx, voronoiDiagram);
+        const auto &cell = voronoiDiagram.cells[cellIdx];
+        if (cell.facetIndices.size() < 2)
+            continue;
+
+        if (!audit_cell_edge_orientation(cellIdx, voronoiDiagram))
+        {
+            propagate_facets_within_cell(cellIdx, voronoiDiagram);
+        }
     }
 
     propagate_orientation_between_cells(voronoiDiagram, facetToCell);
