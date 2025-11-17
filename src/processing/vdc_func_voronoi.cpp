@@ -3,6 +3,18 @@
 #include "core/vdc_timing.h"
 #include <sstream>
 #include <algorithm>
+#include <unordered_map>
+#include <unordered_set>
+
+struct PairHash
+{
+    size_t operator()(const std::pair<int, int> &p) const noexcept
+    {
+        return (static_cast<size_t>(p.first) << 32) ^ static_cast<size_t>(p.second);
+    }
+};
+
+using EdgeFacetMap = std::unordered_map<std::pair<int, int>, std::vector<int>, PairHash>;
 
 
 //! @brief Constructs Voronoi vertices for the given voronoi Diagram instance.
@@ -278,7 +290,7 @@ static bool build_facet_from_edge(
     Vertex_handle delaunay_vertex,
     VoronoiDiagram &voronoiDiagram,
     std::vector<int> &facet_indices,
-    std::map<std::pair<int, int>, std::vector<int>> &edge_to_facets,
+    EdgeFacetMap &edge_to_facets,
     int vcIdx,
     VoronoiCellFacet &outFacet)
 {
@@ -287,6 +299,9 @@ static bool build_facet_from_edge(
     int j = ed.third;
     Vertex_handle v1 = cell_ed->vertex(i);
     Vertex_handle v2 = cell_ed->vertex(j);
+
+    (void)delaunay_vertex;
+    (void)vcIdx;
 
     Delaunay::Cell_circulator cc = dt.incident_cells(ed);
     Delaunay::Cell_circulator start = cc;
@@ -320,7 +335,10 @@ static bool build_facet_from_edge(
     }
 
     // Check for degenerate facet: need at least 3 unique Voronoi vertices
-    std::set<int> unique_vertices(facetVertices.begin(), facetVertices.end());
+    std::unordered_set<int> unique_vertices;
+    unique_vertices.reserve(facetVertices.size());
+    for (int idx : facetVertices)
+        unique_vertices.insert(idx);
     if (unique_vertices.size() < 3)
     {
         if (debug)
@@ -423,53 +441,32 @@ static void process_incident_edges(
     Vertex_handle delaunay_vertex,
     VoronoiDiagram &voronoiDiagram,
     VoronoiCell &vc,
-    std::map<std::pair<int, int>, std::vector<int>> &edge_to_facets)
+    EdgeFacetMap &edge_to_facets)
 {
     std::vector<Edge> incidentEdges;
+    incidentEdges.reserve(32);
     dt.incident_edges(delaunay_vertex, std::back_inserter(incidentEdges));
-
-    int t = 0;
 
     for (const Edge &ed : incidentEdges)
     {
-        // Count finite incident cells
-        int finite_cell_count = 0;
-        Delaunay::Cell_circulator cc = dt.incident_cells(ed);
-        Delaunay::Cell_circulator start = cc;
-        do
-        {
-            if (!dt.is_infinite(cc))
-            {
-                finite_cell_count++;
-            }
-            ++cc;
-        } while (cc != start);
-
-        if (finite_cell_count < 3)
-        {
-            // std::cout << "[INFO] Skipping edge with " << finite_cell_count << " finite incident cells (insufficient for interior facet)\n";
-            continue;
-        }
-
-        // Build facet only if edge has 3+ finite cells
         VoronoiCellFacet facet;
         bool ok = build_facet_from_edge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facetIndices, edge_to_facets, vc.cellIndex, facet);
         if (!ok)
         {
             if (debug)
             {
-                std::cout << "[WARNING] Facet construction failed for edge with " << finite_cell_count << " finite cells\n";
+                std::cout << "[WARNING] Facet construction failed for edge (likely boundary or degenerate)\n";
             }
             continue;
         }
 
         // Verify facet validity
-        if (facet.verticesIndices.size() < 3)
+        const size_t vertexCount = facet.verticesIndices.size();
+        if (vertexCount < 3)
         {
             // Enhanced error logging for debugging degenerate facets
             std::cout << "[ERROR] Degenerate Voronoi facet detected:\n";
-            std::cout << "  - Voronoi facet vertices count: " << facet.verticesIndices.size() << "\n";
-            std::cout << "  - Finite incident Delaunay cells around edge: " << finite_cell_count << "\n";
+            std::cout << "  - Voronoi facet vertices count: " << vertexCount << "\n";
 
             // Extract edge endpoints
             Cell_handle cell_ed = ed.first;
@@ -529,11 +526,7 @@ static void process_incident_edges(
             continue;
         }
 
-        int facetIndex = voronoiDiagram.cell_facets.size() - 1; // facet appended in build_facet_from_edge
-        if (std::find(vc.facetIndices.begin(), vc.facetIndices.end(), facetIndex) == vc.facetIndices.end())
-        {
-            vc.facetIndices.push_back(facetIndex);
-        }
+        // facet index already appended by build_facet_from_edge
     }
 }
 
@@ -855,7 +848,9 @@ void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
  */
 void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
 {
-    std::map<std::pair<int, int>, std::vector<int>> edge_to_facets;
+    EdgeFacetMap edge_to_facets;
+    edge_to_facets.reserve(static_cast<size_t>(dt.number_of_vertices()) * 8);
+    voronoiDiagram.cells.reserve(dt.number_of_vertices());
     int cellIndex = 0;
 
     for (Vertex_handle v : dt.finite_vertex_handles())
@@ -873,7 +868,7 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
         }
         else
         {
-            voronoiDiagram.cells.push_back(vc);
+            voronoiDiagram.cells.push_back(std::move(vc));
             v->info().voronoiCellIndex = cellIndex;
             cellIndex++;
         }
