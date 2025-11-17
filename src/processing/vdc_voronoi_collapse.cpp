@@ -1,3 +1,8 @@
+#include <algorithm>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+
 #include "processing/vdc_voronoi.h"
 #include "processing/vdc_func.h"
 #include "core/vdc_timing.h"
@@ -57,10 +62,15 @@ namespace
     // facet boundary slot back to its VoronoiCellEdge is lost. The modify-cycles
     // module relies on this to recover per-cell cycle ids when building
     // iso-segments. Restore the association using per-edge ring traversal.
-    void rebuild_cell_facet_edge_indices(VoronoiDiagram &vd)
+    void rebuild_cell_facet_edge_indices(VoronoiDiagram &vd, const std::vector<char>* cellMask = nullptr)
     {
         for (auto &cell : vd.cells)
         {
+            if (cellMask && cell.cellIndex >= 0 && cell.cellIndex < static_cast<int>(cellMask->size()) &&
+                !(*cellMask)[cell.cellIndex])
+            {
+                continue;
+            }
             const int cellIdx = cell.cellIndex;
             for (int cfIdx : cell.facetIndices)
             {
@@ -93,10 +103,15 @@ namespace
     // Make per-cell facet orientations consistent:
     //  1) Within each cell, ensure two facets sharing an edge traverse that edge in opposite directions.
     //  2) Then, if the majority of non-degenerate facets point inward, flip all facets in that cell.
-    void fix_cell_facets_orientation_and_outwardness(VoronoiDiagram &vd)
+    void fix_cell_facets_orientation_and_outwardness(VoronoiDiagram &vd, const std::vector<char>* cellMask = nullptr)
     {
         for (auto &cell : vd.cells)
         {
+            if (cellMask && cell.cellIndex >= 0 && cell.cellIndex < static_cast<int>(cellMask->size()) &&
+                !(*cellMask)[cell.cellIndex])
+            {
+                continue;
+            }
             if (cell.facetIndices.empty())
                 continue;
 
@@ -256,10 +271,15 @@ namespace
     // Final safety pass: flip any individual facet whose normal is inward
     // relative to its cell. Adjacency consistency can be restored by a
     // subsequent validation pass in the caller.
-    void force_outward_per_facet(VoronoiDiagram &vd)
+    void force_outward_per_facet(VoronoiDiagram &vd, const std::vector<char>* cellMask = nullptr)
     {
         for (auto &cell : vd.cells)
         {
+            if (cellMask && cell.cellIndex >= 0 && cell.cellIndex < static_cast<int>(cellMask->size()) &&
+                !(*cellMask)[cell.cellIndex])
+            {
+                continue;
+            }
             const Point site = cell.delaunayVertex->point();
             for (int fi : cell.facetIndices)
             {
@@ -411,6 +431,7 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
     vd2.cells.reserve(nC);
     vd2.cell_facets.reserve(nF);
     vd2.cellEdges.reserve(input_vd.cellEdges.size());
+    std::vector<char> cellDirty(static_cast<size_t>(nC), 0);
 
     // 1) Decide merges: union endpoints of every segment edge shorter than D.
     timer.startTimer("Identify merges (DSU)", "5. Collapse Small Edges");
@@ -450,6 +471,28 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
     // 3) oldV -> newV index mapping (after ordering groups by representative)
     // Determine insertion order for new vertices by ascending representative.
     // Also select a deterministic representative element within each group.
+    std::vector<char> mergedVertex(static_cast<size_t>(nV), 0);
+    for (const auto &g : groups)
+    {
+        if (g.size() > 1)
+        {
+            for (int v : g)
+                mergedVertex[static_cast<size_t>(v)] = 1;
+        }
+    }
+
+    std::vector<char> cellTouchedOld(static_cast<size_t>(nC), 0);
+    for (int v = 0; v < nV; ++v)
+    {
+        if (!mergedVertex[static_cast<size_t>(v)])
+            continue;
+        for (int ci : input_vd.vertices[v].cellIndices)
+        {
+            if (ci >= 0 && ci < nC)
+                cellTouchedOld[static_cast<size_t>(ci)] = 1;
+        }
+    }
+
     std::vector<std::pair<int, int>> reps; // (representative, group index)
     reps.reserve(groups.size());
     for (int gi = 0; gi < static_cast<int>(groups.size()); ++gi)
@@ -616,20 +659,33 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
         // Remap the cell’s vertex list ( preserves the order of vertices and also do deduplicate )
         std::vector<int> mappedVerts;
         mappedVerts.reserve(oldCell.verticesIndices.size());
+        bool changed = cellTouchedOld[static_cast<size_t>(ci)] != 0;
+        const size_t origCount = oldCell.verticesIndices.size();
         for (int ov : oldCell.verticesIndices)
         {
             if (ov < 0)
                 continue;
             int nv = oldToNewV[ov];
             if (nv >= 0)
+            {
                 mappedVerts.push_back(nv);
+                if (nv != ov || mergedVertex[static_cast<size_t>(ov)])
+                    changed = true;
+            }
+            else
+            {
+                changed = true;
+            }
         }
         mappedVerts = dedupKeepFirst(mappedVerts);
+        if (mappedVerts.size() != origCount)
+            changed = true;
         vd2.cells[nc].verticesIndices = std::move(mappedVerts);
 
         // Copy scalar/iso bookkeeping (if any)
         vd2.cells[nc].isoVertexStartIndex = oldCell.isoVertexStartIndex;
         vd2.cells[nc].numIsoVertices = oldCell.numIsoVertices;
+        cellDirty[nc] = static_cast<char>(changed);
     }
 
     // Then, rebuild facets in the same order so outside code can keep indices
@@ -673,6 +729,7 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
         auto &newCell = vd2.cells[oldToNewCell[ci]];
         newCell.facetIndices.clear();
         newCell.facetIndices.reserve(oldCell.facetIndices.size());
+        const size_t before = oldCell.facetIndices.size();
         for (int of : oldCell.facetIndices)
         {
             if (of < 0 || of >= nF)
@@ -681,6 +738,8 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
             if (nf >= 0)
                 newCell.facetIndices.push_back(nf);
         }
+        if (newCell.facetIndices.size() != before)
+            cellDirty[newCell.cellIndex] = 1;
     }
     timer.stopTimer("Rebuild cells and facets", "5. Collapse Small Edges");
 
@@ -749,9 +808,13 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
     //    enforce edge-consistent orientations within each cell. Finally,
     //    rebuild/refresh global facets & other derived structures.
     timer.startTimer("Fix facet orientations", "5. Collapse Small Edges");
-    force_outward_per_facet(vd2);
-    fix_cell_facets_orientation_and_outwardness(vd2);
-    rebuild_cell_facet_edge_indices(vd2);
+    const size_t dirtyCount = static_cast<size_t>(std::count(cellDirty.begin(), cellDirty.end(), 1));
+    if (dirtyCount > 0)
+    {
+        force_outward_per_facet(vd2, &cellDirty);
+        fix_cell_facets_orientation_and_outwardness(vd2, &cellDirty);
+        rebuild_cell_facet_edge_indices(vd2, &cellDirty);
+    }
     timer.stopTimer("Fix facet orientations", "5. Collapse Small Edges");
 
     timer.startTimer("Create global facets", "5. Collapse Small Edges");
