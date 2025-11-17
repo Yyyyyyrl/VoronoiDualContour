@@ -105,6 +105,32 @@ namespace
     //  2) Then, if the majority of non-degenerate facets point inward, flip all facets in that cell.
     void fix_cell_facets_orientation_and_outwardness(VoronoiDiagram &vd, const std::vector<char>* cellMask = nullptr)
     {
+        struct EdgeKeyHash
+        {
+            size_t operator()(const std::pair<int, int> &p) const noexcept
+            {
+                return (static_cast<size_t>(static_cast<unsigned int>(p.first)) << 32) ^
+                       static_cast<size_t>(static_cast<unsigned int>(p.second));
+            }
+        };
+        struct AdjEntry
+        {
+            int neighbor;
+            bool curForward;
+            bool nbForward;
+        };
+        struct EdgeOwner
+        {
+            int facet;
+            bool forward;
+        };
+
+        // Reusable scratch buffers to avoid per-cell reallocations
+        static thread_local std::vector<std::vector<AdjEntry>> adjacency;
+        static thread_local std::vector<char> visited;
+        static thread_local std::vector<char> flipped;
+        static thread_local std::unordered_map<std::pair<int, int>, EdgeOwner, EdgeKeyHash> edgeOwner;
+
         for (auto &cell : vd.cells)
         {
             if (cellMask && cell.cellIndex >= 0 && cell.cellIndex < static_cast<int>(cellMask->size()) &&
@@ -115,123 +141,88 @@ namespace
             if (cell.facetIndices.empty())
                 continue;
 
-            // Build adjacency among facets that share exactly one edge
             const size_t numF = cell.facetIndices.size();
-            std::vector<std::map<size_t, std::pair<int, int>>> adj(numF);
+            adjacency.assign(numF, {});
+            visited.assign(numF, 0);
+            flipped.assign(numF, 0);
 
-            for (size_t i = 0; i < numF; ++i)
+            // Build adjacency by walking edges once.
+            size_t estimatedEdges = 0;
+            for (int fi : cell.facetIndices)
+                estimatedEdges += vd.cell_facets[fi].verticesIndices.size();
+            edgeOwner.clear();
+            edgeOwner.reserve(estimatedEdges * 2 + 1);
+
+            for (size_t localIdx = 0; localIdx < numF; ++localIdx)
             {
-                const int f1 = cell.facetIndices[i];
-                const auto &verts1 = vd.cell_facets[f1].verticesIndices;
-                std::map<std::pair<int, int>, size_t> epos1;
-                for (size_t j = 0; j < verts1.size(); ++j)
+                const int f = cell.facetIndices[localIdx];
+                const auto &verts = vd.cell_facets[f].verticesIndices;
+                const size_t m = verts.size();
+                for (size_t j = 0; j < m; ++j)
                 {
-                    epos1[edge_key(verts1[j], verts1[(j + 1) % verts1.size()])] = j;
-                }
-                for (size_t k = i + 1; k < numF; ++k)
-                {
-                    const int f2 = cell.facetIndices[k];
-                    const auto &verts2 = vd.cell_facets[f2].verticesIndices;
-                    std::pair<int, int> shared = {-1, -1};
-                    int cnt = 0;
-                    for (size_t j = 0; j < verts2.size(); ++j)
+                    int a = verts[j];
+                    int b = verts[(j + 1) % m];
+                    auto key = edge_key(a, b);
+                    bool forward = (a == key.first);
+                    auto it = edgeOwner.find(key);
+                    if (it == edgeOwner.end())
                     {
-                        auto key = edge_key(verts2[j], verts2[(j + 1) % verts2.size()]);
-                        if (epos1.count(key))
-                        {
-                            shared = key;
-                            if (++cnt > 1)
-                                break; // not adjacent if >1 edge shared
-                        }
+                        edgeOwner.emplace(key, EdgeOwner{static_cast<int>(localIdx), forward});
                     }
-                    if (cnt == 1)
+                    else
                     {
-                        adj[i][k] = shared;
-                        adj[k][i] = shared;
+                        const EdgeOwner prev = it->second;
+                        adjacency[localIdx].push_back({prev.facet, forward, prev.forward});
+                        adjacency[static_cast<size_t>(prev.facet)].push_back({static_cast<int>(localIdx), prev.forward, forward});
                     }
                 }
             }
 
-            // BFS across (possibly multiple) components to ensure opposite directions,
-            // and make each component outward by flipping that component if needed.
-            std::vector<bool> vis(numF, false);
             const Point site = cell.delaunayVertex->point();
             for (size_t seed = 0; seed < numF; ++seed)
             {
-                if (vis[seed])
+                if (visited[seed])
                     continue;
-                // gather component
                 std::queue<size_t> q;
-                std::vector<size_t> comp;
+                std::vector<size_t> component;
                 q.push(seed);
-                vis[seed] = true;
+                visited[seed] = 1;
                 while (!q.empty())
                 {
-                    size_t cur = q.front();
+                    const size_t cur = q.front();
                     q.pop();
-                    comp.push_back(cur);
-                    const int fcur = cell.facetIndices[cur];
-                    auto &Vcur = vd.cell_facets[fcur].verticesIndices;
-                    for (const auto &kv : adj[cur])
+                    component.push_back(cur);
+
+                    for (const auto &adj : adjacency[cur])
                     {
-                        const size_t nb = kv.first;
-                        if (!vis[nb])
+                        const size_t nb = static_cast<size_t>(adj.neighbor);
+                        if (!visited[nb])
                         {
-                            vis[nb] = true;
+                            const bool sameDir = ((adj.curForward ^ static_cast<bool>(flipped[cur])) ==
+                                                   (adj.nbForward ^ static_cast<bool>(flipped[nb])));
+                            if (sameDir)
+                            {
+                                const int fnb = cell.facetIndices[nb];
+                                auto &Vnb = vd.cell_facets[fnb].verticesIndices;
+                                std::reverse(Vnb.begin(), Vnb.end());
+                                flipped[nb] = !flipped[nb];
+                            }
+                            visited[nb] = 1;
                             q.push(nb);
-                        }
-
-                        const auto shared = kv.second; // undirected edge
-                        const int fnb = cell.facetIndices[nb];
-                        auto &Vnb = vd.cell_facets[fnb].verticesIndices;
-
-                        // Determine traversal direction in current facet along shared edge
-                        bool cur_uv = false;
-                        for (size_t j = 0; j < Vcur.size(); ++j)
-                        {
-                            int a = Vcur[j];
-                            int b = Vcur[(j + 1) % Vcur.size()];
-                            if (edge_key(a, b) == shared)
-                            {
-                                cur_uv = (a == shared.first && b == shared.second);
-                                break;
-                            }
-                        }
-
-                        // Determine traversal in neighbor facet
-                        bool nb_uv = false;
-                        for (size_t j = 0; j < Vnb.size(); ++j)
-                        {
-                            int a = Vnb[j];
-                            int b = Vnb[(j + 1) % Vnb.size()];
-                            if (edge_key(a, b) == shared)
-                            {
-                                nb_uv = (a == shared.first && b == shared.second);
-                                break;
-                            }
-                        }
-
-                        // If the same direction, reverse neighbor to enforce opposite
-                        if (cur_uv == nb_uv)
-                        {
-                            std::reverse(Vnb.begin(), Vnb.end());
                         }
                     }
                 }
 
-                // Choose an anchor facet in this component and flip component if inward
-                bool flippedComp = false;
-                for (size_t idx : comp)
+                // Flip component outward if anchor facet normal points inward
+                for (size_t idx : component)
                 {
                     const int fi = cell.facetIndices[idx];
                     const auto &V = vd.cell_facets[fi].verticesIndices;
                     if (V.size() < 3)
                         continue;
-                    // centroid
                     Point centroid(0, 0, 0);
                     for (int vid : V)
                         centroid = centroid + (vd.vertices[vid].coord - CGAL::ORIGIN) / V.size();
-                    // normal
                     Vector3 normal(0, 0, 0);
                     const size_t n = V.size();
                     for (size_t k = 0; k < n; ++k)
@@ -248,22 +239,15 @@ namespace
                         continue;
                     if (CGAL::scalar_product(normal, site - centroid) > 0)
                     {
-                        if (debug && cell.cellIndex == 199723)
-                        {
-                            std::cerr << "[COLLAPSE DBG] Flipping component in cell 199723 (anchor facet " << fi << ") with inward normal.\n";
-                        }
-                        // flip all facets in this component
-                        for (size_t id2 : comp)
+                        for (size_t id2 : component)
                         {
                             const int fj = cell.facetIndices[id2];
                             auto &W = vd.cell_facets[fj].verticesIndices;
                             std::reverse(W.begin(), W.end());
                         }
                     }
-                    flippedComp = true;
                     break;
                 }
-                (void)flippedComp; // may remain false if all facets degenerate
             }
         }
     }
