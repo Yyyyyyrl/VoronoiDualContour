@@ -35,14 +35,19 @@ void VoronoiDiagram::create_global_facets()
     std::unordered_map<std::vector<int>, std::vector<int>, FacetKeyHash> keyToCellFacets;
     keyToCellFacets.reserve(cell_facets.size() * 2 + 1);
 
+    // Cache keys once to avoid repeated sorting/dedup
+    std::vector<std::vector<int>> facetKeys;
+    facetKeys.reserve(cell_facets.size());
+    for (const auto &cf : cell_facets)
+        facetKeys.push_back(getFacetHashKey(cf.verticesIndices));
+
     for (size_t fi = 0; fi < cell_facets.size(); ++fi)
     {
-        const auto &F = cell_facets[fi].verticesIndices;
-        auto key = getFacetHashKey(F);
+        const auto &key = facetKeys[fi];
         auto it = keyToCellFacets.find(key);
         if (it == keyToCellFacets.end())
         {
-            it = keyToCellFacets.emplace(std::move(key), std::vector<int>()).first;
+            it = keyToCellFacets.emplace(key, std::vector<int>()).first;
             it->second.reserve(2); // most facets shared by up to two cells
         }
         it->second.push_back(static_cast<int>(fi));
