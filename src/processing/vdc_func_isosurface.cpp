@@ -579,6 +579,27 @@ static void dump_iso_vertex_cycles(const VoronoiDiagram &vd,
         }
     }
 }
+
+// Dump mapping from multi-isov triangles to their source Voronoi edge and vertex indices.
+static void dump_triangle_sources(const IsoSurface &iso_surface,
+                                  const std::string &path)
+{
+    std::ofstream out(path);
+    if (!out)
+        return;
+    out << "tri_index,edge_index,idx0,idx1,idx2\n";
+    const auto &tris = iso_surface.isosurfaceTrianglesMulti;
+    const auto &edges = iso_surface.triangleSourceEdges;
+    for (size_t i = 0; i < tris.size(); ++i)
+    {
+        const auto &t = tris[i];
+        int edgeId = (i < edges.size()) ? edges[i] : -1;
+        out << i << ',' << edgeId << ','
+            << std::get<0>(t) << ','
+            << std::get<1>(t) << ','
+            << std::get<2>(t) << '\n';
+    }
+}
 // ===== End debug instrumentation header =====
 
 //! @brief Generates a Delaunay triangle based on orientation and cell finiteness.
@@ -2121,6 +2142,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param
     if (vdc_param.multi_isov && std::getenv("MODCYC_DEBUG"))
     {
         dump_iso_vertex_cycles(vd, iso_surface, "modcyc_cycles.csv");
+        dump_triangle_sources(iso_surface, "modcyc_triangles.csv");
     }
 
     if (vdc_param.multi_isov && !dualBuilt)
