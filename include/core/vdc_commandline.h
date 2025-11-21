@@ -37,13 +37,10 @@ struct VdcParam {
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
     double collapse_eps;           //!< Absolute collapse threshold in world units (optional).
-    double refine_max_radius_edge_ratio; //!< Max allowed radius-edge ratio before refinement triggers
-    double refine_min_dihedral_deg;      //!< Min allowed dihedral angle (deg) before refinement triggers
     double refine_min_surface_angle_deg; //!< Target min surface angle (deg) for optional continuous refinement
     int refine_insert_resolution;        //!< 1=cube center, 2=2x2x2, 3=3x3x3 subcell
     double refine_min_spacing;           //!< Min distance to existing vertices (world units); <0 auto derives
     int refine_max_iterations;           //!< Max refinement iterations
-    int refine_max_new_points_per_iter;  //!< Cap new points per iteration
     bool refine_snap_to_grid;            //!< Use discrete subcells instead of continuous iso bisection
 
     //! @brief Constructor to initialize default parameter values.
@@ -69,13 +66,10 @@ struct VdcParam {
           timing_stats(false),
           check_bipolar_max(false),
           refine_small_angles(false),
-          refine_max_radius_edge_ratio(2.0),
-          refine_min_dihedral_deg(10.0),
           refine_min_surface_angle_deg(20.0),
-          refine_insert_resolution(2),
+          refine_insert_resolution(3),
           refine_min_spacing(-1.0),
-          refine_max_iterations(2),
-          refine_max_new_points_per_iter(2000),
+          refine_max_iterations(1),
           refine_snap_to_grid(true)
     {}
 
@@ -105,13 +99,10 @@ struct VdcParam {
         out << "  Supersample r: " << supersample_r << "\n";
         out << "  Collapse eps: " << collapse_eps << "\n";
         out << "  Refine small angles: " << (refine_small_angles ? "true" : "false") << "\n";
-        out << "  Refine max radius-edge ratio: " << refine_max_radius_edge_ratio << "\n";
-        out << "  Refine min dihedral (deg): " << refine_min_dihedral_deg << "\n";
         out << "  Refine min surface angle (deg): " << refine_min_surface_angle_deg << "\n";
         out << "  Refine insert resolution: " << refine_insert_resolution << "\n";
         out << "  Refine min spacing: " << refine_min_spacing << "\n";
         out << "  Refine max iterations: " << refine_max_iterations << "\n";
-        out << "  Refine max new points/iter: " << refine_max_new_points_per_iter << "\n";
         out << "  Refine snap-to-grid: " << (refine_snap_to_grid ? "true" : "false") << "\n";
     }
 };
