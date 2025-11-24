@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
+#include <set>
 #include <CGAL/squared_distance_3.h>
 
 #include "processing/vdc_refinement.h"
@@ -11,7 +13,8 @@
 
 constexpr double kPi = 3.14159265358979323846;
 
-double min_triangle_angle_deg(const Point &a, const Point &b, const Point &c)
+// Helper: Compute minimum angle of a triangle in degrees
+static double min_triangle_angle_deg(const Point &a, const Point &b, const Point &c)
 {
     auto angle_at = [](const Point &p, const Point &q1, const Point &q2) -> double
     {
@@ -34,7 +37,8 @@ double min_triangle_angle_deg(const Point &a, const Point &b, const Point &c)
     return std::min({a0, a1, a2});
 }
 
-bool facet_has_dummy_vertex(const Facet &facet)
+// Helper: Check if a facet has a dummy vertex
+static bool facet_has_dummy_vertex(const Facet &facet)
 {
     const Cell_handle &cell = facet.first;
     const int facet_index = facet.second;
@@ -49,33 +53,26 @@ bool facet_has_dummy_vertex(const Facet &facet)
     return false;
 }
 
-bool dual_as_segment(const Delaunay &dt,
-                     const Facet &facet,
-                     Segment3 &out_segment)
+// Helper: Get dual segment from facet
+static bool dual_as_segment(const Delaunay &dt, const Facet &facet, Segment3 &out_segment)
 {
     Object dual_obj = dt.dual(facet);
     return CGAL::assign(out_segment, dual_obj);
 }
 
-bool is_bipolar_segment(const Segment3 &seg,
-                        const UnifiedGrid &grid,
-                        float isovalue,
-                        float &out_v0,
-                        float &out_v1)
+// Helper: Check if segment is bipolar
+static bool is_bipolar_segment(const Segment3 &seg, const UnifiedGrid &grid, float isovalue)
 {
     const Point &p0 = seg.source();
     const Point &p1 = seg.target();
-    out_v0 = trilinear_interpolate(adjust_outside_bound_points(p0, grid, p0, p1), grid);
-    out_v1 = trilinear_interpolate(adjust_outside_bound_points(p1, grid, p0, p1), grid);
-    return is_bipolar(out_v0, out_v1, isovalue);
+    // Use trilinear interpolation to get values at endpoints
+    float v0 = trilinear_interpolate(adjust_outside_bound_points(p0, grid, p0, p1), grid);
+    float v1 = trilinear_interpolate(adjust_outside_bound_points(p1, grid, p0, p1), grid);
+    return is_bipolar(v0, v1, isovalue);
 }
 
-Point midpoint(const Point &a, const Point &b)
-{
-    return Point((a.x() + b.x()) * 0.5, (a.y() + b.y()) * 0.5, (a.z() + b.z()) * 0.5);
-}
-
-const Cube *find_nearest_active_cube(const std::vector<Cube> &cubes, const Point &p)
+// Helper: Find nearest active cube
+static const Cube *find_nearest_active_cube(const std::vector<Cube> &cubes, const Point &p)
 {
     const Cube *best = nullptr;
     double best_dist_sq = std::numeric_limits<double>::max();
@@ -91,10 +88,8 @@ const Cube *find_nearest_active_cube(const std::vector<Cube> &cubes, const Point
     return best;
 }
 
-Point snap_to_subcell_center(const Cube &cube,
-                             const UnifiedGrid &grid,
-                             const Point &target,
-                             int resolution)
+// Helper: Snap to subcell center
+static Point snap_to_subcell_center(const Cube &cube, const UnifiedGrid &grid, const Point &target, int resolution)
 {
     const int res = std::max(1, std::min(3, resolution));
     const double dx = grid.spacing[0];
@@ -119,64 +114,8 @@ Point snap_to_subcell_center(const Cube &cube,
                  coord_center(base_z, dz, target.z()));
 }
 
-Point interpolate_to_isovalue(const Point &p0,
-                              const Point &p1,
-                              float v0,
-                              float v1,
-                              float isovalue)
-{
-    const double denom = static_cast<double>(v1) - static_cast<double>(v0);
-    if (std::abs(denom) < 1e-12)
-    {
-        return midpoint(p0, p1);
-    }
-    double t = (static_cast<double>(isovalue) - static_cast<double>(v0)) / denom;
-    t = std::max(0.0, std::min(1.0, t));
-    return Point(p0.x() + (p1.x() - p0.x()) * t,
-                 p0.y() + (p1.y() - p0.y()) * t,
-                 p0.z() + (p1.z() - p0.z()) * t);
-}
-
-bool is_far_from_delaunay(const Delaunay &dt,
-                          const Point &p,
-                          double min_spacing_sq)
-{
-    if (dt.number_of_vertices() == 0)
-    {
-        return true;
-    }
-    Vertex_handle vh = dt.nearest_vertex(p);
-    const double dist_sq = CGAL::squared_distance(vh->point(), p);
-    return dist_sq >= min_spacing_sq;
-}
-
-bool is_far_from_candidates(const std::vector<RefinementCandidate> &candidates,
-                            const Point &p,
-                            double min_spacing_sq)
-{
-    for (const auto &cand : candidates)
-    {
-        if (CGAL::squared_distance(cand.position, p) < min_spacing_sq)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-double compute_min_spacing(const UnifiedGrid &grid, double user_value)
-{
-    if (user_value > 0.0)
-    {
-        return user_value;
-    }
-    const double min_spacing = std::min({static_cast<double>(grid.spacing[0]),
-                                         static_cast<double>(grid.spacing[1]),
-                                         static_cast<double>(grid.spacing[2])});
-    return 0.05 * min_spacing;
-}
-
-int next_vertex_index(const Delaunay &dt)
+// Helper: Get next vertex index
+static int next_vertex_index(const Delaunay &dt)
 {
     int next_index = 0;
     for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit)
@@ -186,7 +125,8 @@ int next_vertex_index(const Delaunay &dt)
     return next_index;
 }
 
-void reindex_cells(Delaunay &dt)
+// Helper: Reindex cells
+static void reindex_cells(Delaunay &dt)
 {
     int cell_index = 0;
     for (auto cit = dt.finite_cells_begin(); cit != dt.finite_cells_end(); ++cit)
@@ -196,11 +136,10 @@ void reindex_cells(Delaunay &dt)
     }
 }
 
-RefinementStats refine_delaunay_small_angles(Delaunay &dt,
-                                             const UnifiedGrid &grid,
-                                             const std::vector<Cube> &active_cubes,
-                                             const VdcParam &params,
-                                             float isovalue)
+RefinementStats refine_delaunay(Delaunay &dt,
+                                const UnifiedGrid &grid,
+                                const std::vector<Cube> &active_cubes,
+                                const VdcParam &params)
 {
     RefinementStats stats;
     if (!params.refine_small_angles || active_cubes.empty())
@@ -209,72 +148,77 @@ RefinementStats refine_delaunay_small_angles(Delaunay &dt,
     }
 
     const double angle_threshold = params.refine_min_surface_angle_deg;
-    const int max_iterations = std::max(1, params.refine_max_iterations);
-    const int insert_resolution = std::max(1, std::min(3, params.refine_insert_resolution));
-    const double min_spacing = compute_min_spacing(grid, params.refine_min_spacing);
-    const double min_spacing_sq = min_spacing * min_spacing;
+    const int insert_resolution = params.refine_insert_resolution;
+    const float isovalue = params.isovalue;
+    
+
+    const int max_iterations = 10; 
 
     int vertex_index = next_vertex_index(dt);
 
     for (int iter = 0; iter < max_iterations; ++iter)
     {
-        std::vector<RefinementCandidate> candidates;
-        candidates.reserve(256);
+        std::vector<Point> candidates;
+        std::set<Point> unique_candidates; // To avoid duplicates in one pass
 
+        // 1. Scan all finite tetrahedra (via facets)
         for (auto fit = dt.finite_facets_begin(); fit != dt.finite_facets_end(); ++fit)
         {
             const Facet &facet = *fit;
+            
+            // Skip facets with dummy vertices
             if (facet_has_dummy_vertex(facet))
             {
                 continue;
             }
 
+            // Get facet vertices
             const Cell_handle &cell = facet.first;
             const int facet_index = facet.second;
             const Point p0 = cell->vertex(CellInfo::FacetVertexIndex(facet_index, 0))->point();
             const Point p1 = cell->vertex(CellInfo::FacetVertexIndex(facet_index, 1))->point();
             const Point p2 = cell->vertex(CellInfo::FacetVertexIndex(facet_index, 2))->point();
 
-            const double min_angle = min_triangle_angle_deg(p0, p1, p2);
+            // Check min angle
+            double min_angle = min_triangle_angle_deg(p0, p1, p2);
             if (min_angle >= angle_threshold)
             {
                 continue;
             }
+            
             ++stats.candidate_facets;
 
+            // Compute dual Voronoi edge
             Segment3 dual_segment;
             if (!dual_as_segment(dt, facet, dual_segment))
             {
+                
                 continue;
             }
 
-            float v0 = 0.0f, v1 = 0.0f;
-            if (!is_bipolar_segment(dual_segment, grid, isovalue, v0, v1))
+            // Check if dual edge is bipolar
+            if (!is_bipolar_segment(dual_segment, grid, isovalue))
             {
-                ++stats.non_bipolar_facets;
                 continue;
             }
+            
             ++stats.bipolar_facets;
 
-            const Point centroid = midpoint(dual_segment.source(), dual_segment.target());
+            // Find insertion point
+            Point centroid = CGAL::midpoint(dual_segment.source(), dual_segment.target());
             const Cube *nearest_cube = find_nearest_active_cube(active_cubes, centroid);
-            if (nearest_cube == nullptr)
+
+            if (nearest_cube)
             {
-                continue;
+                Point p_ref = snap_to_subcell_center(*nearest_cube, grid, centroid, insert_resolution);
+                
+                // Avoid inserting duplicates in the same batch
+                if (unique_candidates.find(p_ref) == unique_candidates.end())
+                {
+                    unique_candidates.insert(p_ref);
+                    candidates.push_back(p_ref);
+                }
             }
-
-            Point candidate_point = params.refine_snap_to_grid
-                                        ? snap_to_subcell_center(*nearest_cube, grid, centroid, insert_resolution)
-                                        : interpolate_to_isovalue(dual_segment.source(), dual_segment.target(), v0, v1, isovalue);
-
-            if (!is_far_from_delaunay(dt, candidate_point, min_spacing_sq) ||
-                !is_far_from_candidates(candidates, candidate_point, min_spacing_sq))
-            {
-                ++stats.rejected_spacing;
-                continue;
-            }
-
-            candidates.push_back({candidate_point, min_angle});
         }
 
         if (candidates.empty())
@@ -282,23 +226,26 @@ RefinementStats refine_delaunay_small_angles(Delaunay &dt,
             break;
         }
 
-        std::sort(candidates.begin(), candidates.end(),
-                  [](const RefinementCandidate &a, const RefinementCandidate &b)
-                  {
-                      return a.min_angle_deg < b.min_angle_deg;
-                  });
-
-
-        for (const auto &cand : candidates)
+        // 2. Insert points
+        std::size_t inserted_this_iter = 0;
+        for (const auto &p : candidates)
         {
-            Vertex_handle vh = dt.insert(cand.position);
+            Vertex_handle vh = dt.insert(p);
+
             vh->info().index = vertex_index++;
             vh->info().is_dummy = false;
             vh->info().voronoiCellIndex = -1;
+            
+            ++inserted_this_iter;
             ++stats.inserted_points;
         }
-
-        ++stats.iterations_run;
+        
+        stats.iterations_run++;
+        
+        if (inserted_this_iter == 0)
+        {
+            break;
+        }
     }
 
     reindex_cells(dt);
