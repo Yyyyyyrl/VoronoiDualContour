@@ -1266,7 +1266,7 @@ static inline bool select_isovertices(
     Vertex_handle v1 = c->vertex(d1);
     Vertex_handle v2 = c->vertex(d2);
     Vertex_handle v3 = c->vertex(d3);
-
+        
     int b1 = (v1->info().is_dummy) ? 1 : 0;
     int b2 = (v2->info().is_dummy) ? 1 : 0;
     int b3 = (v3->info().is_dummy) ? 1 : 0;
@@ -1515,11 +1515,6 @@ static void process_ray_edge_multi(
             return;
         }
         ISO_STATS.ray_bip++;
-        if (ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex))
-        {
-            std::cerr << "[ISO] RAY bipolar edge=" << globalEdgeIndex << " dualFacets=" << dualDelaunayFacets.size() << "\n";
-            std::cerr << voronoiDiagram.edges[globalEdgeIndex];
-        }
 
         for (const auto &facet : dualDelaunayFacets)
         {
@@ -1691,7 +1686,6 @@ bool compute_dual_triangles_multi(
         ISO_STATS.dump_summary();
     }
 
-    // prune_duplicate_edge_triangles(iso_surface, voronoiDiagram);
     return bindingConflict;
 }
 
