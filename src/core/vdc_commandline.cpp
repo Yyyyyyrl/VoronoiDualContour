@@ -25,7 +25,6 @@ void print_help()
     std::cout << "  --refine_small_angles       : Enable facet-centric refinement to improve small angles.\n";
     std::cout << "  --refine_min_angle {deg}    : Small-angle threshold (deg) to trigger refinement (default: 20).\n";
     std::cout << "  --refine_insert_res {n}     : Insertion resolution: 1=cube, 2=2x2x2, 3=3x3x3 (default: 2).\n";
-    std::cout << "  --refine_continuous         : Place refinement points via iso bisection (disable snap-to-grid).\n";
     std::cout << "  --summary_stats             : Print summary statistics after the run.\n";
     std::cout << "  --timing_stats               : Print timing statistics after the run.\n";
     std::cout << "  --check_bipolar_max         : Check and report maximum bipolar matches per facet.\n";
@@ -132,10 +131,6 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         else if (arg == "--refine_insert_res" && i + 1 < argc)
         {
             vp.refine_insert_resolution = std::atoi(argv[++i]);
-        }
-        else if (arg == "--refine_continuous")
-        {
-            vp.refine_snap_to_grid = false;
         }
         else if (arg == "--timing_stats")
         {
