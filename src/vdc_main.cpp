@@ -132,19 +132,13 @@ int main(int argc, char *argv[])
     if (vdc_param.refine_small_angles)
     {
         timer.startTimer("3b. Delaunay Refinement", "Total Processing");
-        RefinementStats refine_stats = refine_delaunay_small_angles(dt, data_grid, activeCubes, vdc_param, vdc_param.isovalue);
+        RefinementStats refine_stats = refine_delaunay(dt, data_grid, activeCubes, vdc_param);
         timer.stopTimer("3b. Delaunay Refinement", "Total Processing");
         std::cout << "[INFO] Refinement iterations: " << refine_stats.iterations_run
                   << ", candidates: " << refine_stats.candidate_facets
                   << ", bipolar facets: " << refine_stats.bipolar_facets
-                  << ", non-bipolar skips: " << refine_stats.non_bipolar_facets
-                  << ", spacing rejects: " << refine_stats.rejected_spacing
-                  << ", inserted points: " << refine_stats.inserted_points;
-        if (refine_stats.truncated_candidates > 0)
-        {
-            std::cout << ", truncated: " << refine_stats.truncated_candidates;
-        }
-        std::cout << std::endl;
+                  << ", inserted points: " << refine_stats.inserted_points
+                  << std::endl;
     }
 
     // Construct the Voronoi diagram based on the Delaunay triangulation.
