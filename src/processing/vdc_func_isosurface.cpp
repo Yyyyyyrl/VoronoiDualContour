@@ -2003,8 +2003,7 @@ static Point clip_isovertex_to_circumscribed_sphere(
     return isovertex;
 }
 
-// TODO: Rename the routine to show its true functionality, as it computes the isovertices AND the cycle centroids.
-//! @brief Computes centroids for cycles and updates the isosurface.
+//! @brief Computes cycle centroids and corresponding isovertices for the isosurface.
 /*!
  * Calculates the centroid for each cycle, updates the Voronoi cell's cycles,
  * and adds the centroid to the isosurface vertices. Optionally clips centroids
@@ -2018,7 +2017,7 @@ static Point clip_isovertex_to_circumscribed_sphere(
  * @param cube_side_length The side length of the active cube (0 to disable clipping).
  * @param accurate_crossing Accurate iso-crossing point for this cell (nullptr if not available).
  */
-static void compute_cycle_centroids(
+static void compute_cycle_centroids_and_isovertices(
     VoronoiCell &vc,
     VoronoiDiagram &voronoiDiagram,
     std::vector<MidpointNode> &midpoints,
@@ -2199,7 +2198,7 @@ void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float iso
             }
         }
 
-        compute_cycle_centroids(vc, voronoiDiagram, midpoints, cycles, iso_surface, cube_side_length, accurate_crossing);
+        compute_cycle_centroids_and_isovertices(vc, voronoiDiagram, midpoints, cycles, iso_surface, cube_side_length, accurate_crossing);
     }
 }
 
