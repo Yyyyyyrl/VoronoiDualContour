@@ -22,6 +22,7 @@ static int ISO_DBG_FOCUS_CYCLE = -1;
 static bool ISO_DBG_ONLY_ERRORS = false;
 static bool ISO_DBG_ENABLED = true; // set via ISO_DBG_LOAD_ENV(), tied to global 'debug'
 static bool ISO_SEP_ISOV_SUBGRID_ACTIVE = false;
+static double ISO_SUPERSAMPLE_RATIO = 1.0;
 static bool ISO_DEBUG_DUMP_ENABLED = false;
 static std::string ISO_DEBUG_DUMP_PREFIX;
 
@@ -1266,7 +1267,7 @@ static inline bool select_isovertices(
     Vertex_handle v1 = c->vertex(d1);
     Vertex_handle v2 = c->vertex(d2);
     Vertex_handle v3 = c->vertex(d3);
-        
+
     int b1 = (v1->info().is_dummy) ? 1 : 0;
     int b2 = (v2->info().is_dummy) ? 1 : 0;
     int b3 = (v3->info().is_dummy) ? 1 : 0;
@@ -1429,7 +1430,7 @@ static void process_segment_edge_multi(
                 double min_angle_iso = std::min({angles_iso[0], angles_iso[1], angles_iso[2]});
 
                 // Debug threshold; lower it to limit spam while still catching outliers.
-                const double min_angle_iso_threshold = 5.0;
+                const double min_angle_iso_threshold = 10.0;
                 if (min_angle_iso < min_angle_iso_threshold)
                 {
                     std::cout << "[ISO] Triangle (p1,p2,p3) min angle < threshold: "
@@ -1457,6 +1458,14 @@ static void process_segment_edge_multi(
                     std::cout << "  dist(p3, dV3): " << dist3 << "\n";
 
                     std::cout << " ==============================================\n";
+
+                    std::cout << "[ISO] For vis: (Iso-triangle, dual-triangle)\n";
+                    std::cout << "[(" << p1.x() <<", " << p1.y() << ", " << p1.z() << "), " <<
+                              "(" << p2.x() <<", " << p2.y() << ", " << p2.z() << "), " <<
+                              "(" << p3.x() <<", " << p3.y() << ", " << p3.z() << ")],\n";
+                    std::cout << "[(" << dV1.x() <<", " << dV1.y() << ", " << dV1.z() << "), " <<
+                              "(" << dV2.x() <<", " << dV2.y() << ", " << dV2.z() << "), " <<
+                              "(" << dV3.x() <<", " << dV3.y() << ", " << dV3.z() << ")]\n";
                 }
             }
             generate_triangle_multi(iso_surface, idx1, idx2, idx3, iOrient, isValid, globalEdgeIndex);
@@ -1957,7 +1966,9 @@ static Point clip_isovertex_to_circumscribed_sphere(
     const Point &cube_center,
     float cube_side_length)
 {
-    const double effective_side_length = ISO_SEP_ISOV_SUBGRID_ACTIVE ? cube_side_length / 3.0 : cube_side_length;
+    const double subgrid_scale = ISO_SEP_ISOV_SUBGRID_ACTIVE ? 3.0 : 1.0;
+    const double supersample_scale = (ISO_SUPERSAMPLE_RATIO > 0.0) ? ISO_SUPERSAMPLE_RATIO : 1.0;
+    const double effective_side_length = cube_side_length / (subgrid_scale * supersample_scale);
     const double circumscribed_radius = 0.5 * effective_side_length;
 
     // Vector from cube center to isovertex
@@ -2198,6 +2209,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param
     ISO_DBG_LOAD_ENV();
     ISO_DEBUG_INIT_DUMP();
     ISO_SEP_ISOV_SUBGRID_ACTIVE = vdc_param.sep_isov_3 || vdc_param.sep_isov_3B || vdc_param.sep_isov_3_wide;
+    ISO_SUPERSAMPLE_RATIO = (vdc_param.supersample && vdc_param.supersample_r > 0) ? static_cast<double>(vdc_param.supersample_r) : 1.0;
     if (ISO_DBG_ENABLED)
     {
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
