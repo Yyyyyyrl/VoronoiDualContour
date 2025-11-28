@@ -21,14 +21,14 @@ void print_help()
     std::cout << "  -no_clip                    : Disable centroid clipping for multi-cycle iso-vertices.\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  -non_modcyc                 : Disable modify-cycles pass (enabled by default).\n";
-    std::cout << "  --refine_small_angles       : Enable facet-centric refinement to improve small angles.\n";
-    std::cout << "  --refine_min_angle {deg}    : Small-angle threshold (deg) to trigger refinement (default: 20).\n";
-    std::cout << "  --refine_insert_res {n}     : Insertion resolution: 1=cube, 2=2x2x2, 3=3x3x3 (default: 2).\n";
-    std::cout << "  --summary_stats             : Print summary statistics after the run.\n";
-    std::cout << "  --timing_stats               : Print timing statistics after the run.\n";
-    std::cout << "  --check_bipolar_max         : Check and report maximum bipolar matches per facet.\n";
-    std::cout << "  --debug                     : Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD]).\n";
-    std::cout << "  --help                      : Print this help message.\n";
+    std::cout << "  -refine_small_angles        : Enable facet-centric refinement to improve small angles.\n";
+    std::cout << "  -refine_min_angle {deg}     : Small-angle threshold (deg) to trigger refinement (default: 20).\n";
+    std::cout << "  -refine_insert_res {n}      : Insertion resolution: 1=cube, 2=2x2x2, 3=3x3x3 (default: 2).\n";
+    std::cout << "  -summary_stats              : Print summary statistics after the run.\n";
+    std::cout << "  -timing_stats               : Print timing statistics after the run.\n";
+    std::cout << "  -check_bipolar_max          : Check and report maximum bipolar matches per facet.\n";
+    std::cout << "  -debug                      : Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD]).\n";
+    std::cout << "  -help                       : Print this help message.\n";
 }
 
 //! Parses command-line arguments and configures program settings.
@@ -96,7 +96,7 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         {
             vp.noclip = true; // Disable centroid clipping in multi-cycle cases.
         }
-        else if (arg == "--help")
+        else if (arg == "-help")
         {
             print_help();
             exit(EXIT_SUCCESS);
@@ -105,40 +105,36 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         {
             vp.convex_hull = true;
         }
-        else if (arg == "--test_vor")
-        {
-            vp.test_vor = true;
-        }
         else if (arg == "-non_modcyc")
         {
             vp.mod_cyc = false; // Disable modify-cycles pass (enabled by default)
         }
-        else if (arg == "--summary_stats")
+        else if (arg == "-summary_stats")
         {
             vp.summary_stats = true;
         }
-        else if (arg == "--refine_small_angles")
+        else if (arg == "-refine_small_angles")
         {
             vp.refine_small_angles = true;
         }
 
-        else if ((arg == "--refine_min_angle") && i + 1 < argc)
+        else if ((arg == "-refine_min_angle") && i + 1 < argc)
         {
             vp.refine_min_surface_angle_deg = std::atof(argv[++i]);
         }
-        else if (arg == "--refine_insert_res" && i + 1 < argc)
+        else if (arg == "-refine_insert_res" && i + 1 < argc)
         {
             vp.refine_insert_resolution = std::atoi(argv[++i]);
         }
-        else if (arg == "--timing_stats")
+        else if (arg == "-timing_stats")
         {
             vp.timing_stats = true; // Enable timing statistics report
         }
-        else if (arg == "--check_bipolar_max")
+        else if (arg == "-check_bipolar_max")
         {
             vp.check_bipolar_max = true; // Enable bipolar match checking
         }
-        else if (arg == "--debug")
+        else if (arg == "-debug")
         {
             debug = true; // Enable global debug logging
         }

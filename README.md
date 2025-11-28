@@ -46,14 +46,14 @@ make -j
 - `-single_isov`: Use single iso-vertices mode
 - `-conv_H`: Use the Convex_Hull_3 from CGAL in voronoi cell construction
 - `-non_modcyc`: Disable modify-cycles pass (enabled by default)
-- `--summary_stats`: Print summary statistics after the run
-- `--timing_stats`: Print timing statistics after the run
-- `--debug`: Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD])
-- `--help`: Print help message
+- `-summary_stats`: Print summary statistics after the run
+- `-timing_stats`: Print timing statistics after the run
+- `-debug`: Enable debug logging ([DEBUG]/[ISO]/[ISO-MATCH]/[CYC-MOD])
+- `-help`: Print help message
 
 Advanced/debug options (subject to change):
 - `-bound_cells`: Add bounding cells around the domain
-- `--test_vor`: Flag for testing the Voronoi diagram construction
+- `-test_vor`: Flag for testing the Voronoi diagram construction
 
 ### Examples
 - Basic run (OFF output, multi-isov and modcyc enabled by default):
@@ -74,7 +74,7 @@ Advanced/debug options (subject to change):
   ```
 - Disable modify-cycles with summary and timing statistics:
   ```bash
-  ./vdc -non_modcyc --summary_stats -timing_stats 0.0 ./data/sphere-32.nrrd
+  ./vdc -non_modcyc -summary_stats -timing_stats 0.0 ./data/sphere-32.nrrd
   ```
 
 
