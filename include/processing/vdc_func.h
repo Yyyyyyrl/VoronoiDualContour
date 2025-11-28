@@ -72,8 +72,10 @@ bool compute_dual_triangles_multi(
  * @param iso_surface Instance of IsoSurface containing the isosurface vertices and faces.
  * @param grid The grid containing spacing information for clipping (optional).
  * @param vertex_mapping Optional mapping from old to new vertex indices after collapse (for combinatorial orientation).
+ * @param accurateIsoCrossings Optional accurate iso-crossing points per Delaunay vertex.
+ * @param disable_cycle_clipping Disable centroid clipping for multi-cycle iso-vertices.
  */
-void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface, const UnifiedGrid *grid = nullptr, const std::vector<int> *vertex_mapping = nullptr);
+void compute_isosurface_vertices_multi(VoronoiDiagram &voronoiDiagram, float isovalue, IsoSurface &iso_surface, const UnifiedGrid *grid = nullptr, const std::vector<int> *vertex_mapping = nullptr, const std::vector<Point> *accurateIsoCrossings = nullptr, bool disable_cycle_clipping = false);
 
 //! @brief Computes isosurface vertices for the single-isovertex case.
 /*!

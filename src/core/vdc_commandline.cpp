@@ -20,6 +20,7 @@ void print_help()
     std::cout << "  -collapse_eps {eps}         : Set absolute collapse threshold in world units (default: 1% of grid spacing).\n";
     std::cout << "  -multi_isov                 : Use multi iso-vertices mode (default).\n";
     std::cout << "  -single_isov                : Use single iso-vertices mode.\n";
+    std::cout << "  -no_clip                    : Disable centroid clipping for multi-cycle iso-vertices.\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  -non_modcyc                 : Disable modify-cycles pass (enabled by default).\n";
     std::cout << "  --refine_small_angles       : Enable facet-centric refinement to improve small angles.\n";
@@ -97,6 +98,10 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         else if (arg == "-single_isov")
         {
             vp.multi_isov = false; // Enable single-isovertex mode.
+        }
+        else if (arg == "-no_clip")
+        {
+            vp.noclip = true; // Disable centroid clipping in multi-cycle cases.
         }
         else if (arg == "--help")
         {
@@ -222,6 +227,11 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         if (vp.refine_small_angles)
         {
             vp.output_filename += "_refine";
+        }
+        
+        if (vp.noclip)
+        {
+            vp.output_filename += "_noclip";
         }
 
         // Add file format extension.

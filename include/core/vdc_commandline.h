@@ -25,6 +25,7 @@ struct VdcParam {
     bool sep_isov_3_wide;          //!< Flag to enable widened separation method III (5×5×5 clearance testing).
     bool sep_isov_3B;              //!< Flag to enable sep_isov_3 with exact binary fractions (1/4, 1/2, 3/4).
     bool multi_isov;               //!< Flag to enable multi-isosurface mode.
+    bool noclip;                   //!< Flag to disable centroid clipping in multi-cycle cases.
     bool supersample;              //!< Flag to enable supersampling of the input data.
     bool add_bounding_cells;       //!< Flag to include bounding cells in the Voronoi diagram.
     bool convex_hull;              //!< Flag to enable convex hull computation in building voronoi cells
@@ -56,6 +57,7 @@ struct VdcParam {
           sep_isov_3_wide(false),
           sep_isov_3B(false),
           multi_isov(true),
+          noclip(false),
           supersample(false),
           add_bounding_cells(false),
           convex_hull(false),
@@ -88,6 +90,7 @@ struct VdcParam {
         out << "  Sep isov 3 wide: " << (sep_isov_3_wide ? "true" : "false") << "\n";
         out << "  Sep isov 3B: " << (sep_isov_3B ? "true" : "false") << "\n";
         out << "  Multi isov: " << (multi_isov ? "true" : "false") << "\n";
+        out << "  No clip: " << (noclip ? "true" : "false") << "\n";
         out << "  Supersample: " << (supersample ? "true" : "false") << "\n";
         out << "  Add bounding cells: " << (add_bounding_cells ? "true" : "false") << "\n";
         out << "  Convex hull: " << (convex_hull ? "true" : "false") << "\n";
