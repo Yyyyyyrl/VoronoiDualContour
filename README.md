@@ -38,9 +38,8 @@ make -j
 - `-off`: Generate output in .off format (default)
 - `-ply`: Generate output in .ply format
 - `-out_csv {output_csv_name}`: Write the Voronoi diagram to a CSV file
-- `-sep_isov_1`: Separation method I: Greedy cube-level (26-connectivity)
-- `-sep_isov_3`: Separation method III: 3×3×3 subgrid-based separation
-- `-sep_isov_3_wide`: Testing variant of method III with 5×5×5 clearance in the 3× subgrid
+- `-sep_dist {D}`: Separation distance (D) in refined subcubes (default 0 = off)
+- `-sep_split {K}`: Number of splits (K) per axis, using a refined grid of factor K+1 (default 0)
 - `-supersample {factor}`: Supersample the input data by the given factor
 - `-collapse_eps {eps}`: Set absolute collapse threshold in world units (default: 1% of grid spacing)
 - `-multi_isov`: Use multi iso-vertices mode (default)
@@ -65,9 +64,9 @@ Advanced/debug options (subject to change):
   ```bash
   ./vdc -ply -supersample 2 0.0 ./data/sphere-32.nrrd
   ```
-- Single iso-vertices mode with separation method I:
+- Single iso-vertices mode with separation (distance 2, 3×3×3 refined grid):
   ```bash
-  ./vdc -single_isov -sep_isov_1 0.0 ./data/sphere-32.nrrd
+  ./vdc -single_isov -sep_dist 2 -sep_split 2 0.0 ./data/sphere-32.nrrd
   ```
 - Export Voronoi diagram to CSV with custom output name:
   ```bash

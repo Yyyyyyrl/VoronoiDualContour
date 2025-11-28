@@ -20,10 +20,7 @@ struct VdcParam {
     std::string out_csv_name;      //!< The name of the CSV file for Voronoi diagram export.
 
     bool out_csv;                  //!< Flag to enable exporting Voronoi diagram to CSV.
-    bool sep_isov_1;               //!< Flag to enable separation method I (greedy cube-level).
-    bool sep_isov_3;               //!< Flag to enable separation method III (3×3×3 subgrid-based).
-    bool sep_isov_3_wide;          //!< Flag to enable widened separation method III (5×5×5 clearance testing).
-    bool sep_isov_3B;              //!< Flag to enable sep_isov_3 with exact binary fractions (1/4, 1/2, 3/4).
+    bool sep;                      //!< Flag to enable separation of active cubes.
     bool multi_isov;               //!< Flag to enable multi-isosurface mode.
     bool noclip;                   //!< Flag to disable centroid clipping in multi-cycle cases.
     bool supersample;              //!< Flag to enable supersampling of the input data.
@@ -38,6 +35,8 @@ struct VdcParam {
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
     double collapse_eps;           //!< Absolute collapse threshold in world units (optional).
+    int sep_dist;                  //!< Separation clearance measured in subcubes.
+    int sep_split;                 //!< Number of splits (K) for refined subgrid (factor = K+1).
     double refine_min_surface_angle_deg; //!< Target min surface angle (deg) for optional continuous refinement
     int refine_insert_resolution;        //!< 1=cube center, 2=2x2x2, 3=3x3x3 subcell
     double refine_min_spacing;           //!< Min distance to existing vertices (world units); <0 auto derives
@@ -52,10 +51,7 @@ struct VdcParam {
           output_filename(""),
           out_csv_name("voronoi.csv"),
           out_csv(false),
-          sep_isov_1(false),
-          sep_isov_3(false),
-          sep_isov_3_wide(false),
-          sep_isov_3B(false),
+          sep(false),
           multi_isov(true),
           noclip(false),
           supersample(false),
@@ -63,6 +59,8 @@ struct VdcParam {
           convex_hull(false),
           supersample_r(1),
           collapse_eps(-1.0),
+          sep_dist(1),
+          sep_split(0),
           mod_cyc(true),
           summary_stats(false),
           timing_stats(false),
@@ -85,10 +83,7 @@ struct VdcParam {
         out << "  Output filename: " << output_filename << "\n";
         out << "  Out CSV name: " << out_csv_name << "\n";
         out << "  Out CSV: " << (out_csv ? "true" : "false") << "\n";
-        out << "  Sep isov 1: " << (sep_isov_1 ? "true" : "false") << "\n";
-        out << "  Sep isov 3: " << (sep_isov_3 ? "true" : "false") << "\n";
-        out << "  Sep isov 3 wide: " << (sep_isov_3_wide ? "true" : "false") << "\n";
-        out << "  Sep isov 3B: " << (sep_isov_3B ? "true" : "false") << "\n";
+        out << "  Separation: " << (sep ? "true" : "false") << " (dist=" << sep_dist << ", split=" << sep_split << ")\n";
         out << "  Multi isov: " << (multi_isov ? "true" : "false") << "\n";
         out << "  No clip: " << (noclip ? "true" : "false") << "\n";
         out << "  Supersample: " << (supersample ? "true" : "false") << "\n";

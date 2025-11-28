@@ -15,43 +15,21 @@ struct Cube {
     
     Point accurateIsoCrossing; //!< Accurate iso-crossing point (centroid of edge intersections).
     int indices[DIM3];      //!< Grid indices of the cube: {i, j, k}.
-    unsigned char isov_subgrid_index; //!< Subgrid index [0-26] for sep_isov_3 (3×3×3 subdivision).
+    int isov_subgrid_index; //!< Subgrid index for refined separation grid.
 
     Cube()
         : repVertex(0, 0, 0),
           cubeCenter(0, 0, 0),
           accurateIsoCrossing(0, 0, 0),
           indices{0, 0, 0},
-          isov_subgrid_index(13) {}
+          isov_subgrid_index(0) {}
 
     Cube(Point v, Point center, int ix, int iy, int iz)
         : repVertex(v),
           cubeCenter(center),
           accurateIsoCrossing(center),
           indices{ix, iy, iz},
-          isov_subgrid_index(13) {}
-
-    //! @brief Compute 3× grid location for a given subgrid index
-    void ComputeGrid3xLoc(int subgrid_index, int grid3x_loc[3]) const {
-        int loc[3];
-        // Decode subgrid index to local coordinates
-        int index = subgrid_index;
-        loc[0] = index % 3;
-        index = index / 3;
-        loc[1] = index % 3;
-        index = index / 3;
-        loc[2] = index;
-
-        // Map to global 3× grid coordinates
-        grid3x_loc[0] = 3 * indices[0] + loc[0];
-        grid3x_loc[1] = 3 * indices[1] + loc[1];
-        grid3x_loc[2] = 3 * indices[2] + loc[2];
-    }
-
-    //! @brief Compute 3× grid location for this cube's iso-crossing point
-    void ComputeIsovGrid3xLoc(int grid3x_loc[3]) const {
-        ComputeGrid3xLoc(isov_subgrid_index, grid3x_loc);
-    }
+          isov_subgrid_index(0) {}
 
     //! @brief Print the cube information for debugging
     template <typename OSTREAM_TYPE>
@@ -61,7 +39,7 @@ struct Cube {
         out << "  Cube center: " << cubeCenter << "\n";
         out << "  Accurate iso-crossing point: " << accurateIsoCrossing << "\n";
         out << "  Grid indices (i, j, k): (" << indices[0] << ", " << indices[1] << ", " << indices[2] << ")\n";
-        out << "  Isov subgrid index: " << static_cast<int>(isov_subgrid_index) << "\n";
+        out << "  Isov subgrid index: " << isov_subgrid_index << "\n";
     }
 };
 

@@ -1390,7 +1390,7 @@ static void process_segment_edge_multi(
                 bind_cycle_pair_to_edge(pairBinding, key3, key1, globalEdgeIndex, ISO_DBG_ENABLED && iso_dbg_edge_ok(globalEdgeIndex), bindingConflict);
             }
 
-            if (true)
+            if (false)
             {
                 Point p1 = iso_surface.isosurfaceVertices[idx1];
                 Point p2 = iso_surface.isosurfaceVertices[idx2];
@@ -2203,7 +2203,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param
 {
     ISO_DBG_LOAD_ENV();
     ISO_DEBUG_INIT_DUMP();
-    ISO_SEP_ISOV_SUBGRID_ACTIVE = vdc_param.sep_isov_3 || vdc_param.sep_isov_3B || vdc_param.sep_isov_3_wide;
+    ISO_SEP_ISOV_SUBGRID_ACTIVE = vdc_param.sep && vdc_param.sep_split > 0;
     ISO_SUPERSAMPLE_RATIO = (vdc_param.supersample && vdc_param.supersample_r > 0) ? static_cast<double>(vdc_param.supersample_r) : 1.0;
     if (ISO_DBG_ENABLED)
     {

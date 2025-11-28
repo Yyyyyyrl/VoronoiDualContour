@@ -47,39 +47,14 @@ int main(int argc, char *argv[])
     timer.stopTimer("Find active cubes", "2. Data Pre-processing");
 
     // Separate active cubes to ensure non-adjacency if requested.
-    if (vdc_param.sep_isov_1)
+    if (vdc_param.sep)
     {
         timer.startTimer("Separation", "2. Data Pre-processing");
-        std::cout << "[INFO] Separation method I: Cube-level (26-connectivity)" << std::endl;
+        std::cout << "[INFO] Separation enabled (dist=" << vdc_param.sep_dist
+                  << ", split=" << vdc_param.sep_split << ")" << std::endl;
         std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
-        activeCubes = separate_active_cubes_I(activeCubes, data_grid, vdc_param.isovalue);
-        std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
-        timer.stopTimer("Separation", "2. Data Pre-processing");
-    }
-    else if (vdc_param.sep_isov_3)
-    {
-        timer.startTimer("Separation", "2. Data Pre-processing");
-        std::cout << "[INFO] Separation method III: 3×3×3 subgrid-based separation" << std::endl;
-        std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
-        activeCubes = separate_active_cubes_III(activeCubes, data_grid, vdc_param.isovalue);
-        std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
-        timer.stopTimer("Separation", "2. Data Pre-processing");
-    }
-    else if (vdc_param.sep_isov_3_wide)
-    {
-        timer.startTimer("Separation", "2. Data Pre-processing");
-        std::cout << "[INFO] Separation method III-wide: 3×3×3 subgrid with 5×5×5 clearance" << std::endl;
-        std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
-        activeCubes = separate_active_cubes_III_wide(activeCubes, data_grid, vdc_param.isovalue);
-        std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
-        timer.stopTimer("Separation", "2. Data Pre-processing");
-    }
-    else if (vdc_param.sep_isov_3B)
-    {
-        timer.startTimer("Separation", "2. Data Pre-processing");
-        std::cout << "[INFO] Separation method III-B: 3×3×3 subgrid with exact binary fractions" << std::endl;
-        std::cout << "  Original # of active cubes: " << activeCubes.size() << std::endl;
-        activeCubes = separate_active_cubes_III_exact_binary(activeCubes, data_grid, vdc_param.isovalue);
+        activeCubes = separate_active_cubes(
+            activeCubes, data_grid, vdc_param.isovalue, vdc_param.sep_dist, vdc_param.sep_split);
         std::cout << "  After separation: " << activeCubes.size() << " cubes" << std::endl;
         timer.stopTimer("Separation", "2. Data Pre-processing");
     }

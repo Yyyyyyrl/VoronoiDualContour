@@ -12,10 +12,8 @@ void print_help()
     std::cout << "  -off                        : Generate output in .off format (default).\n";
     std::cout << "  -ply                        : Generate output in .ply format.\n";
     std::cout << "  -out_csv {output_csv_name}  : Write the Voronoi diagram to a CSV file.\n";
-    std::cout << "  -sep_isov_1                 : Separation method I: Greedy cube-level (26-connectivity).\n";
-    std::cout << "  -sep_isov_3                 : Separation method III: 3×3×3 subgrid-based separation.\n";
-    std::cout << "  -sep_isov_3_wide            : Testing variant of method III using a 5×5×5 clearance in the 3× grid.\n";
-    std::cout << "  -sep_isov_3B                : Variation of method III using exact binary fractions (1/4, 1/2, 3/4).\n";
+    std::cout << "  -sep_dist {D}               : Separation distance in refined subcubes (default: 0 = off).\n";
+    std::cout << "  -sep_split {K}              : Number of splits per axis (refined factor K+1, default: 0).\n";
     std::cout << "  -supersample {factor}       : Supersample the input data by the given factor.\n";
     std::cout << "  -collapse_eps {eps}         : Set absolute collapse threshold in world units (default: 1% of grid spacing).\n";
     std::cout << "  -multi_isov                 : Use multi iso-vertices mode (default).\n";
@@ -45,6 +43,7 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
 
     // Parse optional arguments (those starting with '-').
     int i = 1;
+    bool sep_requested = false;
     while (i < argc && argv[i][0] == '-')
     {
         std::string arg = argv[i];
@@ -66,21 +65,15 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
             vp.out_csv = true;                // Enable CSV output.
             vp.out_csv_name = argv[++i];      // Set CSV output filename
         }
-        else if (arg == "-sep_isov_1")
+        else if (arg == "-sep_dist" && i + 1 < argc)
         {
-            vp.sep_isov_1 = true; // Enable separation method I (greedy cube-level).
+            vp.sep_dist = std::atoi(argv[++i]); // Separation distance in refined subcubes.
+            sep_requested = true;
         }
-        else if (arg == "-sep_isov_3")
+        else if (arg == "-sep_split" && i + 1 < argc)
         {
-            vp.sep_isov_3 = true; // Enable separation method III (3×3×3 subgrid).
-        }
-        else if (arg == "-sep_isov_3_wide")
-        {
-            vp.sep_isov_3_wide = true; // Enable widened clearance testing variant of method III.
-        }
-        else if (arg == "-sep_isov_3B")
-        {
-            vp.sep_isov_3B = true; // Enable sep_isov_3 with exact binary fractions.
+            vp.sep_split = std::atoi(argv[++i]); // Number of splits (K).
+            sep_requested = true;
         }
         else if (arg == "-supersample" && i + 1 < argc)
         {
@@ -170,6 +163,11 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
     vp.isovalue = std::atof(argv[i++]); // Parse isovalue as a floating-point number.
     vp.file_path = argv[i++];           // Parse the raw data file path.
 
+    // Normalize separation parameters
+    if (vp.sep_dist < 0) vp.sep_dist = 0;
+    if (vp.sep_split < 0) vp.sep_split = 0;
+    vp.sep = sep_requested || (vp.sep_dist > 0 || vp.sep_split > 0);
+
     // Generate default output filename if not specified.
     if (vp.output_filename.empty())
     {
@@ -197,21 +195,10 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
             vp.output_filename += "_sup" + std::to_string(vp.supersample_r);
         }
 
-        if (vp.sep_isov_1)
+        if (vp.sep)
         {
-            vp.output_filename += "_sep-isov-1";
-        }
-        else if (vp.sep_isov_3)
-        {
-            vp.output_filename += "_sep-isov-3";
-        }
-        else if (vp.sep_isov_3_wide)
-        {
-            vp.output_filename += "_sep-isov-3-wide";
-        }
-        else if (vp.sep_isov_3B)
-        {
-            vp.output_filename += "_sep-isov-3B";
+            vp.output_filename += "_sep-isov-" + std::to_string(vp.sep_dist)
+                                  + "-" + std::to_string(vp.sep_split);
         }
 
         if (vp.convex_hull)
