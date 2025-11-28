@@ -38,8 +38,8 @@ make -j
 - `-off`: Generate output in .off format (default)
 - `-ply`: Generate output in .ply format
 - `-out_csv {output_csv_name}`: Write the Voronoi diagram to a CSV file
-- `-sep_dist {D}`: Separation distance (D) in refined subcubes (default 0 = off)
-- `-sep_split {K}`: Number of splits (K) per axis, using a refined grid of factor K+1 (default 0)
+- `-sep_dist {D}`: Separation distance (D) in cubes/refined subcubes (default 1 = off)
+- `-sep_split {K}`: Number of splits (K) per axis, using a refined grid of factor K+1 (default 0 = no split)
 - `-supersample {factor}`: Supersample the input data by the given factor
 - `-collapse_eps {eps}`: Set absolute collapse threshold in world units (default: 1% of grid spacing)
 - `-multi_isov`: Use multi iso-vertices mode (default)
