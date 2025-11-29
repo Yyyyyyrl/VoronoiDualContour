@@ -1,6 +1,7 @@
 #include "core/vdc_commandline.h"
 #include "core/vdc_debug.h"
 
+#include <cstdlib>
 #include <filesystem>
 
 //! Prints the help message for the program.
@@ -21,8 +22,9 @@ void print_help()
     std::cout << "  -no_clip                    : Disable centroid clipping for multi-cycle iso-vertices.\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  -non_modcyc                 : Disable modify-cycles pass (enabled by default).\n";
-    std::cout << "  -refine_small_angles        : Enable facet-centric refinement to improve small angles.\n";
-    std::cout << "  -refine_min_angle {deg}     : Small-angle threshold (deg) to trigger refinement (default: 20).\n";
+    std::cout << "  -refine_small_angles        : Enable facet-centric refinement to improve surface angles.\n";
+    std::cout << "  -min_angle [deg]            : Min-angle threshold to trigger refinement (default: 20 if omitted).\n";
+    std::cout << "  -max_angle [deg]            : Max-angle threshold to trigger refinement (default: 120 if omitted).\n";
     std::cout << "  -refine_insert_res {n}      : Insertion resolution: 1=cube, 2=2x2x2, 3=3x3x3 (default: 2).\n";
     std::cout << "  -summary_stats              : Print summary statistics after the run.\n";
     std::cout << "  -timing_stats               : Print timing statistics after the run.\n";
@@ -41,9 +43,26 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         exit(EXIT_FAILURE);
     }
 
+    bool mina = false;
+    bool maxa = false;
     // Parse optional arguments (those starting with '-').
     int i = 1;
     bool sep_requested = false;
+    auto parse_optional_double = [&](int arg_index, double fallback, double &value) -> bool
+    {
+        if (arg_index < argc)
+        {
+            char *endptr = nullptr;
+            const double parsed = std::strtod(argv[arg_index], &endptr);
+            if (endptr != argv[arg_index] && *endptr == '\0')
+            {
+                value = parsed;
+                return true;
+            }
+        }
+        value = fallback;
+        return false;
+    };
     while (i < argc && argv[i][0] == '-')
     {
         std::string arg = argv[i];
@@ -117,10 +136,31 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         {
             vp.refine_small_angles = true;
         }
-
-        else if ((arg == "-refine_min_angle") && i + 1 < argc)
+        else if (arg == "-min_angle")
         {
-            vp.refine_min_surface_angle_deg = std::atof(argv[++i]);
+            double angle_value = vp.refine_min_surface_angle_deg;
+            bool consumed = parse_optional_double(i + 1, 20.0, angle_value);
+            if (consumed)
+            {
+                ++i;
+            }
+            vp.refine_min_surface_angle_deg = angle_value;
+            vp.refine_min_angle_enabled = true;
+            vp.refine_small_angles = true;
+            mina = true;
+        }
+        else if (arg == "-max_angle")
+        {
+            double angle_value = (vp.refine_max_surface_angle_deg > 0.0) ? vp.refine_max_surface_angle_deg : 120.0;
+            bool consumed = parse_optional_double(i + 1, 120.0, angle_value);
+            if (consumed)
+            {
+                ++i;
+            }
+            vp.refine_max_surface_angle_deg = angle_value;
+            vp.refine_max_angle_enabled = true;
+            vp.refine_small_angles = true;
+            maxa = true;
         }
         else if (arg == "-refine_insert_res" && i + 1 < argc)
         {
@@ -193,8 +233,8 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
 
         if (vp.sep)
         {
-            vp.output_filename += "_sep-isov-" + std::to_string(vp.sep_dist)
-                                  + "-" + std::to_string(vp.sep_split);
+            vp.output_filename += "_sep-isov-D" + std::to_string(vp.sep_dist)
+                                  + "-S" + std::to_string(vp.sep_split);
         }
 
         if (vp.convex_hull)
@@ -210,6 +250,12 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         if (vp.refine_small_angles)
         {
             vp.output_filename += "_refine";
+            if (mina) {
+                vp.output_filename += "-min" + std::to_string(static_cast<int>(vp.refine_min_surface_angle_deg));
+            }
+            if (maxa) {
+                vp.output_filename += "-max" + std::to_string(static_cast<int>(vp.refine_max_surface_angle_deg));
+            }
         }
         
         if (vp.noclip)

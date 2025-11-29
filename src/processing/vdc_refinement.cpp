@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 #include <vector>
 #include <set>
 #include <CGAL/squared_distance_3.h>
@@ -13,28 +14,44 @@
 
 constexpr double kPi = 3.14159265358979323846;
 
-// Helper: Compute minimum angle of a triangle in degrees
-static double min_triangle_angle_deg(const Point &a, const Point &b, const Point &c)
+// Helper: Compute minimum and maximum angles of a triangle in degrees
+static std::pair<double, double> triangle_angle_extents_deg(const Point &a, const Point &b, const Point &c)
 {
-    auto angle_at = [](const Point &p, const Point &q1, const Point &q2) -> double
+    const Vector3 ab = b - a;
+    const Vector3 ac = c - a;
+    const Vector3 bc = c - b;
+
+    const double ab_sq = ab.squared_length();
+    const double ac_sq = ac.squared_length();
+    const double bc_sq = bc.squared_length();
+    const double eps = std::numeric_limits<double>::epsilon();
+    if (ab_sq <= eps || ac_sq <= eps || bc_sq <= eps)
     {
-        Vector3 v1 = q1 - p;
-        Vector3 v2 = q2 - p;
-        const double len1 = std::sqrt(v1.squared_length());
-        const double len2 = std::sqrt(v2.squared_length());
-        if (len1 <= std::numeric_limits<double>::epsilon() || len2 <= std::numeric_limits<double>::epsilon())
-        {
-            return 0.0;
-        }
-        double cos_theta = (v1 * v2) / (len1 * len2);
+        return {0.0, 0.0};
+    }
+
+    const double ab_len = std::sqrt(ab_sq);
+    const double ac_len = std::sqrt(ac_sq);
+    const double bc_len = std::sqrt(bc_sq);
+
+    const double dot_ab_ac = ab * ac;
+    const double dot_ab_bc = ab * bc;
+    const double dot_ac_bc = ac * bc;
+
+    auto angle_deg = [](double dot, double len1, double len2) -> double
+    {
+        double cos_theta = dot / (len1 * len2);
         cos_theta = std::max(-1.0, std::min(1.0, cos_theta));
         return std::acos(cos_theta) * 180.0 / kPi;
     };
 
-    double a0 = angle_at(a, b, c);
-    double a1 = angle_at(b, a, c);
-    double a2 = angle_at(c, a, b);
-    return std::min({a0, a1, a2});
+    const double angle_a = angle_deg(dot_ab_ac, ab_len, ac_len);
+    const double angle_b = angle_deg(-dot_ab_bc, ab_len, bc_len);
+    const double angle_c = angle_deg(dot_ac_bc, ac_len, bc_len);
+
+    const double min_angle = std::min({angle_a, angle_b, angle_c});
+    const double max_angle = std::max({angle_a, angle_b, angle_c});
+    return {min_angle, max_angle};
 }
 
 // Helper: Check if a facet has a dummy vertex
@@ -147,12 +164,31 @@ RefinementStats refine_delaunay(Delaunay &dt,
         return stats;
     }
 
-    const double angle_threshold = params.refine_min_surface_angle_deg;
+    bool use_min_angle = params.refine_min_angle_enabled;
+    bool use_max_angle = params.refine_max_angle_enabled;
+    double min_angle_threshold = params.refine_min_surface_angle_deg;
+    double max_angle_threshold = params.refine_max_surface_angle_deg;
+
+    if (use_min_angle && min_angle_threshold <= 0.0)
+    {
+        min_angle_threshold = 20.0;
+    }
+    if (use_max_angle && max_angle_threshold <= 0.0)
+    {
+        max_angle_threshold = 120.0;
+    }
+    if (!use_min_angle && !use_max_angle)
+    {
+        use_max_angle = true;
+        if (max_angle_threshold <= 0.0)
+        {
+            max_angle_threshold = 120.0;
+        }
+    }
     const int insert_resolution = params.refine_insert_resolution;
     const float isovalue = params.isovalue;
-    
 
-    const int max_iterations = 10; 
+    const int max_iterations = 10;
 
     int vertex_index = next_vertex_index(dt);
 
@@ -179,13 +215,25 @@ RefinementStats refine_delaunay(Delaunay &dt,
             const Point p1 = cell->vertex(CellInfo::FacetVertexIndex(facet_index, 1))->point();
             const Point p2 = cell->vertex(CellInfo::FacetVertexIndex(facet_index, 2))->point();
 
-            // Check min angle
-            double min_angle = min_triangle_angle_deg(p0, p1, p2);
-            if (min_angle >= angle_threshold)
+            const auto [min_angle, max_angle] = triangle_angle_extents_deg(p0, p1, p2);
+            bool trigger = false;
+            if (use_min_angle && use_max_angle)
+            {
+                trigger = (min_angle < min_angle_threshold) || (max_angle >= max_angle_threshold);
+            }
+            else if (use_min_angle)
+            {
+                trigger = (min_angle < min_angle_threshold);
+            }
+            else if (use_max_angle)
+            {
+                trigger = (max_angle >= max_angle_threshold);
+            }
+            if (!trigger)
             {
                 continue;
             }
-            
+
             ++stats.candidate_facets;
 
             // Compute dual Voronoi edge

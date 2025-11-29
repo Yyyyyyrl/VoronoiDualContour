@@ -11,16 +11,18 @@
 struct RefinementStats
 {
     int iterations_run = 0;            //!< Number of refinement iterations executed.
-    std::size_t candidate_facets = 0;  //!< Facets with min angle below threshold.
+    std::size_t candidate_facets = 0;  //!< Facets matching angle criteria.
     std::size_t bipolar_facets = 0;    //!< Those whose dual Voronoi edge is bipolar.
     std::size_t inserted_points = 0;   //!< Points actually inserted into the Delaunay.
 };
 
 //! @brief Refine poorly shaped facets whose dual Voronoi edge is bipolar.
 /*!
- * Scans finite Delaunay facets, checks their minimum corner angle, and if the
+ * Scans finite Delaunay facets, checks their corner angles, and if the
  * dual Voronoi edge is bipolar with respect to the target isovalue, inserts a
- * new vertex snapped to the nearest active cube (or subcell).
+ * new vertex snapped to the nearest active cube (or subcell). Refinement
+ * triggers when the minimum angle drops below the configured threshold or the
+ * maximum angle exceeds the user-provided limit.
  *
  * @param dt Delaunay triangulation to refine (modified in place).
  * @param grid Scalar grid used for value interpolation.

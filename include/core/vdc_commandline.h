@@ -32,12 +32,15 @@ struct VdcParam {
     bool timing_stats = false;     //!< Guard: print timing statistics at the end of the run
     bool check_bipolar_max = false; //!< Guard: check and report maximum bipolar matches per facet
     bool refine_small_angles = false; //!< Guard: enable facet-centric surface refinement
+    bool refine_min_angle_enabled = false; //!< Guard: enable min-angle-driven refinement
+    bool refine_max_angle_enabled = false; //!< Guard: enable max-angle-driven refinement
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
     double collapse_eps;           //!< Absolute collapse threshold in world units (optional).
     int sep_dist;                  //!< Separation clearance measured in subcubes.
     int sep_split;                 //!< Number of splits (K) for refined subgrid (factor = K+1).
-    double refine_min_surface_angle_deg; //!< Target min surface angle (deg) for optional continuous refinement
+    double refine_min_surface_angle_deg; //!< Target min surface angle (deg) for optional refinement
+    double refine_max_surface_angle_deg; //!< Target max surface angle (deg) triggering refinement when large
     int refine_insert_resolution;        //!< 1=cube center, 2=2x2x2, 3=3x3x3 subcell
     double refine_min_spacing;           //!< Min distance to existing vertices (world units); <0 auto derives
     int refine_max_iterations;           //!< Max refinement iterations
@@ -66,7 +69,10 @@ struct VdcParam {
           timing_stats(false),
           check_bipolar_max(false),
           refine_small_angles(false),
+          refine_min_angle_enabled(false),
+          refine_max_angle_enabled(false),
           refine_min_surface_angle_deg(20.0),
+          refine_max_surface_angle_deg(-1.0),
           refine_insert_resolution(3),
           refine_min_spacing(-1.0),
           refine_max_iterations(1),
@@ -97,7 +103,10 @@ struct VdcParam {
         out << "  Supersample r: " << supersample_r << "\n";
         out << "  Collapse eps: " << collapse_eps << "\n";
         out << "  Refine small angles: " << (refine_small_angles ? "true" : "false") << "\n";
+        out << "  Refine min-angle enabled: " << (refine_min_angle_enabled ? "true" : "false") << "\n";
         out << "  Refine min surface angle (deg): " << refine_min_surface_angle_deg << "\n";
+        out << "  Refine max-angle enabled: " << (refine_max_angle_enabled ? "true" : "false") << "\n";
+        out << "  Refine max surface angle (deg): " << refine_max_surface_angle_deg << "\n";
         out << "  Refine insert resolution: " << refine_insert_resolution << "\n";
         out << "  Refine min spacing: " << refine_min_spacing << "\n";
         out << "  Refine max iterations: " << refine_max_iterations << "\n";
