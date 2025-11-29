@@ -44,6 +44,10 @@ make -j
 - `-collapse_eps {eps}`: Set absolute collapse threshold in world units (default: 1% of grid spacing)
 - `-multi_isov`: Use multi iso-vertices mode (default)
 - `-single_isov`: Use single iso-vertices mode
+- `-refine_small_angles`: Enable angle-based refinement (defaults to max-angle 120° if no thresholds are provided)
+- `-min_angle [deg]`: Min-angle threshold to trigger refinement (default 20° if omitted)
+- `-max_angle [deg]`: Max-angle threshold to trigger refinement (default 120° if omitted)
+- `-refine_insert_res {n}`: Insertion snapping resolution: 1=cube center, 2=2×2×2, 3=3×3×3 (default 2)
 - `-conv_H`: Use the Convex_Hull_3 from CGAL in voronoi cell construction
 - `-non_modcyc`: Disable modify-cycles pass (enabled by default)
 - `-summary_stats`: Print summary statistics after the run
@@ -75,6 +79,26 @@ Advanced/debug options (subject to change):
 - Disable modify-cycles with summary and timing statistics:
   ```bash
   ./vdc -non_modcyc -summary_stats -timing_stats 0.0 ./data/sphere-32.nrrd
+  ```
+- Refine using default max-angle trigger (120°) and higher insertion resolution:
+  ```bash
+  ./vdc -refine_small_angles -refine_insert_res 3 0.0 ./data/sphere-32.nrrd
+  ```
+- Refine only small angles (<25°) while ignoring large-angle criterion:
+  ```bash
+  ./vdc -min_angle 25 0.0 ./data/sphere-32.nrrd
+  ```
+- Require both small and large angle checks (<25° and >=130°) on bipolar facets:
+  ```bash
+  ./vdc -min_angle 25 -max_angle 130 0.0 ./data/sphere-32.nrrd
+  ```
+- Separation with finer subgrid while keeping default multi-isov mode:
+  ```bash
+  ./vdc -sep_dist 1 -sep_split 3 0.0 ./data/sphere-32.nrrd
+  ```
+- Single iso-vertices plus separation and angle refinement:
+  ```bash
+  ./vdc -single_isov -sep_dist 2 -sep_split 2 -min_angle -max_angle 0.0 ./data/sphere-32.nrrd
   ```
 
 
