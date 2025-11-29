@@ -22,7 +22,7 @@ void print_help()
     std::cout << "  -no_clip                    : Disable centroid clipping for multi-cycle iso-vertices.\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  -non_modcyc                 : Disable modify-cycles pass (enabled by default).\n";
-    std::cout << "  -refine_small_angles        : Enable facet-centric refinement to improve surface angles.\n";
+    std::cout << "  -refine_small_angles        : Enable angle-based refinement (defaults to max-angle 120 if no thresholds given).\n";
     std::cout << "  -min_angle [deg]            : Min-angle threshold to trigger refinement (default: 20 if omitted).\n";
     std::cout << "  -max_angle [deg]            : Max-angle threshold to trigger refinement (default: 120 if omitted).\n";
     std::cout << "  -refine_insert_res {n}      : Insertion resolution: 1=cube, 2=2x2x2, 3=3x3x3 (default: 2).\n";
