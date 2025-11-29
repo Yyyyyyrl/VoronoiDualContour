@@ -1155,4 +1155,27 @@ ModifyCyclesResult modify_cycles_pass(VoronoiDiagram &vd, float isovalue);
  * @param output_filename Path of the mesh file; determines the dump file name
  */
 void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename);
+
+//! @brief Writes a single Voronoi cell to an OFF file for debugging.
+/*!
+ * The OFF file contains the cell-local vertex list followed by facets that
+ * reference those local indices. Facets are oriented according to the cell’s
+ * stored orientation.
+ *
+ * @param vd Voronoi diagram containing the cell
+ * @param icell Index of the Voronoi cell to export
+ * @param output_filename Destination OFF filename
+ */
+void write_voronoi_cell(const VoronoiDiagram &vd, int icell, const std::string &output_filename);
+
+//! @brief Writes multiple Voronoi cells to OFF files for debugging.
+/*!
+ * Generates one OFF file per requested cell. The provided filename is used as a
+ * base; each output appends `_cell<index>` before the extension.
+ *
+ * @param vd Voronoi diagram containing the cells
+ * @param cell_indices Indices of the Voronoi cells to export
+ * @param output_filename Base filename (extension reused or default .off)
+ */
+void write_voronoi_cell(const VoronoiDiagram &vd, const std::vector<int> &cell_indices, const std::string &output_filename);
 #endif

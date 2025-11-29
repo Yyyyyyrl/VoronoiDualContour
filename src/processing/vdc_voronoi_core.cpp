@@ -906,3 +906,138 @@ void write_voronoiDiagram(VoronoiDiagram &vd, std::string &output_filename)
     file.close();
     std::cout << "voronoi diagram saved to " << txt_filename << "\n";
 }
+
+void write_voronoi_cell(const VoronoiDiagram &vd, int icell, const std::string &output_filename)
+{
+    if (icell < 0 || icell >= static_cast<int>(vd.cells.size()))
+    {
+        std::cerr << "Invalid Voronoi cell index: " << icell << "\n";
+        return;
+    }
+
+    const VoronoiCell &cell = vd.cells[icell];
+
+    std::unordered_map<int, int> global_to_local;
+    global_to_local.reserve(cell.verticesIndices.size());
+    std::vector<Point> local_vertices;
+    local_vertices.reserve(cell.verticesIndices.size());
+
+    for (int global_idx : cell.verticesIndices)
+    {
+        if (global_idx < 0 || global_idx >= static_cast<int>(vd.vertices.size()))
+        {
+            std::cerr << "Skipping invalid vertex " << global_idx << " in cell " << icell << "\n";
+            continue;
+        }
+        const int local_idx = static_cast<int>(local_vertices.size());
+        global_to_local[global_idx] = local_idx;
+        local_vertices.push_back(vd.vertices[global_idx].coord);
+    }
+
+    if (local_vertices.empty())
+    {
+        std::cerr << "Voronoi cell " << icell << " has no valid vertices to write.\n";
+        return;
+    }
+
+    std::vector<std::vector<int>> facets;
+    facets.reserve(cell.facetIndices.size());
+    for (int cf_idx : cell.facetIndices)
+    {
+        if (cf_idx < 0 || cf_idx >= static_cast<int>(vd.cell_facets.size()))
+        {
+            std::cerr << "Skipping invalid facet " << cf_idx << " in cell " << icell << "\n";
+            continue;
+        }
+
+        std::vector<int> facet_vertices;
+        const VoronoiCellFacet &cell_facet = vd.cell_facets[cf_idx];
+        if (cell_facet.voronoi_facet_index >= 0 &&
+            cell_facet.voronoi_facet_index < static_cast<int>(vd.surface_facets.size()))
+        {
+            facet_vertices = vd.get_vertices_for_facet(cf_idx);
+        }
+        else
+        {
+            facet_vertices = cell_facet.verticesIndices;
+            if (cell_facet.orientation == -1)
+            {
+                std::reverse(facet_vertices.begin(), facet_vertices.end());
+            }
+        }
+        std::vector<int> local_indices;
+        local_indices.reserve(facet_vertices.size());
+
+        bool missing_vertex = false;
+        for (int gv : facet_vertices)
+        {
+            auto it = global_to_local.find(gv);
+            if (it == global_to_local.end())
+            {
+                std::cerr << "Facet " << cf_idx << " references vertex " << gv
+                          << " not found in cell " << icell << "\n";
+                missing_vertex = true;
+                break;
+            }
+            local_indices.push_back(it->second);
+        }
+
+        if (!missing_vertex && local_indices.size() >= 3)
+        {
+            facets.push_back(std::move(local_indices));
+        }
+    }
+
+    std::ofstream out(output_filename);
+    if (!out)
+    {
+        std::cerr << "Cannot open file for writing Voronoi cell: " << output_filename << "\n";
+        return;
+    }
+
+    out << "OFF\n";
+    out << local_vertices.size() << " " << facets.size() << " 0\n";
+
+    for (const Point &p : local_vertices)
+    {
+        out << p.x() << " " << p.y() << " " << p.z() << "\n";
+    }
+
+    for (const auto &facet : facets)
+    {
+        out << facet.size();
+        for (int idx : facet)
+        {
+            out << " " << idx;
+        }
+        out << "\n";
+    }
+
+    std::cout << "Voronoi cell " << icell << " written to " << output_filename << "\n";
+}
+
+void write_voronoi_cell(const VoronoiDiagram &vd, const std::vector<int> &cell_indices, const std::string &output_filename)
+{
+    if (cell_indices.empty())
+    {
+        std::cerr << "No Voronoi cell indices provided for export.\n";
+        return;
+    }
+
+    std::string dir = get_directory(output_filename);
+    std::string base = get_basename_without_ext(output_filename);
+    std::string ext = ".off";
+
+    size_t dot_pos = output_filename.find_last_of('.');
+    if (dot_pos != std::string::npos)
+    {
+        ext = output_filename.substr(dot_pos);
+    }
+
+    for (int idx : cell_indices)
+    {
+        std::ostringstream fname;
+        fname << dir << base << "_cell" << idx << ext;
+        write_voronoi_cell(vd, idx, fname.str());
+    }
+}
