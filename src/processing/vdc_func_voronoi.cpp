@@ -473,9 +473,9 @@ static bool build_facet_from_edge(
     facet_indices.push_back(facetIndex);
 
     // Get the global Delaunay edge index from CellInfo and link mirror facets inline
-    int ci = cell_ed->index(v1);
-    int cj = cell_ed->index(v2);
-    int edge_id = cell_ed->info().edge_index[ci][cj];
+    const int ci = cell_ed->index(v1);
+    const int cj = cell_ed->index(v2);
+    const int edge_id = cell_ed->info().edge_index[ci][cj];
 
     if (edge_id >= 0 && edge_id < static_cast<int>(vor_facet_dual_to_edge.size()))
     {
@@ -895,7 +895,10 @@ namespace
 //! @brief Validates facet orientation using only combinatorial information with a single geometric anchor per component.
 void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
 {
+    TimingStats& timer = TimingStats::getInstance();
+    timer.startTimer("Facet orientation prep", "Validate facet orientations");
     const auto facetToCell = build_facet_to_cell_map(voronoiDiagram);
+    timer.stopTimer("Facet orientation prep", "Validate facet orientations");
 
     for (size_t cellIdx = 0; cellIdx < voronoiDiagram.cells.size(); ++cellIdx)
     {
@@ -903,13 +906,23 @@ void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
         if (cell.facetIndices.size() < 2)
             continue;
 
+        timer.startTimer("Audit cell edges", "Validate facet orientations");
         if (!audit_cell_edge_orientation(cellIdx, voronoiDiagram))
         {
+            timer.stopTimer("Audit cell edges", "Validate facet orientations");
+            timer.startTimer("Propagate within cell", "Validate facet orientations");
             propagate_facets_within_cell(cellIdx, voronoiDiagram);
+            timer.stopTimer("Propagate within cell", "Validate facet orientations");
+        }
+        else
+        {
+            timer.stopTimer("Audit cell edges", "Validate facet orientations");
         }
     }
 
+    timer.startTimer("Propagate between cells", "Validate facet orientations");
     propagate_orientation_between_cells(voronoiDiagram, facetToCell);
+    timer.stopTimer("Propagate between cells", "Validate facet orientations");
 }
 
 //! @brief Constructs Voronoi cells without using Convex_Hull_3 (in development).
