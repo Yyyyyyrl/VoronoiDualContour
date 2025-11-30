@@ -635,38 +635,48 @@ namespace
             return;
 
         const size_t num_facets = cell.facetIndices.size();
-        std::vector<std::map<size_t, std::pair<int, int>>> adjacency(num_facets);
 
+        // Precompute edge maps for each facet (vector of (key,index)).
+        std::vector<std::vector<std::pair<std::pair<int,int>, size_t>>> facetEdges(num_facets);
         for (size_t i = 0; i < num_facets; ++i)
         {
             const int f1 = cell.facetIndices[i];
-                const auto &verts1 = vd.cell_facets[f1].verticesIndices;
-            std::map<std::pair<int, int>, size_t> edges1;
+            const auto &verts1 = vd.cell_facets[f1].verticesIndices;
+            auto &edges1 = facetEdges[i];
+            edges1.reserve(verts1.size());
             for (size_t j = 0; j < verts1.size(); ++j)
             {
                 const int u = verts1[j];
                 const int v = verts1[(j + 1) % verts1.size()];
-                edges1[get_edge_key(u, v)] = j;
+                edges1.push_back({get_edge_key(u, v), j});
             }
+        }
 
+        // Build adjacency (sparse, up to ~num_facets^2 for small cells).
+        std::vector<std::map<size_t, std::pair<int, int>>> adjacency(num_facets);
+        for (size_t i = 0; i < num_facets; ++i)
+        {
+            const auto &edges1 = facetEdges[i];
             for (size_t k = i + 1; k < num_facets; ++k)
             {
-                const int f2 = cell.facetIndices[k];
-                const auto &verts2 = vd.cell_facets[f2].verticesIndices;
+                const auto &edges2 = facetEdges[k];
                 std::pair<int, int> shared = {-1, -1};
                 int shared_count = 0;
 
-                for (size_t j = 0; j < verts2.size(); ++j)
+                for (const auto &e2 : edges2)
                 {
-                    const int u = verts2[j];
-                    const int v = verts2[(j + 1) % verts2.size()];
-                    auto key = get_edge_key(u, v);
-                    if (edges1.count(key))
+                    for (const auto &e1 : edges1)
                     {
-                        shared = key;
-                        if (++shared_count > 1)
-                            break; // only consider true neighbors sharing a single edge
+                        if (e1.first == e2.first)
+                        {
+                            shared = e1.first;
+                            ++shared_count;
+                            if (shared_count > 1)
+                                break;
+                        }
                     }
+                    if (shared_count > 1)
+                        break;
                 }
 
                 if (shared_count == 1)
@@ -730,13 +740,11 @@ namespace
         if (cell.facetIndices.empty())
             return true;
 
-        struct EdgeInfo
-        {
-            int count = 0;
-            int orientationSum = 0;
-        };
-
-        std::map<std::pair<int, int>, EdgeInfo> usage;
+        // Avoid std::map overhead: typical facet count per cell is small.
+        // Build a flat list of edges then sort/aggregate.
+        struct EdgeKey { int a; int b; int step; };
+        std::vector<EdgeKey> edges;
+        edges.reserve(cell.facetIndices.size() * 4);
 
         for (int fi : cell.facetIndices)
         {
@@ -752,28 +760,44 @@ namespace
                 if (u == v)
                     continue;
 
-                const std::pair<int, int> key{std::min(u, v), std::max(u, v)};
-                const int step = (key.first == u && key.second == v) ? +1 : -1;
-                EdgeInfo &info = usage[key];
-                info.count += 1;
-                info.orientationSum += step;
+                const int a = std::min(u, v);
+                const int b = std::max(u, v);
+                const int step = (a == u && b == v) ? +1 : -1;
+                edges.push_back({a, b, step});
             }
         }
 
-        for (const auto &kv : usage)
+        // Aggregate by (a,b)
+        std::sort(edges.begin(), edges.end(), [](const EdgeKey &x, const EdgeKey &y) {
+            return (x.a < y.a) || (x.a == y.a && x.b < y.b);
+        });
+
+        for (size_t i = 0; i < edges.size();)
         {
-            const EdgeInfo &info = kv.second;
-            if (info.count != 2 || info.orientationSum != 0)
+            const int a = edges[i].a;
+            const int b = edges[i].b;
+            int count = 0;
+            int orientationSum = 0;
+            size_t j = i;
+            while (j < edges.size() && edges[j].a == a && edges[j].b == b)
+            {
+                count += 1;
+                orientationSum += edges[j].step;
+                ++j;
+            }
+
+            if (count != 2 || orientationSum != 0)
             {
                 if (debug)
                 {
                     std::cerr << "[DEBUG] Cell " << cell.cellIndex
                               << " has inconsistent facet orientation along edge {"
-                              << kv.first.first << "," << kv.first.second << "}: count="
-                              << info.count << " orientSum=" << info.orientationSum << "\n";
+                              << a << "," << b << "}: count="
+                              << count << " orientSum=" << orientationSum << "\n";
                 }
                 return false;
             }
+            i = j;
         }
         return true;
     }
