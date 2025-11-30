@@ -27,50 +27,35 @@ using EdgeFacetMap = std::unordered_map<std::pair<int, int>, std::vector<int>, P
  */
 static int assign_delaunay_edge_indices(Delaunay &dt)
 {
+    // Finite edges iterator guarantees each edge is visited exactly once
+    // (with finite endpoints), so no per-vertex filtering is needed.
     int num_del_edges = 0;
 
-    for (Delaunay::Finite_vertices_iterator vit = dt.finite_vertices_begin();
-         vit != dt.finite_vertices_end(); ++vit)
+    for (auto eit = dt.finite_edges_begin(); eit != dt.finite_edges_end(); ++eit)
     {
-        Vertex_handle v = vit;
+        const Edge &ed = *eit;
+        Cell_handle cell = ed.first;
+        int i = ed.second;
+        int j = ed.third;
+        Vertex_handle v1 = cell->vertex(i);
+        Vertex_handle v2 = cell->vertex(j);
 
-        std::vector<Edge> incidentEdges;
-        incidentEdges.reserve(32);
-        dt.incident_edges(v, std::back_inserter(incidentEdges));
+        const int edge_id = num_del_edges++;
 
-        for (const Edge &ed : incidentEdges)
+        // Store the edge id into every incident cell (skip infinite ones).
+        Delaunay::Cell_circulator cc = dt.incident_cells(ed);
+        Delaunay::Cell_circulator start = cc;
+        do
         {
-            Cell_handle cell = ed.first;
-            int i = ed.second;
-            int j = ed.third;
-            Vertex_handle v1 = cell->vertex(i);
-            Vertex_handle v2 = cell->vertex(j);
-
-            // Process each edge only once: when current vertex has minimum index
-            int idx1 = v1->info().index;
-            int idx2 = v2->info().index;
-            int min_idx = std::min(idx1, idx2);
-
-            if (v->info().index != min_idx)
-                continue;
-
-            int edge_id = num_del_edges++;
-
-            // Store in all incident cells
-            Delaunay::Cell_circulator cc = dt.incident_cells(ed);
-            Delaunay::Cell_circulator start = cc;
-            do
+            if (!dt.is_infinite(cc))
             {
-                if (!dt.is_infinite(cc))
-                {
-                    int ci1 = cc->index(v1);
-                    int ci2 = cc->index(v2);
-                    cc->info().edge_index[ci1][ci2] = edge_id;
-                    cc->info().edge_index[ci2][ci1] = edge_id;
-                }
-                ++cc;
-            } while (cc != start);
-        }
+                const int ci1 = cc->index(v1);
+                const int ci2 = cc->index(v2);
+                cc->info().edge_index[ci1][ci2] = edge_id;
+                cc->info().edge_index[ci2][ci1] = edge_id;
+            }
+            ++cc;
+        } while (cc != start);
     }
 
     return num_del_edges;
@@ -932,8 +917,12 @@ void validate_facet_orientations_and_normals(VoronoiDiagram &voronoiDiagram)
  */
 void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoiDiagram, Delaunay &dt)
 {
+    TimingStats& timer = TimingStats::getInstance();
+
     // Assign global indices to all Delaunay edges (stored in CellInfo.edge_index)
+    timer.startTimer("Assign Delaunay edge indices", "Construct Voronoi cells");
     int num_del_edges = assign_delaunay_edge_indices(dt);
+    timer.stopTimer("Assign Delaunay edge indices", "Construct Voronoi cells");
 
     // Use a vector indexed by edge ID to track Voronoi facets for mirror linking
     // -1 means no facet yet created for this edge
@@ -942,6 +931,7 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
     voronoiDiagram.cells.reserve(dt.number_of_vertices());
     int cellIndex = 0;
 
+    timer.startTimer("Build Voronoi cells", "Construct Voronoi cells");
     for (Vertex_handle v : dt.finite_vertex_handles())
     {
         if (v->info().is_dummy)
@@ -962,6 +952,7 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
             cellIndex++;
         }
     }
+    timer.stopTimer("Build Voronoi cells", "Construct Voronoi cells");
 
     // Mirror facet linking is now done inline in build_facet_from_edge()
     // No need for final loop over EdgeFacetMap
@@ -1165,7 +1156,8 @@ static void build_cell_edges(
     for (size_t edgeIdx = 0; edgeIdx < voronoiDiagram.edges.size(); ++edgeIdx)
     {
         const std::vector<Facet> &sharedFacets = voronoiDiagram.edges[edgeIdx].delaunayFacets;
-        std::unordered_set<int> seenCells;  // Local per-edge, cleared automatically each iteration
+        std::vector<int> seenCells; // Local per-edge, small; avoids hash overhead
+        seenCells.reserve(8);
 
         for (const Facet &f : sharedFacets)
         {
@@ -1185,9 +1177,9 @@ static void build_cell_edges(
                     int cellIdx = delaunay_vertex->info().voronoiCellIndex;
 
                     // Check if this cell was already processed for this edge
-                    if (seenCells.find(cellIdx) == seenCells.end())
+                    if (std::find(seenCells.begin(), seenCells.end(), cellIdx) == seenCells.end())
                     {
-                        seenCells.insert(cellIdx);
+                        seenCells.push_back(cellIdx);
 
                         // Create cell edge immediately
                         VoronoiCellEdge cellEdge;
@@ -1219,21 +1211,26 @@ static void build_cell_edges(
 static void link_cell_edges(
     VoronoiDiagram &voronoiDiagram)
 {
-    std::unordered_map<int, std::vector<int>> edgeIdx_to_cellEdges;
-    for (int ceIdx = 0; ceIdx < (int)voronoiDiagram.cellEdges.size(); ++ceIdx)
+    const size_t edgeCount = voronoiDiagram.edges.size();
+    std::vector<std::vector<int>> edge_to_cellEdges(edgeCount);
+
+    for (int ceIdx = 0; ceIdx < static_cast<int>(voronoiDiagram.cellEdges.size()); ++ceIdx)
     {
         const VoronoiCellEdge &ce = voronoiDiagram.cellEdges[ceIdx];
-        edgeIdx_to_cellEdges[ce.edgeIndex].push_back(ceIdx);
+        if (ce.edgeIndex < 0 || ce.edgeIndex >= static_cast<int>(edgeCount))
+            continue;
+        edge_to_cellEdges[static_cast<size_t>(ce.edgeIndex)].push_back(ceIdx);
     }
 
-    for (auto &kv : edgeIdx_to_cellEdges)
+    for (auto &cellEdgeIndices : edge_to_cellEdges)
     {
-        auto &cellEdgeIndices = kv.second;
-        int N = (int)cellEdgeIndices.size();
-        for (int i = 0; i < N; i++)
+        const int N = static_cast<int>(cellEdgeIndices.size());
+        if (N == 0)
+            continue;
+        for (int i = 0; i < N; ++i)
         {
-            int ceIdx = cellEdgeIndices[i];
-            int nextIdx = cellEdgeIndices[(i + 1) % N];
+            const int ceIdx = cellEdgeIndices[i];
+            const int nextIdx = cellEdgeIndices[(i + 1) % N]; // ring (N==1 => self loop)
             voronoiDiagram.cellEdges[ceIdx].nextCellEdge = nextIdx;
         }
     }
