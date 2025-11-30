@@ -338,7 +338,10 @@ static bool build_facet_from_edge(
     std::vector<int> &facet_indices,
     std::vector<int> &vor_facet_dual_to_edge,
     int vcIdx,
-    VoronoiCellFacet &outFacet)
+    VoronoiCellFacet &outFacet,
+    std::vector<int> &facetVerticesScratch,
+    std::vector<int> &vorVertexScratch,
+    std::vector<Facet> &delaunayFacetScratch)
 {
     Cell_handle cell_ed = ed.first;
     int ei = ed.second;
@@ -349,9 +352,12 @@ static bool build_facet_from_edge(
     (void)delaunay_vertex;
     (void)vcIdx;
 
+    facetVerticesScratch.clear();
+    vorVertexScratch.clear();
+    delaunayFacetScratch.clear();
+
     Delaunay::Cell_circulator cc = dt.incident_cells(ed);
     Delaunay::Cell_circulator start = cc;
-    std::vector<int> facetVertices;
     int finite_cell_count = 0;
     do
     {
@@ -361,7 +367,7 @@ static bool build_facet_from_edge(
             // Only include vertices where the Voronoi vertex is defined (>= 0)
             if (vertex_index >= 0)
             {
-                facetVertices.push_back(vertex_index);
+                facetVerticesScratch.push_back(vertex_index);
                 ++finite_cell_count;
             }
         }
@@ -369,7 +375,7 @@ static bool build_facet_from_edge(
     } while (cc != start);
 
     // Check for degenerate facet: need at least 3 Voronoi vertices
-    if (facetVertices.size() < 3)
+    if (facetVerticesScratch.size() < 3)
     {
         if (debug)
         {
@@ -381,11 +387,11 @@ static bool build_facet_from_edge(
     }
 
     // Check for degenerate facet: need at least 3 unique Voronoi vertices
-    std::unordered_set<int> unique_vertices;
-    unique_vertices.reserve(facetVertices.size());
-    for (int idx : facetVertices)
-        unique_vertices.insert(idx);
-    if (unique_vertices.size() < 3)
+    {
+        std::vector<int> uniqueCheck = facetVerticesScratch;
+        std::sort(uniqueCheck.begin(), uniqueCheck.end());
+        uniqueCheck.erase(std::unique(uniqueCheck.begin(), uniqueCheck.end()), uniqueCheck.end());
+        if (uniqueCheck.size() < 3)
     {
         if (debug)
         {
@@ -395,8 +401,9 @@ static bool build_facet_from_edge(
         outFacet.cellEdgeIndices.clear();
         return false;
     }
+    }
 
-    outFacet.verticesIndices = std::move(facetVertices);
+    outFacet.verticesIndices = std::move(facetVerticesScratch);
 
     // Single-pass iteration using stored facet_info indices
     outFacet.cellEdgeIndices.clear();
@@ -405,10 +412,8 @@ static bool build_facet_from_edge(
 
     // Build parallel arrays of Voronoi vertices and their corresponding Delaunay facets
     // in a single pass through the facet circulator
-    std::vector<int> vorVertexIndices;
-    std::vector<Facet> delaunayFacets;
-    vorVertexIndices.reserve(n);
-    delaunayFacets.reserve(n);
+    vorVertexScratch.reserve(n);
+    delaunayFacetScratch.reserve(n);
 
     Delaunay::Facet_circulator delFacet_circ = dt.incident_facets(ed);
     Delaunay::Facet_circulator delFacet_start = delFacet_circ;
@@ -421,8 +426,8 @@ static bool build_facet_from_edge(
             // Only include facets where the dual Voronoi vertex is defined (>= 0)
             if (vor_vertex_index >= 0)
             {
-                vorVertexIndices.push_back(vor_vertex_index);
-                delaunayFacets.push_back(*delFacet_circ);
+                vorVertexScratch.push_back(vor_vertex_index);
+                delaunayFacetScratch.push_back(*delFacet_circ);
             }
         }
         ++delFacet_circ;
@@ -436,11 +441,11 @@ static bool build_facet_from_edge(
 
         // Find the Delaunay facet corresponding to Voronoi vertex 'a'
         bool found = false;
-        for (size_t m = 0; m < vorVertexIndices.size(); ++m)
+        for (size_t m = 0; m < vorVertexScratch.size(); ++m)
         {
-            if (vorVertexIndices[m] == a)
+            if (vorVertexScratch[m] == a)
             {
-                const Facet &delFacet = delaunayFacets[m];
+                const Facet &delFacet = delaunayFacetScratch[m];
                 // Get the cell edge index directly from stored facet_info
                 const int dual_cell_edge_index = get_dual_cell_edge_index(delFacet, v1, v2);
                 outFacet.cellEdgeIndices.push_back(dual_cell_edge_index);
@@ -507,7 +512,10 @@ static void process_incident_edges(
     Vertex_handle delaunay_vertex,
     VoronoiDiagram &voronoiDiagram,
     VoronoiCell &vc,
-    std::vector<int> &vor_facet_dual_to_edge)
+    std::vector<int> &vor_facet_dual_to_edge,
+    std::vector<int> &facetVerticesScratch,
+    std::vector<int> &vorVertexScratch,
+    std::vector<Facet> &delaunayFacetScratch)
 {
     std::vector<Edge> incidentEdges;
     incidentEdges.reserve(32);
@@ -516,7 +524,7 @@ static void process_incident_edges(
     for (const Edge &ed : incidentEdges)
     {
         VoronoiCellFacet facet;
-        bool ok = build_facet_from_edge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facetIndices, vor_facet_dual_to_edge, vc.cellIndex, facet);
+        bool ok = build_facet_from_edge(dt, ed, delaunay_vertex, voronoiDiagram, vc.facetIndices, vor_facet_dual_to_edge, vc.cellIndex, facet, facetVerticesScratch, vorVertexScratch, delaunayFacetScratch);
         if (!ok)
         {
             if (debug)
@@ -928,6 +936,14 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
     // -1 means no facet yet created for this edge
     std::vector<int> vor_facet_dual_to_edge(num_del_edges, -1);
 
+    // Reusable scratch buffers to reduce allocations inside facet construction
+    std::vector<int> facetVerticesScratch;
+    std::vector<int> vorVertexScratch;
+    std::vector<Facet> delaunayFacetScratch;
+    facetVerticesScratch.reserve(32);
+    vorVertexScratch.reserve(32);
+    delaunayFacetScratch.reserve(32);
+
     voronoiDiagram.cells.reserve(dt.number_of_vertices());
     int cellIndex = 0;
 
@@ -939,7 +955,8 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
 
         VoronoiCell vc = create_voronoi_cell(v, cellIndex);
         collect_cell_vertices(dt, v, voronoiDiagram, vc.verticesIndices);
-        process_incident_edges(dt, v, voronoiDiagram, vc, vor_facet_dual_to_edge);
+        process_incident_edges(dt, v, voronoiDiagram, vc, vor_facet_dual_to_edge,
+                               facetVerticesScratch, vorVertexScratch, delaunayFacetScratch);
 
         if (vc.facetIndices.size() < 4)
         {
