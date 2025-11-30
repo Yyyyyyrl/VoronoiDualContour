@@ -125,9 +125,21 @@ struct CellInfo
     int dualVoronoiVertexIndex;     //!< Index of the Voronoi vertex dual to this cell
     int index;                      //!< Unique index of this cell in the triangulation
     DelaunayFacetInfo facet_info[4]; //!< Information for each of the 4 facets of this cell
+    int edge_index[4][4];           //!< Global Delaunay edge indices: edge_index[i][j] is the
+                                    //!< index of the edge (vertex i, vertex j). edge_index[i][i] is undefined.
 
     //! @brief Constructor to initialize CellInfo with default values
-    CellInfo() : dualVoronoiVertexIndex(-1), index(-1) {}
+    CellInfo() : dualVoronoiVertexIndex(-1), index(-1)
+    {
+        // Initialize edge_index to -1 (undefined)
+        for (int i = 0; i < 4; ++i)
+        {
+            for (int j = 0; j < 4; ++j)
+            {
+                edge_index[i][j] = -1;
+            }
+        }
+    }
 
     //! @brief Return the index (0, 1, 2, or 3) of the k'th vertex of facet facet_index
     /*!
