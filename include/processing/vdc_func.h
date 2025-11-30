@@ -235,11 +235,12 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VdcParam &vdc_param, UnifiedG
 void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param, IsoSurface &iso_surface, UnifiedGrid &grid, std::vector<Point> &activeCubeCenters, std::vector<Point> &activeCubeAccurateIsoCrossingPoints, CGAL::Epick::Iso_cuboid_3 &bbox, const std::vector<int> *vertex_mapping = nullptr, int *out_interior_flips = nullptr, int *out_boundary_flips = nullptr, int *out_total_flips = nullptr, std::size_t *out_clipped_count = nullptr, double *out_max_clip_distance = nullptr);
 
 
-// Helper function declarations (internal linkage)
+// Helper function declarations
 //! @brief Generates a Delaunay triangle based on orientation and cell finiteness.
 /*!
  * Adds a triangle to the dualTriangles vector, adjusting vertex order based on
  * the orientation and whether the cell is infinite.
+ * Used by both single and multi-isovertex code.
  *
  * @param p1 Handle to first vertex of the triangle
  * @param p2 Handle to second vertex of the triangle
@@ -248,68 +249,10 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param
  * @param isInfinite Flag indicating if the cell is infinite.
  * @param dualTriangles Vector to store the generated triangles.
  */
-static void generate_triangle(const Vertex_handle &p1, const Vertex_handle &p2, const Vertex_handle &p3, int iOrient, bool isInfinite, std::vector<DelaunayTriangle> &dualTriangles);
+void generate_triangle(const Vertex_handle &p1, const Vertex_handle &p2, const Vertex_handle &p3, int iOrient, bool isInfinite, std::vector<DelaunayTriangle> &dualTriangles);
 
-//! @brief Processes a segment edge for dual triangle computation.
-/*!
- * Checks if the segment is bipolar and generates triangles for each associated
- * Delaunay facet.
- *
- * @param edge Voronoi edge to process
- * @param vd Voronoi diagram containing edge data
- * @param isovalue The isovalue for bipolarity check
- * @param dt Delaunay triangulation for facet lookup
- * @param dualTriangles Output vector for generated triangles
- */
-static void process_segment_edge(
-    VoronoiEdge &edge,
-    VoronoiDiagram &vd,
-    float isovalue,
-    Delaunay &dt,
-    std::vector<DelaunayTriangle> &dualTriangles);
-
-//! @brief Processes a ray edge for dual triangle computation.
-/*!
- * Intersects the ray with the bounding box, checks bipolarity, and generates
- * triangles for associated Delaunay facets.
- *
- * @param edge The CGAL object representing the edge.
- * @param bbox The bounding box for intersection.
- * @param grid The scalar grid for interpolation.
- * @param isovalue The isovalue for bipolarity check.
- * @param dt The Delaunay triangulation.
- * @param dualTriangles Vector to store generated triangles.
- */
-static void process_ray_edge(
-    VoronoiEdge &edge,
-    VoronoiDiagram &vd,
-    CGAL::Epick::Iso_cuboid_3 &bbox,
-    UnifiedGrid &grid,
-    float isovalue,
-    Delaunay &dt,
-    std::vector<DelaunayTriangle> &dualTriangles);
-
-//! @brief Processes a line edge for dual triangle computation.
-/*!
- * Intersects the line with the bounding box, checks bipolarity, and generates
- * triangles for associated Delaunay facets.
- *
- * @param line The line edge to process.
- * @param edge The CGAL object representing the edge.
- * @param grid The scalar grid for interpolation.
- * @param isovalue The isovalue for bipolarity check.
- * @param bbox The bounding box for intersection.
- * @param dt The Delaunay triangulation.
- * @param dualTriangles Vector to store generated triangles.
- */
-static void process_line_edge(
-    const Line3 &line,
-    VoronoiEdge &edge,
-    UnifiedGrid &grid,
-    float isovalue,
-    CGAL::Epick::Iso_cuboid_3 &bbox,
-    Delaunay &dt,
-    std::vector<DelaunayTriangle> &dualTriangles);
+// Single-isovertex helper functions (process_segment_edge, process_ray_edge, process_line_edge)
+// are now private to vdc_func_isosurface_single.cpp
 
 //! @brief Generates a triangle for the multi-isovertex case.
 /*!
