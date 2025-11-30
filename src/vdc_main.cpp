@@ -145,16 +145,22 @@ int main(int argc, char *argv[])
     collapseSmallEdges(vd, collapse_eps, bbox, dt, vertex_mapping, vd2);
 
     // Re-validate and normalize facet orientations on the collapsed diagram
-    timer.startTimer("Post-collapse facet validation", "5. Collapse Small Edges");
-    validate_facet_orientations_and_normals(vd2);
-    timer.stopTimer("Post-collapse facet validation", "5. Collapse Small Edges");
+    if (!vdc_param.no_check)
+    {
+        timer.startTimer("Post-collapse facet validation", "5. Collapse Small Edges");
+        validate_facet_orientations_and_normals(vd2);
+        timer.stopTimer("Post-collapse facet validation", "5. Collapse Small Edges");
+    }
 
     // Rebuilt cellEdges already have per-edge rings; no per-cell anchors needed.
     timer.stopTimer("5. Collapse Small Edges", "Total Processing");
 
-    timer.startTimer("6. Post-collapse Validation", "Total Processing");
-    vd2.check(true);
-    timer.stopTimer("6. Post-collapse Validation", "Total Processing");
+    if (!vdc_param.no_check)
+    {
+        timer.startTimer("6. Post-collapse Validation", "Total Processing");
+        vd2.check(true);
+        timer.stopTimer("6. Post-collapse Validation", "Total Processing");
+    }
 
     if (indicator)
     {

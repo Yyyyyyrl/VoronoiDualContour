@@ -34,6 +34,7 @@ struct VdcParam {
     bool refine_small_angles = false; //!< Guard: enable facet-centric surface refinement
     bool refine_min_angle_enabled = false; //!< Guard: enable min-angle-driven refinement
     bool refine_max_angle_enabled = false; //!< Guard: enable max-angle-driven refinement
+    bool no_check = false;             //!< Guard: skip VoronoiDiagram validity checks (faster but less safe)
 
     int supersample_r;             //!< Factor by which the input data is supersampled.
     double collapse_eps;           //!< Absolute collapse threshold in world units (optional).
@@ -100,6 +101,7 @@ struct VdcParam {
         out << "  Summary stats: " << (summary_stats ? "true" : "false") << "\n";
         out << "  Timing stats: " << (timing_stats ? "true" : "false") << "\n";
         out << "  Check bipolar max: " << (check_bipolar_max ? "true" : "false") << "\n";
+        out << "  No check: " << (no_check ? "true" : "false") << "\n";
         out << "  Supersample r: " << supersample_r << "\n";
         out << "  Collapse eps: " << collapse_eps << "\n";
         out << "  Refine small angles: " << (refine_small_angles ? "true" : "false") << "\n";

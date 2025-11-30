@@ -1389,7 +1389,10 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VdcParam &vdc_param, UnifiedG
         timer.stopTimer("Create global facets", "4. Voronoi Diagram Construction");
     }
 
-    timer.startTimer("VD initial check", "4. Voronoi Diagram Construction");
-    vd.check(false);
-    timer.stopTimer("VD initial check", "4. Voronoi Diagram Construction");
+    if (!vdc_param.no_check)
+    {
+        timer.startTimer("VD initial check", "4. Voronoi Diagram Construction");
+        vd.check(false);
+        timer.stopTimer("VD initial check", "4. Voronoi Diagram Construction");
+    }
 }
