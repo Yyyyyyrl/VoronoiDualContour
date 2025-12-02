@@ -1466,9 +1466,7 @@ void construct_voronoi_diagram(VoronoiDiagram &vd, VdcParam &vdc_param, UnifiedG
         construct_voronoi_cell_edges(vd, bbox, dt);
         timer.stopTimer("Construct cell edges", "4. Voronoi Diagram Construction");
 
-        timer.startTimer("Create global facets", "4. Voronoi Diagram Construction");
-        vd.create_global_facets();
-        timer.stopTimer("Create global facets", "4. Voronoi Diagram Construction");
+        // Global facets are rebuilt after small-edge collapse; skip here to avoid duplicate work.
     }
 
     if (!vdc_param.no_check)
