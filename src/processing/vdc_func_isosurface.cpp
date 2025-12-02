@@ -1536,6 +1536,7 @@ static void collect_midpoints(
                     node.point = midpoint;
                     node.facet_index = facet_index;
                     node.cycle_index = -1;
+                    node.is_bipolar = true;
                     node.global_edge_index = globalEdgeIndex;
 
                     midpoints.push_back(node);
