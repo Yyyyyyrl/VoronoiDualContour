@@ -207,7 +207,7 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
     // Normalize separation parameters
     if (vp.sep_dist < 0) vp.sep_dist = 0;
     if (vp.sep_split < 0) vp.sep_split = 0;
-    vp.sep = sep_requested || (vp.sep_dist > 0 || vp.sep_split > 0);
+    vp.sep = sep_requested || (vp.sep_dist > 1 || vp.sep_split > 0);
 
     // Generate default output filename if not specified.
     if (vp.output_filename.empty())
