@@ -386,23 +386,6 @@ static bool build_facet_from_edge(
         return false;
     }
 
-    // Check for degenerate facet: need at least 3 unique Voronoi vertices
-    {
-        std::vector<int> uniqueCheck = facetVerticesScratch;
-        std::sort(uniqueCheck.begin(), uniqueCheck.end());
-        uniqueCheck.erase(std::unique(uniqueCheck.begin(), uniqueCheck.end()), uniqueCheck.end());
-        if (uniqueCheck.size() < 3)
-    {
-        if (debug)
-        {
-            std::cout << "[DEBUG] Degenerate facet for edge with " << finite_cell_count << " finite cells (duplicate vertices)\n";
-        }
-        outFacet.verticesIndices.clear();
-        outFacet.cellEdgeIndices.clear();
-        return false;
-    }
-    }
-
     outFacet.verticesIndices = std::move(facetVerticesScratch);
 
     // Single-pass iteration using stored facet_info indices

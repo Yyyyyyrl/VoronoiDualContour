@@ -3,6 +3,8 @@ build/
 build-clang/
 build-gcc/
 cmake-build-*/
+.claude/
+data/
 
 # Compiled Object files
 *.o
