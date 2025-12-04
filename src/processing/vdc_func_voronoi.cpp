@@ -1007,9 +1007,6 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
         }
     }
     timer.stopTimer("Build Voronoi cells", "Construct Voronoi cells");
-
-    // Mirror facet linking is now done inline in build_facet_from_edge()
-    // No need for final loop over EdgeFacetMap
 }
 
 
