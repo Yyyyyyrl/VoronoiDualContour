@@ -404,7 +404,6 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
     vd2.cell_facets.clear();
     vd2.surface_facets.clear();
     vd2.cellEdges.clear();
-    const double D2 = D * D; // squared distances
 
     const int nV = static_cast<int>(input_vd.vertices.size());
     const int nE = static_cast<int>(input_vd.edges.size());
@@ -427,7 +426,7 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
             continue;
         const Point &a = input_vd.vertices[e.vertex1].coord;
         const Point &b = input_vd.vertices[e.vertex2].coord;
-        if (squaredDist(a, b) < D2)
+        if (squaredDist(a, b) < D)
         {
             dsu.unite(e.vertex1, e.vertex2); // collapse this short edge
         }
