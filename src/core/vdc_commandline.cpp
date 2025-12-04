@@ -20,6 +20,7 @@ void print_help()
     std::cout << "  -multi_isov                 : Use multi iso-vertices mode (default).\n";
     std::cout << "  -single_isov                : Use single iso-vertices mode.\n";
     std::cout << "  -no_clip                    : Disable centroid clipping for multi-cycle iso-vertices.\n";
+    std::cout << "  -position_delv_on_isov      : Position Delaunay vertices on isosurface vertices instead of cube iso-crossings.\n";
     std::cout << "  -conv_H                     : Use the Convex_Hull_3 from CGAL in voronoi cell construction.\n";
     std::cout << "  -non_modcyc                 : Disable modify-cycles pass (enabled by default).\n";
     std::cout << "  -refine_small_angles        : Enable angle-based refinement (defaults to max-angle 120 if no thresholds given).\n";
@@ -115,6 +116,10 @@ void parse_arguments(int argc, char *argv[], VdcParam &vp)
         else if (arg == "-no_clip")
         {
             vp.noclip = true; // Disable centroid clipping in multi-cycle cases.
+        }
+        else if (arg == "-position_delv_on_isov")
+        {
+            vp.position_delv_on_isov = true; // Place Delaunay vertices at isosurface vertex locations.
         }
         else if (arg == "-help")
         {

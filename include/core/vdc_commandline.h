@@ -27,6 +27,7 @@ struct VdcParam {
     bool add_bounding_cells;       //!< Flag to include bounding cells in the Voronoi diagram.
     bool convex_hull;              //!< Flag to enable convex hull computation in building voronoi cells
     bool test_vor = false;         //!< Flag for testing the Voronoi diagram construction
+    bool position_delv_on_isov = false; //!< Flag to position Delaunay vertices on isosurface vertices
     bool mod_cyc = false;          //!< Guard: run modify-cycles pass (facet rematching + cycle recompute)
     bool summary_stats = false;    //!< Guard: print summary statistics at the end of the run
     bool timing_stats = false;     //!< Guard: print timing statistics at the end of the run
@@ -61,6 +62,7 @@ struct VdcParam {
           supersample(false),
           add_bounding_cells(false),
           convex_hull(false),
+          position_delv_on_isov(false),
           supersample_r(1),
           collapse_eps(-1.0),
           sep_dist(1),
@@ -98,6 +100,7 @@ struct VdcParam {
         out << "  Convex hull: " << (convex_hull ? "true" : "false") << "\n";
         out << "  Test vor: " << (test_vor ? "true" : "false") << "\n";
         out << "  Mod cyc: " << (mod_cyc ? "true" : "false") << "\n";
+        out << "  Position DelV on IsoV: " << (position_delv_on_isov ? "true" : "false") << "\n";
         out << "  Summary stats: " << (summary_stats ? "true" : "false") << "\n";
         out << "  Timing stats: " << (timing_stats ? "true" : "false") << "\n";
         out << "  Check bipolar max: " << (check_bipolar_max ? "true" : "false") << "\n";

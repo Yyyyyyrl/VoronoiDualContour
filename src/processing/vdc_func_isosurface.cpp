@@ -23,6 +23,7 @@ static bool ISO_DBG_ONLY_ERRORS = false;
 static bool ISO_DBG_ENABLED = true; // set via ISO_DBG_LOAD_ENV(), tied to global 'debug'
 static bool ISO_SEP_ISOV_SUBGRID_ACTIVE = false;
 static double ISO_SUPERSAMPLE_RATIO = 1.0;
+static bool ISO_POSITION_DELV_ON_ISOV = false;
 static bool ISO_DEBUG_DUMP_ENABLED = false;
 static std::string ISO_DEBUG_DUMP_PREFIX;
 
@@ -1819,7 +1820,14 @@ static void compute_cycle_centroids_and_isovertices(
         if (accurate_crossing != nullptr && cycles.size() == 1)
         {
             // Single cycle: use accurate iso-crossing directly
-            cycle.isovertex = *accurate_crossing;
+            if (!ISO_POSITION_DELV_ON_ISOV)
+            {
+                cycle.isovertex = *accurate_crossing;
+            }
+            else if (cube_side_length > 0.0f && vc.delaunayVertex != nullptr)
+            {
+                cycle.isovertex = vc.delaunayVertex->point();
+            }
         }
         else if (cycles.size() > 1 && cube_side_length > 0.0f && !disable_cycle_clipping)
         {
@@ -1969,6 +1977,7 @@ void construct_iso_surface(Delaunay &dt, VoronoiDiagram &vd, VdcParam &vdc_param
     ISO_DEBUG_INIT_DUMP();
     ISO_SEP_ISOV_SUBGRID_ACTIVE = vdc_param.sep && vdc_param.sep_split > 0;
     ISO_SUPERSAMPLE_RATIO = (vdc_param.supersample && vdc_param.supersample_r > 0) ? static_cast<double>(vdc_param.supersample_r) : 1.0;
+    ISO_POSITION_DELV_ON_ISOV = vdc_param.position_delv_on_isov;
     if (ISO_DBG_ENABLED)
     {
         std::cerr << "[ISO] Debug filters: CELL=" << ISO_DBG_FOCUS_CELL << " GFACET=" << ISO_DBG_FOCUS_GFACET << " EDGE=" << ISO_DBG_FOCUS_EDGE << " ONLY_ERRORS=" << (ISO_DBG_ONLY_ERRORS ? "1" : "0") << "\n";
