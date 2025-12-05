@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
     // Collapse threshold: use CLI value if provided; otherwise scale to grid spacing (1% of min spacing)
     double collapse_eps = (vdc_param.collapse_eps > 0.0)
                               ? vdc_param.collapse_eps
-                              : std::min({data_grid.physical_spacing[0], data_grid.physical_spacing[1], data_grid.physical_spacing[2]}) * 0.01;
+                              : std::min({data_grid.physical_spacing[0], data_grid.physical_spacing[1], data_grid.physical_spacing[2]}) * 1e-5;
     if (vdc_param.collapse_eps <= 0.0) {
         // Persist the resolved default so downstream stages and logs can see it.
         vdc_param.collapse_eps = collapse_eps;
