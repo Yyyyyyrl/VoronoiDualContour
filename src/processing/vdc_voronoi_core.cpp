@@ -852,7 +852,6 @@ void VoronoiDiagram::checkPairedFacetOrientations() const
             for (int v : kv.first) oss << v << " ";
             throw std::runtime_error(oss.str());
         }
-        // fvec.size()==1 is fine (boundary facet)
     }
 }
 
