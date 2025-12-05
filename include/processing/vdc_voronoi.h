@@ -364,12 +364,16 @@ struct VoronoiCell
     int isoVertexStartIndex;           //!< Starting index of isosurface vertices associated with this cell.
     int numIsoVertices;                //!< Number of isosurface vertices in this cell.
 
+    //! @brief Default constructor to allow resize/allocation without a handle.
+    VoronoiCell()
+        : delaunayVertex(), cellIndex(-1), isoVertexStartIndex(-1), numIsoVertices(0) {}
+
     //! @brief Constructor to initialize a Voronoi cell.
     /*!
      * @param vh Handle to the corresponding Delaunay vertex.
      */
     VoronoiCell(Vertex_handle vh)
-        : delaunayVertex(vh), isoVertexStartIndex(-1), numIsoVertices(0) {}
+        : delaunayVertex(vh), cellIndex(-1), isoVertexStartIndex(-1), numIsoVertices(0) {}
 
     //! @brief Print Voronoi cell information for debugging
     template <typename OSTREAM_TYPE>

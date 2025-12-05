@@ -220,19 +220,25 @@ void construct_voronoi_cells_as_convex_hull(VoronoiDiagram &voronoiDiagram, Dela
     }
 }
 
-//! @brief Creates a Voronoi cell for a Delaunay vertex.
+//! @brief Initializes a Voronoi cell for a Delaunay vertex.
 /*!
- * Initializes a Voronoi cell with the given cell index and Delaunay vertex handle.
+ * Resets all fields in the target Voronoi cell and assigns the owning
+ * Delaunay vertex along with the requested cell index.
  *
+ * @param vc Voronoi cell to initialize.
  * @param delaunay_vertex The Delaunay vertex to create the cell for.
  * @param cellIndex The index to assign to the cell.
- * @return The initialized Voronoi cell.
  */
-static VoronoiCell create_voronoi_cell(Vertex_handle delaunay_vertex, int cellIndex)
+static void create_voronoi_cell(VoronoiCell &vc, Vertex_handle delaunay_vertex, int cellIndex)
 {
-    VoronoiCell vc(delaunay_vertex);
+    vc.delaunayVertex = delaunay_vertex;
     vc.cellIndex = cellIndex;
-    return vc;
+    vc.verticesIndices.clear();
+    vc.facetIndices.clear();
+    vc.polyhedron.clear();
+    vc.cycles.clear();
+    vc.isoVertexStartIndex = -1;
+    vc.numIsoVertices = 0;
 }
 
 //! @brief Collects unique vertex indices from incident cells.
@@ -452,6 +458,7 @@ static bool build_facet_from_edge(
 
     // Append to diagram only after fully building facet (avoid partial copies)
     int facetIndex = (int)voronoiDiagram.cell_facets.size();
+    //TODO: Replace voronoiDiagram.cell_facets.push_back(outFacet). (Note: voronoiDiagram.cell_facets.push_back(std::move(outFacet)) will not help. push_back() is still copying the vector.) Copying one vector to another is an expensive operation. Instead you should be adding an entry to voronoiDiagram.cell_facets (voronoiDiagram.cell_facets.push_back()) and then passing voronoiDiagram.cell_facets[i] to a routine that sets the vertices in the cell_facet. If, for some reason, the facet does not exist (has too few vertices), return some flag, and execute voronoiDiagram.cell_facets.pop(). You also want to avoid creating facetVerticesScratch() and then using std::move. Note: The only reason std::move works here is because both facetVerticesScratch and outFacet are local variables. std::move will cause a segmentation fault if you try to do std::move with voronoiDiagram.cell_facets[i].
     voronoiDiagram.cell_facets.push_back(outFacet);
     facet_indices.push_back(facetIndex);
 
@@ -964,7 +971,8 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
     vorVertexScratch.reserve(32);
     delaunayFacetScratch.reserve(32);
 
-    voronoiDiagram.cells.reserve(dt.number_of_vertices());
+    voronoiDiagram.cells.clear();
+    voronoiDiagram.cells.resize(dt.number_of_vertices());
     int cellIndex = 0;
 
     timer.startTimer("Build Voronoi cells", "Construct Voronoi cells");
@@ -973,7 +981,8 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
         if (v->info().is_dummy)
             continue;
 
-        VoronoiCell vc = create_voronoi_cell(v, cellIndex);
+        VoronoiCell &vc = voronoiDiagram.cells[cellIndex];
+        create_voronoi_cell(vc, v, cellIndex);
         collect_cell_vertices(dt, v, voronoiDiagram, vc.verticesIndices);
         process_incident_edges(dt, v, voronoiDiagram, vc, vor_facet_dual_to_edge,
                                facetVerticesScratch, vorVertexScratch, delaunayFacetScratch);
@@ -984,11 +993,11 @@ void construct_voronoi_cells_from_delaunay_triangulation(VoronoiDiagram &voronoi
         }
         else
         {
-            voronoiDiagram.cells.push_back(std::move(vc));
             v->info().voronoiCellIndex = cellIndex;
             cellIndex++;
         }
     }
+    voronoiDiagram.cells.resize(cellIndex);
     timer.stopTimer("Build Voronoi cells", "Construct Voronoi cells");
 }
 
