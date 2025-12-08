@@ -99,6 +99,67 @@ namespace
         }
     }
 
+    // Rebuild mirror_facet_index links by grouping facets with identical vertex sets.
+    void rebuild_mirror_facet_indices(VoronoiDiagram &vd)
+    {
+        struct FacetKeyHash
+        {
+            size_t operator()(const std::vector<int> &key) const noexcept
+            {
+                size_t h = key.size();
+                for (int v : key)
+                {
+                    h ^= static_cast<size_t>(static_cast<uint64_t>(v) + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2));
+                }
+                return h;
+            }
+        };
+
+        // Reset links
+        for (auto &cf : vd.cell_facets)
+            cf.mirror_facet_index = -1;
+
+        std::unordered_map<std::vector<int>, std::vector<int>, FacetKeyHash> keyToFacets;
+        keyToFacets.reserve(vd.cell_facets.size() * 2 + 1);
+
+        // Cache canonical keys
+        auto make_key = [](const std::vector<int> &verts) {
+            if (verts.size() < 3)
+                throw std::invalid_argument("rebuild_mirror_facet_indices: facet must have at least 3 vertices.");
+            std::vector<int> key = verts;
+            std::sort(key.begin(), key.end());
+            key.erase(std::unique(key.begin(), key.end()), key.end());
+            if (key.size() < 3)
+                throw std::runtime_error("rebuild_mirror_facet_indices: facet has fewer than 3 unique vertices after dedup.");
+            return key;
+        };
+        std::vector<std::vector<int>> facetKeys;
+        facetKeys.reserve(vd.cell_facets.size());
+        for (const auto &cf : vd.cell_facets)
+            facetKeys.push_back(make_key(cf.verticesIndices));
+
+        for (size_t fi = 0; fi < vd.cell_facets.size(); ++fi)
+            keyToFacets[facetKeys[fi]].push_back(static_cast<int>(fi));
+
+        for (const auto &kv : keyToFacets)
+        {
+            const auto &vec = kv.second;
+            if (vec.size() == 2)
+            {
+                vd.cell_facets[vec[0]].mirror_facet_index = vec[1];
+                vd.cell_facets[vec[1]].mirror_facet_index = vec[0];
+            }
+            else if (vec.size() > 2)
+            {
+                std::ostringstream oss;
+                oss << "Facet key appears in >2 cells after collapse (count=" << vec.size() << "). Vertices: ";
+                for (int v : kv.first)
+                    oss << v << " ";
+                throw std::runtime_error(oss.str());
+            }
+        }
+    }
+
 
     // Make per-cell facet orientations consistent:
     //  1) Within each cell, ensure two facets sharing an edge traverse that edge in opposite directions.
@@ -798,6 +859,7 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
         fix_cell_facets_orientation_and_outwardness(vd2, &cellDirty);
         rebuild_cell_facet_edge_indices(vd2, &cellDirty);
     }
+    rebuild_mirror_facet_indices(vd2);
     timer.stopTimer("Fix facet orientations", "5. Collapse Small Edges");
 
     timer.startTimer("Create global facets", "5. Collapse Small Edges");
