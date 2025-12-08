@@ -857,9 +857,21 @@ void collapseSmallEdges(const VoronoiDiagram &input_vd,
     {
         force_outward_per_facet(vd2, &cellDirty);
         fix_cell_facets_orientation_and_outwardness(vd2, &cellDirty);
-        rebuild_cell_facet_edge_indices(vd2, &cellDirty);
     }
     rebuild_mirror_facet_indices(vd2);
+
+    // Collapse can leave mirror facets with identical winding when small, low-area faces
+    // make the local outward test inconclusive. Re-run the global orientation propagation
+    // before building surface facets to guarantee opposite orientations.
+    if (dirtyCount > 0)
+    {
+        timer.startTimer("Revalidate orientations", "Fix facet orientations");
+        validate_facet_orientations_and_normals(vd2);
+        timer.stopTimer("Revalidate orientations", "Fix facet orientations");
+    }
+
+    // Orientation fixes (above) may flip facet windings; refresh edge associations afterwards.
+    rebuild_cell_facet_edge_indices(vd2);
     timer.stopTimer("Fix facet orientations", "5. Collapse Small Edges");
 
     timer.startTimer("Create global facets", "5. Collapse Small Edges");
